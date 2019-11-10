@@ -13,7 +13,7 @@
 """
 Welcome to CARLA No-Rendering Mode Visualizer
 
-    TAB          : toggle hero mode
+    F3          : toggle hero mode
     Mouse Wheel  : zoom in / zoom out
     Mouse Drag   : move map (map mode only)
 
@@ -71,12 +71,13 @@ try:
     from pygame.locals import K_DOWN
     from pygame.locals import K_ESCAPE
     from pygame.locals import K_F1
+    from pygame.locals import K_F2
     from pygame.locals import K_LEFT
     from pygame.locals import K_PERIOD
     from pygame.locals import K_RIGHT
     from pygame.locals import K_SLASH
     from pygame.locals import K_SPACE
-    from pygame.locals import K_TAB
+    from pygame.locals import K_F3
     from pygame.locals import K_UP
     from pygame.locals import K_a
     from pygame.locals import K_d
@@ -864,7 +865,7 @@ class World(object):
             self.client.set_timeout(self.timeout)
 
             if self.args.map is None:
-                world = self.client.get_world()
+                world = self.client.load_world('Town07')
             else:
                 world = self.client.load_world(self.args.map)
 
@@ -878,8 +879,9 @@ class World(object):
 
     def start(self, hud, input_control):
         self.world, self.town_map = self._get_data_from_carla()
-
+        # Disable rendering and make sim run at fixed tiemsteps
         settings = self.world.get_settings()
+        settings.fixed_delta_seconds = 0.05
         settings.no_rendering_mode = True
         self.world.apply_settings(settings)
 
@@ -923,10 +925,10 @@ class World(object):
         self.result_surface.set_colorkey(COLOR_BLACK)
 
         # Start hero mode by default
-        #self.select_hero_actor()
-        #self.hero_actor.set_autopilot(False)
-        #self._input.wheel_offset = HERO_DEFAULT_SCALE
-        #self._input.control = carla.VehicleControl()
+        # self.select_hero_actor()
+        # self.hero_actor.set_autopilot(False)
+        # self._input.wheel_offset = HERO_DEFAULT_SCALE
+        # self._input.control = carla.VehicleControl()
 
         weak_self = weakref.ref(self)
         self.world.on_tick(lambda timestamp: World.on_world_tick(weak_self, timestamp))
@@ -990,7 +992,10 @@ class World(object):
                 'Hero Speed:          %3d km/h' % hero_speed_text,
                 'Hero Affected by:',
                 '  Traffic Light: %12s' % affected_traffic_light_text,
-                '  Speed Limit:       %3d km/h' % affected_speed_limit_text
+                '  Speed Limit:       %3d km/h' % affected_speed_limit_text,
+                'Hero Pose:',
+                '  Location(x,y,z): %d,%d,%d' %(self.hero_actor.get_location().x,self.hero_actor.get_location().y,self.hero_actor.get_location().z), 
+                '  Rotation(angle): %12d' % self.hero_actor.get_transform().rotation.yaw
             ]
         else:
             hero_mode_text = ['Hero Mode:                OFF']
@@ -1320,7 +1325,7 @@ class InputControl(object):
                     exit_game()
                 elif event.key == K_h or (event.key == K_SLASH and pygame.key.get_mods() & KMOD_SHIFT):
                     self._hud.help.toggle()
-                elif event.key == K_TAB:
+                elif event.key == K_F3:
                     if self._world.hero_actor is None:
                         self._world.select_hero_actor()
                         self.wheel_offset = HERO_DEFAULT_SCALE
@@ -1335,6 +1340,10 @@ class InputControl(object):
                         self._hud.notification('Map Mode')
                 elif event.key == K_F1:
                     self._hud.show_info = not self._hud.show_info
+                # Added key to destroy hero vehicle
+                elif event.key == K_F2:
+                    if self.spawned_hero is not None:
+                        self.spawned_hero.destroy()
                 elif event.key == K_i:
                     self._hud.show_actor_ids = not self._hud.show_actor_ids
                 elif isinstance(self.control, carla.VehicleControl):
