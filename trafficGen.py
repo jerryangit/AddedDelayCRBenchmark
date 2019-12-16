@@ -31,7 +31,6 @@ random.seed(27)
 scenario = 1
 
 ## Create data folder
-
 if not os.path.exists('./data'):
     os.makedirs('./data')
 
@@ -93,93 +92,52 @@ def main():
         westSpawn = carla.Transform(carla.Location(x=-185, y=-33.7, z=0.3), carla.Rotation(yaw=0))
         spwnLoc = [intersection,northSpawn,eastSpawn,southSpawn,westSpawn]
 
-        
-
-        while i < totalVehicle and iw < waves:
-            # TODO: Think about tickrate for control and simulation
+        notComplete = 1
+        while notComplete: 
             if syncmode == 1: 
                 world.tick()
                 tick = world.get_snapshot()
             else:
                 tick = world.wait_for_tick()
             ts = tick.timestamp
+            ## Spawn Vehicles code (TODO separate class or function)
+            if i < totalVehicle and iw < waves:              
+                if False:
+                    bp = random.choice(blueprint_library.filter('vehicle'))
+                else:
+                    bp = blueprint_library.find('vehicle.audi.a2')
 
-            if False:
-                bp = random.choice(blueprint_library.filter('vehicle'))
-            else:
-                bp = blueprint_library.find('vehicle.audi.a2')
-
-            if scenario == 0:
-                spwn = world.try_spawn_actor(bp, spwnLoc[spwnRand[i]])
-                if spwn is not None:
-                    actor_list.append(spwn)
-                    # spwn.set_autopilot()
-                    spwnTime.append(ts.elapsed_seconds-ts0s)
-                    print('[%d] created %s at %d with id %d' % (i,spwn.type_id,spwnRand[i],spwn.id))
-                    i += 1
-                # Loop to destroy vehicles which are far away enough
-                for actor in actor_list:
-                    if actor.get_location().distance(carla.Location(x=-150, y=-35, z=0.3)) > 38 and actor.get_location().distance(carla.Location(x=0, y=0, z=0)) > 5:
-                        print(actor.id,' left the area at ', round(actor.get_location().x,2),round(actor.get_location().y,2),round(actor.get_location().z,2))
-                        destTime.append(ts.elapsed_seconds-ts0s)
-                        actor_list.remove(actor)
-                        actor.destroy() 
-
-            if scenario == 1:
-                k = 1
-                while k <= 4:
-                    spwn = world.try_spawn_actor(bp, spwnLoc[k])
+                if scenario == 0:
+                    spwn = world.try_spawn_actor(bp, spwnLoc[spwnRand[i]])
                     if spwn is not None:
                         actor_list.append(spwn)
+                        # spwn.set_autopilot()
                         spwnTime.append(ts.elapsed_seconds-ts0s)
                         print('[%d] created %s at %d with id %d' % (i,spwn.type_id,spwnRand[i],spwn.id))
-                        k += 1
-                iw += 1
+                        i += 1
 
-
-                for actor in actor_list:
-                    if actor.get_location().distance(carla.Location(x=-150, y=-35, z=0.3)) > 38 and actor.get_location().distance(carla.Location(x=0, y=0, z=0)) > 5:
-                        print(actor.id,' left the area at ', round(actor.get_location().x,2),round(actor.get_location().y,2),round(actor.get_location().z,2))
-                        destTime.append(ts.elapsed_seconds-ts0s)
-                        actor_list.remove(actor)
-                        actor.destroy()
-
-
-            # Loop to communicate information
-            for actor in actor_list:
-                pass
-            # Loop to apply vehicle control
-            map = world.get_map()
-            j = 0
-            for actor in actor_list:
-                # Apply desired control function (control should be simple, precompute common info)
-                # para = 0 # make class where para contains useful info
-                w = map.get_waypoint(actor.get_location())
-                info = ac.info(j,w,actor_list)
-                ac.simpleControl(actor,info)
-                j += 1
-
-
-
-        # Destroy remaining actors after generation has finished
-        while  len(actor_list) > 0:
-            if syncmode == 1: 
-                world.tick()
-                tick = world.get_snapshot()
-            else:
-                tick = world.wait_for_tick()
-            ts = tick.timestamp
+                if scenario == 1:
+                    k = 1
+                    while k <= 4:
+                        spwn = world.try_spawn_actor(bp, spwnLoc[k])
+                        if spwn is not None:
+                            actor_list.append(spwn)
+                            spwnTime.append(ts.elapsed_seconds-ts0s)
+                            print('[%d] created %s at %d with id %d' % (i,spwn.type_id,spwnRand[i],spwn.id))
+                            k += 1
+                    iw += 1
+            ## Destroy Vehicles code (TODO separate class or function)
             for actor in actor_list:
                 if actor.get_location().distance(carla.Location(x=-150, y=-35, z=0.3)) > 38 and actor.get_location().distance(carla.Location(x=0, y=0, z=0)) > 5:
                     print(actor.id,' left the area at ', round(actor.get_location().x,2),round(actor.get_location().y,2),round(actor.get_location().z,2))
                     destTime.append(ts.elapsed_seconds-ts0s)
                     actor_list.remove(actor)
-                    actor.destroy() 
+                    actor.destroy()
 
-            # Loop to communicate information
+            # Loop to communicate information (TODO separate class or function)
             for actor in actor_list:
                 pass
-            # Loop to apply vehicle control
+            # Loop to apply vehicle control (TODO separate class or function)
             map = world.get_map()
             j = 0
             for actor in actor_list:
@@ -189,12 +147,6 @@ def main():
                 info = ac.info(j,w,actor_list)
                 ac.simpleControl(actor,info)
                 j += 1
-        
-        # print('spwnRand:',spwnRand)
-        # print('destRand:',destRand)
-        # print('spwnTime:',spwnTime)
-        # print('destTime:',destTime)
-
 
     finally:
         # Save lists as csv
