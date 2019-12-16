@@ -881,8 +881,9 @@ class World(object):
         self.world, self.town_map = self._get_data_from_carla()
         # Disable rendering and make sim run at fixed tiemsteps
         settings = self.world.get_settings()
-        settings.fixed_delta_seconds = 0.05
+        settings.fixed_delta_seconds = 0.1
         settings.no_rendering_mode = True
+        settings.synchronous_mode = True
         self.world.apply_settings(settings)
 
         # Create Surfaces

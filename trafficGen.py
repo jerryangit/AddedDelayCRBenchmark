@@ -4,7 +4,7 @@
 #
 # This work is licensed under the terms of the MIT license.
 # For a copy, see <https://opensource.org/licenses/MIT>.
-
+import actorControl as ac
 import glob
 import os
 import sys
@@ -21,7 +21,15 @@ except IndexError:
 import carla
 import random
 import time
+import numpy as np
+# Customizable stats
+syncmode = 1
+waves = 1 
 random.seed(27)
+# occupied by another object, the function will return None.
+# 0 is random, 1 is 4 simultaneous
+scenario = 1
+
 ## Create data folder
 
 if not os.path.exists('./data'):
@@ -30,11 +38,11 @@ if not os.path.exists('./data'):
 def main():
     # CONFIG
     maxVehicle = 30
-    totalVehicle = 10
+    totalVehicle = 100
     
     # Initialize values
     i = 0
-
+    iw = 0
     # spwnRand = random.randint(1,4)
     # destRand = random.randint(1,4)
     # Change randint if not 4 way cross road
@@ -52,7 +60,12 @@ def main():
 
         # Retrieve world
         world = client.get_world()
-        tick0 = world.wait_for_tick()
+        if syncmode == 1: 
+            world.tick()
+            tick0 = world.get_snapshot()
+        else:
+            tick0 = world.wait_for_tick()
+            
         ts0 = tick0.timestamp
         ts0s = tick0.timestamp.elapsed_seconds
         # Retrive blueprints
@@ -82,38 +95,100 @@ def main():
 
         
 
-        while i < totalVehicle:
-            tick = world.wait_for_tick()
+        while i < totalVehicle and iw < waves:
+            # TODO: Think about tickrate for control and simulation
+            if syncmode == 1: 
+                world.tick()
+                tick = world.get_snapshot()
+            else:
+                tick = world.wait_for_tick()
             ts = tick.timestamp
+
             if False:
                 bp = random.choice(blueprint_library.filter('vehicle'))
             else:
                 bp = blueprint_library.find('vehicle.audi.a2')
 
-            # occupied by another object, the function will return None.
-            
-            spwn = world.try_spawn_actor(bp, spwnLoc[spwnRand[i]])
+            if scenario == 0:
+                spwn = world.try_spawn_actor(bp, spwnLoc[spwnRand[i]])
+                if spwn is not None:
+                    actor_list.append(spwn)
+                    # spwn.set_autopilot()
+                    spwnTime.append(ts.elapsed_seconds-ts0s)
+                    print('[%d] created %s at %d with id %d' % (i,spwn.type_id,spwnRand[i],spwn.id))
+                    i += 1
+                # Loop to destroy vehicles which are far away enough
+                for actor in actor_list:
+                    if actor.get_location().distance(carla.Location(x=-150, y=-35, z=0.3)) > 38 and actor.get_location().distance(carla.Location(x=0, y=0, z=0)) > 5:
+                        print(actor.id,' left the area at ', round(actor.get_location().x,2),round(actor.get_location().y,2),round(actor.get_location().z,2))
+                        destTime.append(ts.elapsed_seconds-ts0s)
+                        actor_list.remove(actor)
+                        actor.destroy() 
 
-            if spwn is not None:
-                actor_list.append(spwn)
-                spwn.set_autopilot()
-                spwnTime.append(ts.elapsed_seconds-ts0s)
-                print('[%d] created %s at %d with id %d' % (i,spwn.type_id,spwnRand[i],spwn.id))
-                i += 1
+            if scenario == 1:
+                k = 1
+                while k <= 4:
+                    spwn = world.try_spawn_actor(bp, spwnLoc[k])
+                    if spwn is not None:
+                        actor_list.append(spwn)
+                        spwnTime.append(ts.elapsed_seconds-ts0s)
+                        print('[%d] created %s at %d with id %d' % (i,spwn.type_id,spwnRand[i],spwn.id))
+                        k += 1
+                iw += 1
+
+
+                for actor in actor_list:
+                    if actor.get_location().distance(carla.Location(x=-150, y=-35, z=0.3)) > 38 and actor.get_location().distance(carla.Location(x=0, y=0, z=0)) > 5:
+                        print(actor.id,' left the area at ', round(actor.get_location().x,2),round(actor.get_location().y,2),round(actor.get_location().z,2))
+                        destTime.append(ts.elapsed_seconds-ts0s)
+                        actor_list.remove(actor)
+                        actor.destroy()
+
+
+            # Loop to communicate information
             for actor in actor_list:
-                
-                if actor.get_location().distance(carla.Location(x=-150, y=-35, z=0.3)) > 38 and actor.get_location().distance(carla.Location(x=0, y=0, z=0)) > 5:
-                    print(actor.id,' left the area at ', round(actor.get_location().x,2),round(actor.get_location().y,2),round(actor.get_location().z,2))
-                    destTime.append(ts.elapsed_seconds-ts0s)
-                    actor_list.remove(actor)
-                    actor.destroy()             
+                pass
+            # Loop to apply vehicle control
+            map = world.get_map()
+            j = 0
+            for actor in actor_list:
+                # Apply desired control function (control should be simple, precompute common info)
+                # para = 0 # make class where para contains useful info
+                w = map.get_waypoint(actor.get_location())
+                info = ac.info(j,w,actor_list)
+                ac.simpleControl(actor,info)
+                j += 1
+
+
+
+        # Destroy remaining actors after generation has finished
         while  len(actor_list) > 0:
+            if syncmode == 1: 
+                world.tick()
+                tick = world.get_snapshot()
+            else:
+                tick = world.wait_for_tick()
+            ts = tick.timestamp
             for actor in actor_list:
                 if actor.get_location().distance(carla.Location(x=-150, y=-35, z=0.3)) > 38 and actor.get_location().distance(carla.Location(x=0, y=0, z=0)) > 5:
                     print(actor.id,' left the area at ', round(actor.get_location().x,2),round(actor.get_location().y,2),round(actor.get_location().z,2))
                     destTime.append(ts.elapsed_seconds-ts0s)
                     actor_list.remove(actor)
                     actor.destroy() 
+
+            # Loop to communicate information
+            for actor in actor_list:
+                pass
+            # Loop to apply vehicle control
+            map = world.get_map()
+            j = 0
+            for actor in actor_list:
+                # Apply desired control function (control should be simple, precompute common info)
+                # para = 0 # make class where para contains useful info
+                w = map.get_waypoint(actor.get_location())
+                info = ac.info(j,w,actor_list)
+                ac.simpleControl(actor,info)
+                j += 1
         
         # print('spwnRand:',spwnRand)
         # print('destRand:',destRand)
@@ -136,6 +211,8 @@ def main():
         for actor in actor_list:
             actor.destroy()
         print('done.')
+        world.tick()
+
 
 
 if __name__ == '__main__':
