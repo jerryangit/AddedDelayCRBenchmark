@@ -25,9 +25,9 @@ class info:
 
 def simpleControl(ego,info): 
 
-    velocityPID(ego,5)
+    velocityPID(ego,8.33)
 
-    cd = ah.coneDetect(ego,radius=6,angle=0.3*np.pi,actorSamples=5)
+    cd = ah.coneDetect(ego,radius=6,angle=0.175*np.pi,actorSamples=5)
     j = 0
     for actor in info.actor_list:
         if j != info.index and carla.Location.distance ( ego.get_location() , actor.get_location() ) < 10 : 

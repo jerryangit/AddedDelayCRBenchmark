@@ -22,26 +22,25 @@ import carla
 import random
 import time
 import numpy as np
-# Customizable stats
-syncmode = 1
-waves = 1 
-random.seed(27)
-# occupied by another object, the function will return None.
-# 0 is random, 1 is 4 simultaneous
-scenario = 1
 
 ## Create data folder
 if not os.path.exists('./data'):
     os.makedirs('./data')
 
 def main():
-    # CONFIG
-    maxVehicle = 30
-    totalVehicle = 100
+    ###############################################
+    # Config
+    ###############################################  
+    syncmode = 1        # Whether ticks are synced
+    random.seed(27)     # Random seed
+    maxVehicle = 5     # Max simultaneous vehicle
+    totalVehicle = 12   # Total vehicles for entire simulation
+    scenario = 0        # 0 is random 1/tick, 1 is 4/tick all roads (Ensure totalVehicle is a multiple of 4 if scenario is 1)
     
+    ###############################################
     # Initialize values
+    ###############################################  
     i = 0
-    iw = 0
     # spwnRand = random.randint(1,4)
     # destRand = random.randint(1,4)
     # Change randint if not 4 way cross road
@@ -86,10 +85,10 @@ def main():
 
         # Map Locations, spwnLoc contains loc, 0= intersec, 1 = N, 2 = E, 3 = S, 4 = W.
         intersection = carla.Transform(carla.Location(x=-150, y=-35, z=0.3), carla.Rotation(yaw=180))
-        northSpawn = carla.Transform(carla.Location(x=-151.3, y=-70, z=0.3), carla.Rotation(yaw=90))
+        northSpawn = carla.Transform(carla.Location(x=-151.8, y=-70, z=0.3), carla.Rotation(yaw=90))
         eastSpawn = carla.Transform(carla.Location(x=-115, y=-37, z=0.3), carla.Rotation(yaw=-180))
-        southSpawn = carla.Transform(carla.Location(x=-149, y=0, z=0.3), carla.Rotation(yaw=-90))
-        westSpawn = carla.Transform(carla.Location(x=-185, y=-33.7, z=0.3), carla.Rotation(yaw=0))
+        southSpawn = carla.Transform(carla.Location(x=-148.5, y=0, z=0.3), carla.Rotation(yaw=-90))
+        westSpawn = carla.Transform(carla.Location(x=-185, y=-33.3, z=0.3), carla.Rotation(yaw=0))
         spwnLoc = [intersection,northSpawn,eastSpawn,southSpawn,westSpawn]
 
         notComplete = 1
@@ -101,7 +100,7 @@ def main():
                 tick = world.wait_for_tick()
             ts = tick.timestamp
             ## Spawn Vehicles code (TODO separate class or function)
-            if i < totalVehicle and iw < waves:              
+            if i < totalVehicle and len(actor_list) <= maxVehicle:
                 if False:
                     bp = random.choice(blueprint_library.filter('vehicle'))
                 else:
@@ -124,8 +123,9 @@ def main():
                             actor_list.append(spwn)
                             spwnTime.append(ts.elapsed_seconds-ts0s)
                             print('[%d] created %s at %d with id %d' % (i,spwn.type_id,spwnRand[i],spwn.id))
-                            k += 1
-                    iw += 1
+                            i += 1
+                        k += 1
+
             ## Destroy Vehicles code (TODO separate class or function)
             for actor in actor_list:
                 if actor.get_location().distance(carla.Location(x=-150, y=-35, z=0.3)) > 38 and actor.get_location().distance(carla.Location(x=0, y=0, z=0)) > 5:
@@ -147,6 +147,9 @@ def main():
                 info = ac.info(j,w,actor_list)
                 ac.simpleControl(actor,info)
                 j += 1
+            if i >= totalVehicle and len(actor_list) == 0:
+                notComplete = 0
+
 
     finally:
         # Save lists as csv
