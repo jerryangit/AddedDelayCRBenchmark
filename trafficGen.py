@@ -5,6 +5,8 @@
 # This work is licensed under the terms of the MIT license.
 # For a copy, see <https://opensource.org/licenses/MIT>.
 import actorControl as ac
+import actorHelper as ah
+import conflictResolution as cr
 import glob
 import os
 import sys
@@ -91,6 +93,9 @@ def main():
         westSpawn = carla.Transform(carla.Location(x=-185, y=-33.3, z=0.3), carla.Rotation(yaw=0))
         spwnLoc = [intersection,northSpawn,eastSpawn,southSpawn,westSpawn]
 
+        msg_obj = ah.msgInterface()
+        map = world.get_map()
+        cr_obj = cr.conflictResolution("TEP")
         notComplete = 1
         while notComplete: 
             if syncmode == 1: 
@@ -99,6 +104,7 @@ def main():
             else:
                 tick = world.wait_for_tick()
             ts = tick.timestamp
+
             ## Spawn Vehicles code (TODO separate class or function)
             if i < totalVehicle and len(actor_list) <= maxVehicle:
                 if False:
@@ -111,6 +117,7 @@ def main():
                     if spwn is not None:
                         actor_list.append(spwn)
                         # spwn.set_autopilot()
+                        msg_obj.inbox[spwn.id] = []
                         spwnTime.append(ts.elapsed_seconds-ts0s)
                         print('[%d] created %s at %d with id %d' % (i,spwn.type_id,spwnRand[i],spwn.id))
                         i += 1
@@ -134,19 +141,28 @@ def main():
                     actor_list.remove(actor)
                     actor.destroy()
 
+            # Feed world info to classes and functions streamlined
+            info = ah.worldInfo(world,actor_list)
+
             # Loop to communicate information (TODO separate class or function)
+            # <<
             for actor in actor_list:
-                pass
-            # Loop to apply vehicle control (TODO separate class or function)
-            map = world.get_map()
+                msg_obj.receive(actor)
+                cr_obj.resolve(actor,msg_obj.inbox[actor.id],info) 
+            # >>
+
+            # Loop to apply vehicle control (TODO separate class or function) 
+            # <<
+
             j = 0
             for actor in actor_list:
                 # Apply desired control function (control should be simple, precompute common info)
                 # para = 0 # make class where para contains useful info
-                w = map.get_waypoint(actor.get_location())
-                info = ac.info(j,w,actor_list)
                 ac.simpleControl(actor,info)
                 j += 1
+            # >>
+
+            # End the loop (TODO Integrate in while loop if useless)
             if i >= totalVehicle and len(actor_list) == 0:
                 notComplete = 0
 

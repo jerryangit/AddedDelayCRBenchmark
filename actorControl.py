@@ -1,4 +1,11 @@
+#!/usr/bin/env python
+
+# Copyright (c) 2019 Jerry An
+#
+# This work is licensed under the terms of the MIT license.
+# For a copy, see <https://opensource.org/licenses/MIT>.
 import actorHelper as ah
+import conflictDetection as cd
 import glob
 import os
 import sys
@@ -16,26 +23,17 @@ import carla
 import random
 import numpy as np
 
-class info:
-     def __init__(self, index, waypoints,actor_list):
-        self.index = index
-        self.waypoints = waypoints
-        self.actor_list = actor_list
-
-
 def simpleControl(ego,info): 
-
     velocityPID(ego,8.33)
-
-    cd = ah.coneDetect(ego,radius=6,angle=0.175*np.pi,actorSamples=5)
-    j = 0
+    conDec = cd.coneDetect(ego,radius=6,angle=0.175*np.pi,actorSamples=5)
     for actor in info.actor_list:
-        if j != info.index and carla.Location.distance ( ego.get_location() , actor.get_location() ) < 10 : 
-            if cd.coneDetect(actor):
+        if ego.id != actor.id and carla.Location.distance ( ego.get_location() , actor.get_location() ) < 10 : 
+            if conDec.coneDetect(actor):
                 ego.apply_control(carla.VehicleControl(throttle=0.0, steer=0.0,brake = 1.0))
                 print(ego.id,' has to Emergency Break because of  ', actor.id)
-        j += 1        
+      
 
+#                w = map.get_waypoint(actor.get_location())
 
 
 def velocityPID(ego,vref):
