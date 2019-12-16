@@ -128,6 +128,7 @@ def main():
                         spwn = world.try_spawn_actor(bp, spwnLoc[k])
                         if spwn is not None:
                             actor_list.append(spwn)
+                            msg_obj.inbox[spwn.id] = []
                             spwnTime.append(ts.elapsed_seconds-ts0s)
                             print('[%d] created %s at %d with id %d' % (i,spwn.type_id,spwnRand[i],spwn.id))
                             i += 1
@@ -148,12 +149,12 @@ def main():
             # <<
             for actor in actor_list:
                 msg_obj.receive(actor)
-                cr_obj.resolve(actor,msg_obj.inbox[actor.id],info) 
+                cr_obj.resolve(actor,msg_obj,info) 
             # >>
+
 
             # Loop to apply vehicle control (TODO separate class or function) 
             # <<
-
             j = 0
             for actor in actor_list:
                 # Apply desired control function (control should be simple, precompute common info)

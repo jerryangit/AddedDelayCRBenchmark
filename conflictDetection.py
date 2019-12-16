@@ -45,6 +45,9 @@ class timeSlot:
             return 1
         return 0 
 
+    def getSlots(self,ego,bounds):
+        vEgo = ego.get_velocity()
+
 
 class coneDetect:
     def __init__(self,ego,radius=2.5,angle=0.33*np.pi,actorSamples=5):
@@ -69,6 +72,7 @@ class coneDetect:
                  return 1           
         return 0
     def genSamples(self,actor):
+        # TODO integrate some of these into helper functions
         # Determine lenght of bbox in x and y directions
         xLength = actor.bounding_box.extent.x * 2
         yLength = actor.bounding_box.extent.y * 2
@@ -102,8 +106,4 @@ class coneDetect:
         # Move sample array to global coordinate frame
         smpArr = smpArr + [ actor.get_location().x , actor.get_location().y ]
         return smpArr
-
-
-
-
 

@@ -29,6 +29,22 @@ class worldInfo:
         self.world = world
         self.actor_list = actor_list
 
+class actorInfo:
+    def __init__(self,info={}):
+        self.dict = info
+    def addKey(self,key,value):
+        self.dict[key] = value
+    def addApp(self,key,value):
+        self.dict[key].append(value)
+
+class vehicleModel:
+    def __init__(self,ego):
+        pass
+    def predictPath(self):
+        pass
+
+        
+
 class info:
      def __init__(self, index, waypoints,actor_list):
         self.index = index

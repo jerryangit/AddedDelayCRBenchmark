@@ -22,36 +22,34 @@ import carla
 import numpy as np
 
 class msg:
-    def __init__(self,mtype,content,):
+    def __init__(self,mtype="N/A",content={}):
         self.mtype = mtype
         self.content = content
-
-
-
+    
 class conflictResolution:
-    def __init__(self,protocol):
-        self.protocol = protocol
-
-    def resolve(self,ego,inbox,info):
-        self.switch(self.protocol,ego,inbox,info)
+    def __init__(self,method,ego,para=[]):
+        self.method = method
+        self.para = para
+        self.obj = self.switchCreate(method,ego,para)
   
-    def switch(self,arg,ego,inbox,info):
+    def switchCreate(self,arg,ego,para):
         cases = {
-            "TEP": self.TEP,
-            "FCFS": self.FCFS,
+            "TEP": TEP,
+            "FCFS": FCFS,
         }
         fnc = cases.get(arg,"No valid method found")
-        fnc(ego,inbox,info)
+        return fnc(ego,*para)
 
-    def TEP(self,ego,inbox,info):
-        cd_obj = cd.conflictDetection("timeSlot",0).obj
-        for msg in inbox:
-            if msg.mtype == "STOP":
-                cd_obj.detect([])
-            
-        
-    def FCFS(self):
+class TEP:
+    def __init__(self):
         pass
+    def resolve(self,ego,msg_obj,info):
+        cd_obj = cd.conflictDetection("timeSlot",0).obj
+        for msg in msg_obj.inbox:
+            if msg.mtype == "STOP":
+                # cd_obj.detect(A0,A1,B0,B1)
+                pass
 
-
-
+class FCFS:
+    def __init__(self): 
+        pass
