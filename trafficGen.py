@@ -35,10 +35,10 @@ def main():
     ###############################################  
     syncmode = 1        # Whether ticks are synced
     random.seed(27)     # Random seed
-    maxVehicle = 5     # Max simultaneous vehicle
+    maxVehicle = 5      # Max simultaneous vehicle
     totalVehicle = 12   # Total vehicles for entire simulation
     scenario = 0        # 0 is random 1/tick, 1 is 4/tick all roads (Ensure totalVehicle is a multiple of 4 if scenario is 1)
-    
+    cr_method = "TEP"    # Which conflict resolution method is used
     ###############################################
     # Initialize values
     ###############################################  
@@ -94,8 +94,8 @@ def main():
         spwnLoc = [intersection,northSpawn,eastSpawn,southSpawn,westSpawn]
 
         msg_obj = ah.msgInterface()
-        map = world.get_map()
-        cr_obj = cr.conflictResolution("TEP")
+        # map = world.get_map()
+        cr_obj = cr.conflictResolution(cr_method)
         notComplete = 1
         while notComplete: 
             if syncmode == 1: 

@@ -19,6 +19,31 @@ except IndexError:
 import carla
 import numpy as np
 
+class conflictDetection:
+    def __init__(self,method,ego,para=[]):
+        self.method = method
+        self.para = para
+        self.obj = self.switchCreate(method,ego,para)
+ 
+    def switchCreate(self,arg,ego,para):
+        cases = {
+            "coneDetect": coneDetect,
+            "timeSlot": timeSlot,
+        }
+        fnc = cases.get(arg,"No valid method found")
+        return fnc(ego,*para)
+
+class timeSlot:
+    def __init__(self,error=0):
+        self.error = error
+
+    def detect(self,A0,A1,B0,B1): 
+        # slot is a list with [0], being the start of the slot and [1] being the end of the slot
+        if A1 > B0 + self.error and A0 < B1 - self.error:
+            return 1
+        if B1 > A0 + self.error and B0 < A1 - self.error:
+            return 1
+        return 0 
 
 
 class coneDetect:
@@ -31,7 +56,7 @@ class coneDetect:
         self.angle = angle
         # Sets amount of interpolating samples per 2 sides, actual amount is 2x to enforce symmetry 
         self.actorSamples = actorSamples
-    def coneDetect(self,actor):
+    def detect(self,actor):
         smpArr = self.genSamples(actor)
         for i in range(smpArr.shape[0]):
             # relative vector from ego vehicle to sample
@@ -82,15 +107,3 @@ class coneDetect:
 
 
 
-
-### Velocity based col detect 
-# T_ij = F_j.location - F_i.location
-# v_i =  self.get_velocity()
-# v_j = actor.get_velocity()
-# v_ij = v_i - v_j
-# dT1_ij = T_ij-v_ij*rt
-# rdiff = np.linalg.norm(np.array([dT1_ij.x,dT1_ij.y,dT1_ij.z]))
-# if rdiff <= 5 and np.absolute((F_i.rotation.yaw/180)*np.pi - np.arctan2(T_ij.y,T_ij.x)) < 0.5 * np.pi:
-    # self.apply_control(carla.VehicleControl(throttle=0.0, steer=0.0,brake = 1.0))
-# if rdiff <= 5 and np.absolute((F_i.rotation.yaw/180)*np.pi - np.arctan2(T_ij.y,T_ij.x)) > 0.5 * np.pi:
-    # self.apply_control(carla.VehicleControl(throttle=1.0, steer=0.0,brake = 0.0))
