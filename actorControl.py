@@ -30,10 +30,7 @@ def simpleControl(ego,worldX):
         if ego.id != actor.id and carla.Location.distance ( ego.get_location() , actor.get_location() ) < 12 : 
             if cd_obj.detect(actor):
                 ego.apply_control(carla.VehicleControl(throttle=0.0, steer=0.0,brake = 1.0))
-                print(ego.id,' has to Emergency Break because of  ', actor.id)
-      
-
-
+                # print(ego.id,' has to Emergency Break because of  ', actor.id)
 
 def velocityPID(ego,vref):
     v = np.linalg.norm([ego.get_velocity().x,ego.get_velocity().y])

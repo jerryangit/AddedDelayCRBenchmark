@@ -13,6 +13,7 @@ import os
 import sys
 import csv
 import datetime
+# Adds carla PythonAPI to path
 try:
     sys.path.append(glob.glob('../carla/dist/carla-*%d.5-%s.egg' % (
         sys.version_info.major,
@@ -21,7 +22,16 @@ try:
 except IndexError:
     pass
 
+# Adds carla/agents module to path
+try:
+    sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))) + '/carla')
+except IndexError:
+    pass
+
 import carla
+from agents.navigation.global_route_planner_dao import GlobalRoutePlannerDAO
+from agents.navigation.global_route_planner import GlobalRoutePlanner
+
 import random
 import time
 import numpy as np
@@ -34,11 +44,11 @@ def main():
     ###############################################
     # Config
     ###############################################  
-    syncmode = 1        # Whether ticks are synced
-    random.seed(27)     # Random seed
-    maxVehicle = 5      # Max simultaneous vehicle
-    totalVehicle = 12   # Total vehicles for entire simulation
-    scenario = 0        # 0 is random 1/tick, 1 is 4/tick all roads (Ensure totalVehicle is a multiple of 4 if scenario is 1)
+    syncmode = 1         # Whether ticks are synced
+    random.seed(27)      # Random seed
+    maxVehicle = 20      # Max simultaneous vehicle
+    totalVehicle = 40    # Total vehicles for entire simulation
+    scenario = 1         # 0 is random 1/tick, 1 is 4/tick all roads (Ensure totalVehicle is a multiple of 4 if scenario is 1)
     cr_method = "TEP"    # Which conflict resolution method is used
     ###############################################
     # Initialize values
@@ -65,9 +75,18 @@ def main():
             tick0 = world.get_snapshot()
         else:
             tick0 = world.wait_for_tick()
-            
         ts0 = tick0.timestamp
         ts0s = tick0.timestamp.elapsed_seconds
+        # ! Clear previous actors if present
+        for actor in world.get_actors().filter("vehicle.*"):
+            actor.destroy()
+
+        # get map and establish grp
+        map = world.get_map()
+        hop_resolution = 0.5
+        dao = GlobalRoutePlannerDAO(map, hop_resolution)
+        grp = GlobalRoutePlanner(dao)
+        grp.setup()
         # Retrive blueprints
         blueprint_library = world.get_blueprint_library()
 
@@ -105,9 +124,9 @@ def main():
         worldX_obj = ah.worldX(world)
         actorDict_obj = ah.actorDict()
         #>>
-        #######################################
-        # << Main Loop >>
-        #######################################
+        
+        #*  << Main Loop >>
+        
         notComplete = 1
         while notComplete: 
             if syncmode == 1: 
@@ -118,14 +137,12 @@ def main():
             ts = tick.timestamp
             dt = ts.delta_seconds
             
-
-            ## Spawn Vehicles code (TODO separate class or function)
+            # TODO Spawn Vehicles code ( separate class or function)
             if i < totalVehicle and len(actorDict_obj.actor_list) <= maxVehicle:
                 if False:
                     bp = random.choice(blueprint_library.filter('vehicle'))
                 else:
                     bp = blueprint_library.find('vehicle.audi.a2')
-
                 if scenario == 0:
                     spwn = world.try_spawn_actor(bp, spwnLoc[spwnRand[i]])
                     if spwn is not None:
@@ -133,18 +150,8 @@ def main():
                         # spwn.set_autopilot()
                         msgIF_obj.inbox[spwn.id] = []
                         spwnX = ah.actorX(spwn,0,dt,exitLoc[destRand[i]])
-
-                        # path = pp_obj.plan("discretePaths",spwnX)
-                        # spwnX.updatePath(path)
-                        # map = world.get_map()
-                        # hop_resolution = 0.5
-                        # dao = carla.GlobalRoutePlannerDAO(map, hop_resolution)
-                        # grp = carla.GlobalRoutePlanner(dao)
-                        # grp.setup()
-                        # route = grp.trace_route(spwnX.ego.get_location(),carla.Location(spwnX.dest[0],spwnX.dest[1],0.3))
-
-                        
-
+                        route = grp.trace_route(spwnX.ego.get_location(),spwnX.dest.location)
+                        spwnX.updatePath(route)
                         actorDict_obj.addKey = (spwn.id,spwnX)
                         spwnTime.append(ts.elapsed_seconds-ts0s)
                         print('[%d] created %s at %d with id %d' % (i,spwn.type_id,spwnRand[i],spwn.id))
@@ -158,15 +165,16 @@ def main():
                             actorDict_obj.actor_list.append(spwn)
                             msgIF_obj.inbox[spwn.id] = []
                             spwnX = ah.actorX(spwn,0,dt,exitLoc[destRand[i]])
-                            path = pp_obj.plan("discretePaths",spwnX)
-                            spwnX.updatePath(path)
+                            route = grp.trace_route(spwnX.ego.get_location(),spwnX.dest.location)
+                            spwnX.updatePath(route)
                             actorDict_obj.addKey = (spwn.id,spwnX)
-                            spwnTime.append(ts.elapsed_seconds-ts0s)
+                            spwnTime.append(ts.elapsed_seconds-ts0s)                            
                             print('[%d] created %s at %d with id %d' % (i,spwn.type_id,spwnRand[i],spwn.id))
                             i += 1
                         k += 1
 
-            ## Destroy Vehicles code (TODO separate class or function)
+            #* Destroy Vehicles code 
+            # TODO separate class or function
             for actor in actorDict_obj.actor_list:
                 if actor.get_location().distance(carla.Location(x=-150, y=-35, z=0.3)) > 38 and actor.get_location().distance(carla.Location(x=0, y=0, z=0)) > 5:
                     print(actor.id,' left the area at ', round(actor.get_location().x,2),round(actor.get_location().y,2),round(actor.get_location().z,2))
@@ -177,7 +185,8 @@ def main():
             # Feed world info to classes and functions streamlined
             worldX_obj.update(actorDict_obj)
 
-            # Loop to communicate information (TODO separate class or function)
+            #* Loop to communicate information 
+            # TODO separate class or function)
             # <<
             for actor in actorDict_obj.actor_list:
                 msgIF_obj.receive(actor)
@@ -185,7 +194,7 @@ def main():
             # >>
 
 
-            # Loop to apply vehicle control (TODO separate class or function) 
+            #* Loop to apply vehicle control (TODO separate class or function) 
             # <<
             j = 0
             for actor in actorDict_obj.actor_list:
@@ -195,7 +204,8 @@ def main():
                 j += 1
             # >>
 
-            # End the loop (TODO Integrate in while loop if useless)
+            #* End the loop 
+            # TODO Integrate in while loop if useless
             if i >= totalVehicle and len(actorDict_obj.actor_list) == 0:
                 notComplete = 0
 
