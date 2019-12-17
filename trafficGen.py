@@ -6,7 +6,7 @@
 # For a copy, see <https://opensource.org/licenses/MIT>.
 import actorControl as ac
 import actorHelper as ah
-import pathPlanner as pp
+# import pathPlanner as pp
 import conflictResolution as cr
 import glob
 import os
@@ -14,9 +14,9 @@ import sys
 import csv
 import datetime
 try:
-    sys.path.append(glob.glob('../carla/dist/carla-*%d.%d-%s.egg' % (
+    sys.path.append(glob.glob('../carla/dist/carla-*%d.5-%s.egg' % (
         sys.version_info.major,
-        sys.version_info.minor,
+        # sys.version_info.minor,
         'win-amd64' if os.name == 'nt' else 'linux-x86_64'))[0])
 except IndexError:
     pass
@@ -86,13 +86,18 @@ def main():
 
         # Integrate into map object?
         # Map Locations, spwnLoc contains loc, 0= intersec, 1 = N, 2 = E, 3 = S, 4 = W.
-        intersection = carla.Transform(carla.Location(x=-150, y=-35, z=0.3), carla.Rotation(yaw=180))
-        northSpawn = carla.Transform(carla.Location(x=-151.8, y=-70, z=0.3), carla.Rotation(yaw=90))
-        eastSpawn = carla.Transform(carla.Location(x=-115, y=-37, z=0.3), carla.Rotation(yaw=-180))
-        southSpawn = carla.Transform(carla.Location(x=-148.5, y=0, z=0.3), carla.Rotation(yaw=-90))
-        westSpawn = carla.Transform(carla.Location(x=-185, y=-33.3, z=0.3), carla.Rotation(yaw=0))
+        intersection = carla.Transform(carla.Location(x=-150.0, y=-35.0, z=0.3), carla.Rotation(yaw=180))
+        northSpawn = carla.Transform(carla.Location(x=-151.8, y=-70.0, z=0.3), carla.Rotation(yaw=90))
+        eastSpawn = carla.Transform(carla.Location(x=-115.0, y=-37.0, z=0.3), carla.Rotation(yaw=-180))
+        southSpawn = carla.Transform(carla.Location(x=-148.5, y=0.0, z=0.3), carla.Rotation(yaw=-90))
+        westSpawn = carla.Transform(carla.Location(x=-185.0, y=-33.3, z=0.3), carla.Rotation(yaw=0))
         spwnLoc = [intersection,northSpawn,eastSpawn,southSpawn,westSpawn]
         
+        northExit = carla.Transform(carla.Location(x=-148.5, y=-70.0, z=0.3), carla.Rotation(yaw=-90))
+        eastExit = carla.Transform(carla.Location(x=-115.0, y=-33.3, z=0.3), carla.Rotation(yaw=0))
+        southExit = carla.Transform(carla.Location(x=-151.8, y=0.0, z=0.3), carla.Rotation(yaw=90))
+        westExit = carla.Transform(carla.Location(x=-185.0, y=-37.0, z=0.3), carla.Rotation(yaw=-180))
+        exitLoc = [intersection,northExit,eastExit,southExit,westExit]
 
         # Create Objects to use in loop
         #<<
@@ -127,7 +132,20 @@ def main():
                         actorDict_obj.actor_list.append(spwn)
                         # spwn.set_autopilot()
                         msgIF_obj.inbox[spwn.id] = []
-                        actorDict_obj.addKey = (spwn.id,ah.actorX(spwn,0,dt))
+                        spwnX = ah.actorX(spwn,0,dt,exitLoc[destRand[i]])
+
+                        # path = pp_obj.plan("discretePaths",spwnX)
+                        # spwnX.updatePath(path)
+                        # map = world.get_map()
+                        # hop_resolution = 0.5
+                        # dao = carla.GlobalRoutePlannerDAO(map, hop_resolution)
+                        # grp = carla.GlobalRoutePlanner(dao)
+                        # grp.setup()
+                        # route = grp.trace_route(spwnX.ego.get_location(),carla.Location(spwnX.dest[0],spwnX.dest[1],0.3))
+
+                        
+
+                        actorDict_obj.addKey = (spwn.id,spwnX)
                         spwnTime.append(ts.elapsed_seconds-ts0s)
                         print('[%d] created %s at %d with id %d' % (i,spwn.type_id,spwnRand[i],spwn.id))
                         i += 1
@@ -139,7 +157,10 @@ def main():
                         if spwn is not None:
                             actorDict_obj.actor_list.append(spwn)
                             msgIF_obj.inbox[spwn.id] = []
-                            actorDict_obj.addKey = (spwn.id,ah.actorX(spwn,0,dt))
+                            spwnX = ah.actorX(spwn,0,dt,exitLoc[destRand[i]])
+                            path = pp_obj.plan("discretePaths",spwnX)
+                            spwnX.updatePath(path)
+                            actorDict_obj.addKey = (spwn.id,spwnX)
                             spwnTime.append(ts.elapsed_seconds-ts0s)
                             print('[%d] created %s at %d with id %d' % (i,spwn.type_id,spwnRand[i],spwn.id))
                             i += 1
@@ -184,7 +205,7 @@ def main():
         data = []
         data = zip(spwnRand,destRand,spwnTime,destTime)
         filename = datetime.datetime.now().strftime('data-%Y-%m-%d-%H-%M.csv')
-        with open('./data/'+filename, 'wb') as log:
+        with open('./data/'+filename, 'w') as log:
             wr = csv.writer(log, quoting=csv.QUOTE_ALL)
             for row in data:
                 wr.writerow(row)

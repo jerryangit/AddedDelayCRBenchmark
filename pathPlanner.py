@@ -13,9 +13,9 @@ import sys
 import csv
 import datetime
 try:
-    sys.path.append(glob.glob('../carla/dist/carla-*%d.%d-%s.egg' % (
+    sys.path.append(glob.glob('../carla/dist/carla-*%d.5-%s.egg' % (
         sys.version_info.major,
-        sys.version_info.minor,
+        # sys.version_info.minor,
         'win-amd64' if os.name == 'nt' else 'linux-x86_64'))[0])
 except IndexError:
     pass
@@ -26,26 +26,19 @@ import numpy as np
 import scipy as sp
 
 class pathPlanning:
-    def __init__(self,method,para=[]):
-        self.method = method
-        self.para = para
-        self.obj = self.switchCreate(method,para)
+    def __init__(self,worldX):
+        self.worldX = worldX
+        self.waypoints = worldX.map.get_waypoint(ego.get_location())
  
-    def switchCreate(self,arg,para):
+    def plan(self,arg,actorX):
         cases = {
-            "discretePaths": discretePaths,
+            "discretePaths": self.discretePaths,
         }
-        fnc = cases.get(arg,"No valid method found")
-        return fnc(para)
+        fnc = cases.get(arg)
+        return fnc(actorX)
 
-class discretePaths:
-    def __init__(self,map):
-        self.map = map
-        self.waypoints = map.waypoints
-    def path():
-        pass
-
-    #                w = map.get_waypoint(actor.get_location())
-
-
-
+    def discretePaths(self,actorX):
+        # Hardcoded
+        
+        path = []
+        return path

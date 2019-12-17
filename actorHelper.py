@@ -6,7 +6,7 @@
 # For a copy, see <https://opensource.org/licenses/MIT>.
 #
 # Contains helper functions for the actor, e.g. messaging, lowlevel detection etc.
-
+import pathPlanner as pp
 import glob
 import os
 import sys
@@ -67,12 +67,13 @@ class actorDict:
 class actorX:
     # TODO optimize calculations, e.g. calc location once per loop save in this class object
     # Class containing information for each vehicle, used to unify required data, can't modify cpp actor class
-    def __init__(self,ego,model,dt):
+    def __init__(self,ego,model,dt,dest):
         self.ego = ego
         self.id = ego.id
         self.arrivalTime = 0
         self.departureTime = 0
         self.updateParameters(ego)
+        self.dest = dest
         self.dt = dt
         if model == 0: 
             self.doubleS()
@@ -88,6 +89,9 @@ class actorX:
         self.orientation = ego.get_transform().rotation
         self.predictPath()
         self.predictTimes()
+
+    def updatePath(self,path):
+        self.path = path
 
     def predictPath(self): 
         # Maybe separate class for path planning?
