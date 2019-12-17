@@ -26,30 +26,63 @@ class msg:
         self.mtype = mtype
         self.content = content
     
+
+class priorityPolicy:
+    def __init__(self,policy,actorInfo):
+        self.policy = policy
+        self.actorInfo = actorInfo
+
+    def order(self,arg,para):
+        cases = {
+            "FCFS": self.FCFS,
+        }
+        fnc = cases.get(arg)
+        return fnc(*para)
+
+    def FCFS(self,actorList):
+        return actorList.sort(key = (self.arrivalTime,self.actorID))
+
+    def tieBreaker(self,actorList):
+        return actorList.sort(key = self.actorID)
+
+    def actorID(self,actor):
+        return actor.id
+
+    def arrivalTime(self,actor):
+        obj = self.actorInfo.dict.get(actor.id)
+        return obj.arrivalTime
+    
+
 class conflictResolution:
-    def __init__(self,method,ego,para=[]):
+    def __init__(self,method,ego,worldX,para=[]):
         self.method = method
-        self.para = para
-        self.obj = self.switchCreate(method,ego,para)
+        self.obj = self.switchCreate(method,ego,worldX,para)
   
-    def switchCreate(self,arg,ego,para):
+    def switchCreate(self,arg,ego,worldX,para):
         cases = {
             "TEP": TEP,
-            "FCFS": FCFS,
+            "MPIP": MPIP,
         }
-        fnc = cases.get(arg,"No valid method found")
-        return fnc(ego,*para)
+        fnc = cases.get(arg)
+        return fnc(ego,worldX,*para)
 
 class TEP:
-    def __init__(self):
+    def __init__(self,ego,worldX,para=[]):
         pass
     def resolve(self,ego,msg_obj,info):
         cd_obj = cd.conflictDetection("timeSlot",0).obj
         for msg in msg_obj.inbox:
             if msg.mtype == "STOP":
-                # cd_obj.detect(A0,A1,B0,B1)
+                # if cd_obj.detect(A0,A1,B0,B1):
+                    
                 pass
 
-class FCFS:
+class RR:
     def __init__(self): 
         pass
+
+
+class MPIP:
+    def __init__(self): 
+        pass
+

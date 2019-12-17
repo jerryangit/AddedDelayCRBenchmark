@@ -1,0 +1,17 @@
+
+
+
+class priorityPolicy:
+    def __init__(self,policy,arg=[]):
+        self.policy = policy
+        self.obj = self.switch(arg)
+
+    def switch(self,arg):
+        cases = {
+            "FCFS": self.FCFS,
+        }
+        fnc = cases.get(arg)
+        return fnc(ego)
+
+    def FCFS(self,ego,actor):
+        pass
