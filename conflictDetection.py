@@ -9,9 +9,9 @@ import os
 import sys
 import datetime
 try:
-    sys.path.append(glob.glob('../carla/dist/carla-*%d.%d-%s.egg' % (
+    sys.path.append(glob.glob('../carla/dist/carla-*%d.5-%s.egg' % (
         sys.version_info.major,
-        sys.version_info.minor,
+        # sys.version_info.minor,
         'win-amd64' if os.name == 'nt' else 'linux-x86_64'))[0])
 except IndexError:
     pass
@@ -24,7 +24,7 @@ class conflictDetection:
         self.method = method
         self.para = para
         self.obj = self.switchCreate(method,ego,para)
- 
+
     def switchCreate(self,arg,ego,para):
         cases = {
             "coneDetect": coneDetect,
@@ -36,17 +36,36 @@ class conflictDetection:
 class timeSlot:
     def __init__(self,error=0):
         self.error = error
-
-    def detect(self,A0,A1,B0,B1): 
+        self.arrivalTime = -np.inf
+        self.exitTime = np.inf
+    def detect(self,egoX,actorX,worldX): 
         # slot is a list with [0], being the start of the slot and [1] being the end of the slot
-        if A1 > B0 + self.error and A0 < B1 - self.error:
+        #TODO maybe move displacement elsewhere might be intensive
+        ego_t = self.predictTimes(egoX,worldX)
+        actor_t = self.predictTimes(actorX,worldX)
+        if ego_t[1] > actor_t[0] + self.error and ego_t[0] < actor_t[1] - self.error:
             return 1
-        if B1 > A0 + self.error and B0 < A1 - self.error:
+        if actor_t[1] > ego_t[0] + self.error and actor_t[0] < ego_t[1] - self.error:
             return 1
         return 0 
 
-    def getSlots(self,ego,bounds):
-        vEgo = ego.get_velocity()
+    def displacement(self,egoX,worldX):
+    #TODO detect which waypoint and which displacement enters and exits bounds of intersection as defined somewhere else?
+        sArrival = np.inf
+        sExit = np.inf
+        for wr in egoX.path:
+            if wr[0].transform.location.distance(worldX.inter_location)<=worldX.inter_bounds and sArrival == np.inf:
+                sArrival = wr[0].s
+            if wr[0].transform.location.distance(worldX.inter_location)>=worldX.inter_bounds and sArrival != np.inf:
+                sExit = wr[0].s
+                return [sArrival,sExit]
+        return [sArrival,sExit]
+
+    def predictTimes(self,egoX,worldX):
+        sList = self.displacement(egoX,worldX)
+        self.arrivalTime = (sList[0]-egoX.disp) / egoX.velRef
+        self.exitTime = (sList[1]-egoX.disp) / egoX.velRef
+        return [self.arrivalTime,self.exitTime]
 
 
 class coneDetect:
@@ -69,7 +88,7 @@ class coneDetect:
             phi0 = (self.ego.get_transform().rotation.yaw * np.pi)/ 180 
             phi = np.arctan2( vec[1] , vec[0] ) - phi0
             if r < self.radius and np.absolute( phi ) < 0.5 * self.angle:
-                 return 1           
+                return 1           
         return 0
     def genSamples(self,actor):
         # TODO integrate some of these into helper functions

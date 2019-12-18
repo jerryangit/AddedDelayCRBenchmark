@@ -47,20 +47,12 @@ def main():
     syncmode = 1         # Whether ticks are synced
     random.seed(27)      # Random seed
     maxVehicle = 20      # Max simultaneous vehicle
-    totalVehicle = 40    # Total vehicles for entire simulation
+    totalVehicle = 8    # Total vehicles for entire simulation
     scenario = 1         # 0 is random 1/tick, 1 is 4/tick all roads (Ensure totalVehicle is a multiple of 4 if scenario is 1)
     cr_method = "TEP"    # Which conflict resolution method is used
     ###############################################
     # Initialize values
     ###############################################  
-    i = 0
-    # spwnRand = random.randint(1,4)
-    # destRand = random.randint(1,4)
-    # Change randint if not 4 way cross road
-    spwnRand = [random.randint(1, 4) for iter in range(totalVehicle)] 
-    destRand = [random.randint(1, 4) for iter in range(totalVehicle)]
-    spwnTime = []
-    destTime = []
 
 
     try:
@@ -102,6 +94,17 @@ def main():
         if bp.has_attribute('color'):
             color = random.choice(bp.get_attribute('color').recommended_values)
             bp.set_attribute('color', color)
+        #* Generate spawn
+        i = 0
+        # spwnRand = random.randint(1,4)
+        # destRand = random.randint(1,4)
+        # Change laneList if not 4 way cross road
+        # Method does not allow same lane for entry and exit
+        laneList= np.array([1,2,3,4])
+        spwnRand = np.array([random.choice(laneList) for iter in range(totalVehicle)])
+        destRand = np.array([random.choice(np.delete(laneList,spwnRand[iter]-1)) for iter in range(totalVehicle)])
+        spwnTime = []
+        destTime = []
 
         # Integrate into map object?
         # Map Locations, spwnLoc contains loc, 0= intersec, 1 = N, 2 = E, 3 = S, 4 = W.
@@ -120,8 +123,7 @@ def main():
 
         # Create Objects to use in loop
         #<<
-        msgIF_obj = ah.msgInterface()
-        worldX_obj = ah.worldX(world)
+        worldX_obj = ah.worldX(world,intersection.location,8)
         actorDict_obj = ah.actorDict()
         #>>
         
@@ -148,11 +150,12 @@ def main():
                     if spwn is not None:
                         actorDict_obj.actor_list.append(spwn)
                         # spwn.set_autopilot()
-                        msgIF_obj.inbox[spwn.id] = []
+                        worldX_obj.msg.inbox[spwn.id] = []
                         spwnX = ah.actorX(spwn,0,dt,exitLoc[destRand[i]])
-                        route = grp.trace_route(spwnX.ego.get_location(),spwnX.dest.location)
+                        route = grp.trace_route(spwnX.ego.get_location(),spwnX.dest.location,8.33)
                         spwnX.updatePath(route)
-                        actorDict_obj.addKey = (spwn.id,spwnX)
+                        spwnX.conflictResolution(cr.conflictResolution("TEP",[0.5,"FCFS"]).obj) 
+                        actorDict_obj.addKey(spwn.id,spwnX)
                         spwnTime.append(ts.elapsed_seconds-ts0s)
                         print('[%d] created %s at %d with id %d' % (i,spwn.type_id,spwnRand[i],spwn.id))
                         i += 1
@@ -163,11 +166,12 @@ def main():
                         spwn = world.try_spawn_actor(bp, spwnLoc[k])
                         if spwn is not None:
                             actorDict_obj.actor_list.append(spwn)
-                            msgIF_obj.inbox[spwn.id] = []
-                            spwnX = ah.actorX(spwn,0,dt,exitLoc[destRand[i]])
-                            route = grp.trace_route(spwnX.ego.get_location(),spwnX.dest.location)
+                            worldX_obj.msg.inbox[spwn.id] = []
+                            spwnX = ah.actorX(spwn,0,dt,exitLoc[random.choice(np.delete(laneList,k-1))],8.33)
+                            route = grp.trace_route(spwnLoc[k].location,spwnX.dest.location)
                             spwnX.updatePath(route)
-                            actorDict_obj.addKey = (spwn.id,spwnX)
+                            spwnX.conflictResolution(cr.conflictResolution("TEP",[0.5,"FCFS"]).obj) 
+                            actorDict_obj.addKey(spwn.id,spwnX)
                             spwnTime.append(ts.elapsed_seconds-ts0s)                            
                             print('[%d] created %s at %d with id %d' % (i,spwn.type_id,spwnRand[i],spwn.id))
                             i += 1
@@ -180,6 +184,8 @@ def main():
                     print(actor.id,' left the area at ', round(actor.get_location().x,2),round(actor.get_location().y,2),round(actor.get_location().z,2))
                     destTime.append(ts.elapsed_seconds-ts0s)
                     actorDict_obj.actor_list.remove(actor)
+                    del actorDict_obj.dict[actor.id]
+                    worldX_obj.msg.clear(actor.id)
                     actor.destroy()
 
             # Feed world info to classes and functions streamlined
@@ -189,8 +195,16 @@ def main():
             # TODO separate class or function)
             # <<
             for actor in actorDict_obj.actor_list:
-                msgIF_obj.receive(actor)
-                cr_obj = cr.conflictResolution("TEP",actor,worldX_obj).obj
+                worldX_obj.msg.receive(actor)
+
+            worldX_obj.msg.clearCloud()
+
+            for actor in actorDict_obj.actor_list:
+                actorX = actorDict_obj.dict.get(actor.id)
+                actorX.updateParameters(actor)
+                actorX.cr.resolve(actorX,worldX_obj)
+                msg = actorX.cr.outbox(actorX)
+                worldX_obj.msg.broadcast(actor,msg)
             # >>
 
 
@@ -200,7 +214,10 @@ def main():
             for actor in actorDict_obj.actor_list:
                 # Apply desired control function (control should be simple, precompute common info)
                 # para = 0 # make class where para contains useful info
-                ac.simpleControl(actor,worldX_obj)
+                actorX = actorDict_obj.dict.get(actor.id)
+                actorX.discreteState(ac.TEPControl(actorX,worldX_obj))
+                actorX.tick(dt)
+                # ac.simpleControl(actor,worldX_obj)
                 j += 1
             # >>
 

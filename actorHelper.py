@@ -13,9 +13,9 @@ import sys
 import csv
 import datetime
 try:
-    sys.path.append(glob.glob('../carla/dist/carla-*%d.%d-%s.egg' % (
+    sys.path.append(glob.glob('../carla/dist/carla-*%d.5-%s.egg' % (
         sys.version_info.major,
-        sys.version_info.minor,
+        # sys.version_info.minor,
         'win-amd64' if os.name == 'nt' else 'linux-x86_64'))[0])
 except IndexError:
     pass
@@ -31,23 +31,38 @@ class msgInterface:
     def __init__(self,inbox={},cloud=[]):
         self.inbox = inbox
         self.cloud = cloud 
+    
+    def clear(self,id):
+        for msg in self.cloud:
+            if msg[0].id == id:
+                self.cloud.remove(msg)
+        del self.inbox[id]
+
+    def clearCloud(self):
+        self.cloud = []
 
     def send(self, msg,recipient):
         self.inbox[recipient].append(msg)
 
     def broadcast(self,ego,msg,range=100):
-        self.cloud.append([ego,range,msg])
+        if msg != None:
+            self.cloud.append([ego,range,msg])
 
     def receive(self, ego):
+        # ! Hard reset inbox each tick
+        self.inbox[ego.id] = []
         for msg in self.cloud:
-            if ego.get_location().distance(carla.Location(msg[0].get_location())) < msg[1]:
-                self.inbox[ego.id].append(msg)
+            if ego.id != msg[0].id and ego.get_location().distance(carla.Location(msg[0].get_location())) < msg[1]:
+                self.inbox[ego.id].append(msg[2])
 
 class worldX:
     # Class containing world info needed for the vehicles, is available for every vehicle
-    def __init__(self,world):
+    def __init__(self,world,inter_location,inter_bounds):
         self.world = world
         self.map = world.get_map()
+        self.msg = msgInterface()
+        self.inter_location = inter_location
+        self.inter_bounds = inter_bounds
     def update(self,actorDict):
         self.actorDict = actorDict
 
@@ -61,20 +76,18 @@ class actorDict:
     def addApp(self,key,value):
         self.dict[key].append(value)
 
-
-
-
 class actorX:
     # TODO optimize calculations, e.g. calc location once per loop save in this class object
     # Class containing information for each vehicle, used to unify required data, can't modify cpp actor class
-    def __init__(self,ego,model,dt,dest):
-        self.ego = ego
-        self.id = ego.id
-        self.arrivalTime = 0
-        self.departureTime = 0
+    def __init__(self,ego,model,dt,dest,velRef):
         self.updateParameters(ego)
+        self.id = ego.id
         self.dest = dest
         self.dt = dt
+        self.path = []
+        self.state = "NAN"
+        self.disp = 0
+        self.velRef = velRef
         if model == 0: 
             self.doubleS()
         if model == 1: 
@@ -83,27 +96,20 @@ class actorX:
             self.bicycle()
 
     def updateParameters(self,ego):
+        self.ego = ego
         self.velocity = ego.get_velocity()
         self.vel_norm = np.linalg.norm([self.velocity.x,self.velocity.y])
         self.location = ego.get_transform().location
         self.orientation = ego.get_transform().rotation
-        self.predictPath()
-        self.predictTimes()
 
+    def conflictResolution(self,obj):
+        self.cr = obj
     def updatePath(self,path):
         self.path = path
-
-    def predictPath(self): 
-        # Maybe separate class for path planning?
-        self.sArrival = 0
-        self.sExit = 0
-        return [self.sArrival,self.sExit]
-
-    def predictTimes(self):
-        self.arrivalTime = self.sArrival / self.vel_norm
-        self.exitTime = self.sExit / self.vel_norm
-        return [self.arrivalTime,self.exitTime]
-
+    def discreteState(self,state):
+        self.state = state
+    def tick(self,dt):
+        self.disp += dt*self.vel_norm
     def doubleS(self):
         # Double integrator for x,y
         # States:   [x,xdot,y,ydot]'  
