@@ -30,10 +30,10 @@ def TEPControl(egoX,worldX):
     u_v = velocityPID(ego,egoX.velRef)
     u_theta = pathFollow(egoX,worldX)
     ego.apply_control(carla.VehicleControl(throttle=u_v, steer=u_theta,brake = 0.0))
-    cd_obj = cd.conflictDetection("coneDetect",ego,[4.5,0.185*np.pi,5]).obj
+    cd_obj = cd.conflictDetection("coneDetect",[4.5,0.185*np.pi,5]).obj
     for actor in worldX.actorDict.actor_list:
         if ego.id != actor.id and carla.Location.distance ( ego.get_location() , actor.get_location() ) < 12 : 
-            if cd_obj.detect(actor):
+            if cd_obj.detect(ego,actor):
                 ego.apply_control(carla.VehicleControl(throttle=0.0, steer=0.0,brake = 1.0))
     if len(egoX.cr.wait) > 0 and ego.get_location().distance(worldX.inter_location) <= worldX.inter_bounds + 3 :
         if egoX.cr.cd.arr[0] != 1:
@@ -55,10 +55,10 @@ def TEPControl(egoX,worldX):
 
 def simpleControl(ego,worldX): 
     velocityPID(ego,8.33)
-    cd_obj = cd.conflictDetection("coneDetect",ego,[5,0.185*np.pi,5]).obj
+    cd_obj = cd.conflictDetection("coneDetect",[5,0.185*np.pi,5]).obj
     for actor in worldX.actorDict.actor_list:
         if ego.id != actor.id and carla.Location.distance ( ego.get_location() , actor.get_location() ) < 12 : 
-            if cd_obj.detect(actor):
+            if cd_obj.detect(ego,actor):
                 ego.apply_control(carla.VehicleControl(throttle=0.0, steer=0.0,brake = 1.0))
                 # print(ego.id,' has to Emergency Break because of  ', actor.id)
 

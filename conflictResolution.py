@@ -105,6 +105,7 @@ class TEP_fix:
         self.wait =[]
         self.pp = priorityPolicy(policy)
         self.cd = cd.conflictDetection("timeSlot",self.err).obj
+        # self.cd = cd.conflictDetection("gridCell",self.err).obj
 
     def resolve(self,egoX,worldX):
         # [self.ttArrival, self.ttExit] = self.cd.predictTimes(egoX,worldX)

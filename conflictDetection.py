@@ -20,18 +20,22 @@ import carla
 import numpy as np
 
 class conflictDetection:
-    def __init__(self,method,ego,para=[]):
+    def __init__(self,method,para=[]):
         self.method = method
         self.para = para
-        self.obj = self.switchCreate(method,ego,para)
+        self.obj = self.switchCreate(method,para)
 
-    def switchCreate(self,arg,ego,para):
+    def switchCreate(self,arg,para):
         cases = {
             "coneDetect": coneDetect,
             "timeSlot": timeSlot,
+            "gridCell": gridCell,
         }
         fnc = cases.get(arg,"No valid method found")
-        return fnc(ego,*para)
+        if isinstance(para, list):
+            return fnc(*para)
+        else:
+            return fnc(para)
 
 class timeSlot:
     def __init__(self,error=0):
@@ -84,10 +88,26 @@ class timeSlot:
         return self.sPath
 
 class gridCell:
-    def __init__(self,error=0):
-        pass
+    def __init__(self,center,resolution=4,size=16):
+        self.center = center            # Carla.Location of intersection center
+        self.resolution = resolution    # Ammount of cells per row/column
+        self.size = size                # Distance in m between edges of grid        
+        self.calcGrid()
     def detect(self,egoX,actorX,worldX): 
         pass
+    def calcGrid(self):
+        
+        # for i_x in range(self.resolution+1):
+        #         dx = self.size/self.resolution
+        #         # top = [tl[0]+i_x*dx,tl[1]] 
+        #         bot = [bl[0]+i_x*dx,bl[1]]
+        #         x_list.append()
+        # for i_y in range(self.resolution+1):
+        #         dy = self.size/self.resolution
+        #         lef = [tl[0],tl[1]+i_y*dy] 
+        #         rig = [tr[0],tr[1]+i_y*dy]
+        #         y_list.append()
+        self.resolution
 
     def sPathCalc(self,egoX,worldX):
         self.sArrival = np.inf
@@ -115,23 +135,21 @@ class gridCell:
         return self.sPath
 
 class coneDetect:
-    def __init__(self,ego,radius=2.5,angle=0.33*np.pi,actorSamples=5):
-        # Sets ego vehicle
-        self.ego = ego
+    def __init__(self,radius=2.5,angle=0.33*np.pi,actorSamples=5):
         # Sets Radius for the cone from center of own vehicle
         self.radius = radius
         # Sets cone angle width 
         self.angle = angle
         # Sets amount of interpolating samples per 2 sides, actual amount is 2x to enforce symmetry 
         self.actorSamples = actorSamples
-    def detect(self,actor):
+    def detect(self,ego,actor):
         smpArr = self.genSamples(actor)
         for i in range(smpArr.shape[0]):
             # relative vector from ego vehicle to sample
-            vec = smpArr[i]- [ self.ego.get_location().x , self.ego.get_location().y ]
+            vec = smpArr[i]- [ ego.get_location().x , ego.get_location().y ]
             r = np.linalg.norm( vec )
             # Note: Coordinate frame carla has left handed coordinate frame!!
-            phi0 = (self.ego.get_transform().rotation.yaw * np.pi)/ 180 
+            phi0 = (ego.get_transform().rotation.yaw * np.pi)/ 180 
             phi = np.arctan2( vec[1] , vec[0] ) - phi0
             if r < self.radius and np.absolute( phi ) < 0.5 * self.angle:
                 return 1           
