@@ -28,6 +28,7 @@ Welcome to CARLA No-Rendering Mode Visualizer
 
     F1           : toggle HUD
     I            : toggle actor ids
+    G            : toggle Grid
     H/?          : toggle help
     ESC          : quit
 """
@@ -88,6 +89,7 @@ try:
     from pygame.locals import K_q
     from pygame.locals import K_s
     from pygame.locals import K_w
+    from pygame.locals import K_g
 except ImportError:
     raise RuntimeError('cannot import pygame, make sure pygame package is installed')
 
@@ -272,7 +274,8 @@ class HUD (object):
 
     def _init_data_params(self):
         self.show_info = True
-        self.show_actor_ids = False
+        self.show_actor_ids = True
+        self.show_grid = False
         self._info_text = {}
 
     def notification(self, text, seconds=2.0):
@@ -307,7 +310,41 @@ class HUD (object):
                 vehicle_id_surface.blit(rotated_font_surface, rect)
 
         return vehicle_id_surface
-
+    # ! <<ADDED BY JERRY AN
+    def render_grid(self,grid_surface,world_to_pixel):
+        grid_surface.fill(COLOR_BLACK)
+        resolution = 4
+        ctr = [-150.0, -35.0, 0.3]
+        r = 8
+        rctr = ctr.copy()
+        rctr[0] = rctr[0] + r
+        center = carla.Location(*ctr) 
+        edge = carla.Location(*rctr) 
+        c_pxl = world_to_pixel(center)
+        e_pxl = world_to_pixel(edge)
+        d_pxl = c_pxl.copy()
+        d_pxl[0] = e_pxl[0] - c_pxl[0] 
+        d_pxl[1] = e_pxl[1] - c_pxl[1]
+        r_pxl = int(math.sqrt(d_pxl[0]**2+d_pxl[1]**2))
+        pygame.draw.circle(grid_surface,COLOR_ORANGE_0,c_pxl,r_pxl,1)
+        tl = [c_pxl[0]-r_pxl,c_pxl[1]-r_pxl]
+        tr = [c_pxl[0]+r_pxl,c_pxl[1]-r_pxl]
+        bl = [c_pxl[0]-r_pxl,c_pxl[1]+r_pxl]
+        br = [c_pxl[0]+r_pxl,c_pxl[1]+r_pxl]
+        if self.show_grid:
+            grid_surface.set_alpha(150)
+            for i_x in range(resolution+1):
+                dx = int((r_pxl*2)/resolution)
+                top = [tl[0]+i_x*dx,tl[1]] 
+                bot = [bl[0]+i_x*dx,bl[1]]
+                pygame.draw.line(grid_surface, COLOR_SKY_BLUE_0,top,bot,4)
+            for i_y in range(resolution+1):
+                dy = int((r_pxl*2)/resolution)
+                lef = [tl[0],tl[1]+i_y*dy] 
+                rig = [tr[0],tr[1]+i_y*dy]
+                pygame.draw.line(grid_surface, COLOR_SKY_BLUE_0,lef,rig,4)
+        return grid_surface
+    # !>>
     def render(self, display):
         if self.show_info:
             info_surface = pygame.Surface((240, self.dim[1]))
@@ -848,6 +885,7 @@ class World(object):
 
         self.vehicle_id_surface = None
         self.result_surface = None
+        self.grid_surface = None
 
         self.traffic_light_surfaces = TrafficLightSurfaces()
         self.affected_traffic_light = None
@@ -908,6 +946,9 @@ class World(object):
 
         self.vehicle_id_surface = pygame.Surface((self.surface_size, self.surface_size)).convert()
         self.vehicle_id_surface.set_colorkey(COLOR_BLACK)
+
+        self.grid_surface = pygame.Surface((self.surface_size, self.surface_size)).convert()
+        self.grid_surface.set_colorkey(COLOR_BLACK)
 
         self.border_round_surface = pygame.Surface(self._hud.dim, pygame.SRCALPHA).convert()
         self.border_round_surface.set_colorkey(COLOR_WHITE)
@@ -1170,6 +1211,7 @@ class World(object):
     def clip_surfaces(self, clipping_rect):
         self.actors_surface.set_clip(clipping_rect)
         self.vehicle_id_surface.set_clip(clipping_rect)
+        self.grid_surface.set_clip(clipping_rect)
         self.result_surface.set_clip(clipping_rect)
 
     def _compute_scale(self, scale_factor):
@@ -1217,11 +1259,16 @@ class World(object):
         # Render Ids
         self._hud.render_vehicles_ids(self.vehicle_id_surface, vehicles,
                                             self.map_image.world_to_pixel, self.hero_actor, self.hero_transform)
-
+        #! <<Added by JERRY AN
+        # Render Grid
+        self._hud.render_grid(self.grid_surface, self.map_image.world_to_pixel)
+        #! >>
         # Blit surfaces
+        
         surfaces = ((self.map_image.surface, (0, 0)),
                     (self.actors_surface, (0, 0)),
                     (self.vehicle_id_surface, (0, 0)),
+                    (self.grid_surface, (0,0))
                     )
 
         angle = 0.0 if self.hero_actor is None else self.hero_transform.rotation.yaw + 90.0
@@ -1345,6 +1392,8 @@ class InputControl(object):
                         self.spawned_hero.destroy()
                 elif event.key == K_i:
                     self._hud.show_actor_ids = not self._hud.show_actor_ids
+                elif event.key == K_g:
+                    self._hud.show_grid = not self._hud.show_grid
                 elif isinstance(self.control, carla.VehicleControl):
                     if event.key == K_q:
                         self.control.gear = 1 if self.control.reverse else -1
