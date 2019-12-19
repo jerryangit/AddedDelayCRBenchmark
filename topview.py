@@ -28,7 +28,8 @@ Welcome to CARLA No-Rendering Mode Visualizer
 
     F1           : toggle HUD
     I            : toggle actor ids
-    G            : toggle Grid
+    G            : toggle grid
+    R            : toggle radius
     H/?          : toggle help
     ESC          : quit
 """
@@ -90,6 +91,7 @@ try:
     from pygame.locals import K_s
     from pygame.locals import K_w
     from pygame.locals import K_g
+    from pygame.locals import K_r
 except ImportError:
     raise RuntimeError('cannot import pygame, make sure pygame package is installed')
 
@@ -276,6 +278,7 @@ class HUD (object):
         self.show_info = True
         self.show_actor_ids = True
         self.show_grid = False
+        self.show_radius = False
         self._info_text = {}
 
     def notification(self, text, seconds=2.0):
@@ -326,7 +329,8 @@ class HUD (object):
         d_pxl[0] = e_pxl[0] - c_pxl[0] 
         d_pxl[1] = e_pxl[1] - c_pxl[1]
         r_pxl = int(math.sqrt(d_pxl[0]**2+d_pxl[1]**2))
-        pygame.draw.circle(grid_surface,COLOR_ORANGE_0,c_pxl,r_pxl,1)
+        if self.show_radius:
+            pygame.draw.circle(grid_surface,COLOR_ORANGE_0,c_pxl,r_pxl,1)
         tl = [c_pxl[0]-r_pxl,c_pxl[1]-r_pxl]
         tr = [c_pxl[0]+r_pxl,c_pxl[1]-r_pxl]
         bl = [c_pxl[0]-r_pxl,c_pxl[1]+r_pxl]
@@ -1394,6 +1398,8 @@ class InputControl(object):
                     self._hud.show_actor_ids = not self._hud.show_actor_ids
                 elif event.key == K_g:
                     self._hud.show_grid = not self._hud.show_grid
+                elif event.key == K_r:
+                    self._hud.show_radius = not self._hud.show_radius
                 elif isinstance(self.control, carla.VehicleControl):
                     if event.key == K_q:
                         self.control.gear = 1 if self.control.reverse else -1
