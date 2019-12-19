@@ -36,37 +36,83 @@ class conflictDetection:
 class timeSlot:
     def __init__(self,error=0):
         self.error = error
-        self.arrivalTime = -np.inf
-        self.exitTime = np.inf
-    def detect(self,egoX,actorX,worldX): 
+        self.arr = [0,0]
+        self.ext = [0,0]
+    def detect(self,egoX,worldX,actor_t): 
         # slot is a list with [0], being the start of the slot and [1] being the end of the slot
-        #TODO maybe move displacement elsewhere might be intensive
         ego_t = self.predictTimes(egoX,worldX)
-        actor_t = self.predictTimes(actorX,worldX)
         if ego_t[1] > actor_t[0] + self.error and ego_t[0] < actor_t[1] - self.error:
             return 1
         if actor_t[1] > ego_t[0] + self.error and actor_t[0] < ego_t[1] - self.error:
             return 1
         return 0 
 
-    def displacement(self,egoX,worldX):
-    #TODO detect which waypoint and which displacement enters and exits bounds of intersection as defined somewhere else?
-        sArrival = np.inf
-        sExit = np.inf
-        for wr in egoX.path:
-            if wr[0].transform.location.distance(worldX.inter_location)<=worldX.inter_bounds and sArrival == np.inf:
-                sArrival = wr[0].s
-            if wr[0].transform.location.distance(worldX.inter_location)>=worldX.inter_bounds and sArrival != np.inf:
-                sExit = wr[0].s
-                return [sArrival,sExit]
-        return [sArrival,sExit]
-
     def predictTimes(self,egoX,worldX):
-        sList = self.displacement(egoX,worldX)
-        self.arrivalTime = (sList[0]-egoX.disp) / egoX.velRef
-        self.exitTime = (sList[1]-egoX.disp) / egoX.velRef
+        if egoX.cr.cd.arr[0] != 1:
+            self.arrivalTime = ( (self.sArrival-egoX.sTraversed) / egoX.velRef ) + worldX.tick.timestamp.elapsed_seconds
+        else: 
+            self.arrivalTime = egoX.cr.cd.arr[1]
+        if egoX.cr.cd.ext[0] != 1:
+            self.exitTime = ( (self.sExit-egoX.sTraversed) / egoX.velRef ) + worldX.tick.timestamp.elapsed_seconds
+        else: 
+            self.exitTime = egoX.cr.cd.ext[1]
         return [self.arrivalTime,self.exitTime]
 
+    def sPathCalc(self,egoX,worldX):
+        self.sArrival = np.inf
+        self.sExit = np.inf
+        self.sPath = []
+        s = 0
+        s0 = egoX.route[0][0].transform.location
+        for wr in egoX.route:
+            s = wr[0].transform.location.distance(s0) + s
+            s0 = wr[0].transform.location
+            if self.sArrival == np.inf:
+                if wr[0].transform.location.distance(worldX.inter_location)<=worldX.inter_bounds:
+                    self.sArrival = s
+                    self.sPath.append([s,1,"enter"])
+                else:
+                    self.sPath.append([s,0,"pre"])
+            elif self.sExit == np.inf:
+                if s > self.sArrival + 2 and wr[0].transform.location.distance(worldX.inter_location)>=worldX.inter_bounds:
+                    self.sExit = s
+                    self.sPath.append([s,3,"exit"])
+                else:
+                    self.sPath.append([s,2,"cross"])
+            else:
+                self.sPath.append([s,4,"post"])
+        return self.sPath
+
+class gridCell:
+    def __init__(self,error=0):
+        pass
+    def detect(self,egoX,actorX,worldX): 
+        pass
+
+    def sPathCalc(self,egoX,worldX):
+        self.sArrival = np.inf
+        self.sExit = np.inf
+        self.sPath = []
+        s = 0
+        s0 = egoX.route[0][0].transform.location
+        for wr in egoX.route:
+            s = wr[0].transform.location.distance(s0) + s
+            s0 = wr[0].transform.location
+            if self.sArrival == np.inf:
+                if wr[0].transform.location.distance(worldX.inter_location)<=worldX.inter_bounds:
+                    self.sArrival = s
+                    self.sPath.append([s,1,"enter"])
+                else:
+                    self.sPath.append([s,0,"pre"])
+            elif self.sExit == np.inf:
+                if s > self.sArrival + 2 and wr[0].transform.location.distance(worldX.inter_location)>=worldX.inter_bounds:
+                    self.sExit = s
+                    self.sPath.append([s,3,"exit"])
+                else:
+                    self.sPath.append([s,2,"cross"])
+            else:
+                self.sPath.append([s,4,"post"])
+        return self.sPath
 
 class coneDetect:
     def __init__(self,ego,radius=2.5,angle=0.33*np.pi,actorSamples=5):

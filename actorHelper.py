@@ -13,9 +13,9 @@ import sys
 import csv
 import datetime
 try:
-    sys.path.append(glob.glob('../carla/dist/carla-*%d.5-%s.egg' % (
+    sys.path.append(glob.glob('../carla/dist/carla-*%d.%d-%s.egg' % (
         sys.version_info.major,
-        # sys.version_info.minor,
+        sys.version_info.minor,
         'win-amd64' if os.name == 'nt' else 'linux-x86_64'))[0])
 except IndexError:
     pass
@@ -57,14 +57,19 @@ class msgInterface:
 
 class worldX:
     # Class containing world info needed for the vehicles, is available for every vehicle
-    def __init__(self,world,inter_location,inter_bounds):
+    def __init__(self,world,inter_location,inter_bounds,tick,hopres):
         self.world = world
         self.map = world.get_map()
         self.msg = msgInterface()
         self.inter_location = inter_location
         self.inter_bounds = inter_bounds
+        self.initialTS = tick.timestamp
+        self.tock(tick)
+        self.hopres = hopres
     def update(self,actorDict):
         self.actorDict = actorDict
+    def tock(self,tick):
+        self.tick = tick
 
 class actorDict:
     # Class dictionary made up of vehicle objects attributed to their id. 
@@ -80,14 +85,15 @@ class actorX:
     # TODO optimize calculations, e.g. calc location once per loop save in this class object
     # Class containing information for each vehicle, used to unify required data, can't modify cpp actor class
     def __init__(self,ego,model,dt,dest,velRef):
-        self.updateParameters(ego)
-        self.id = ego.id
+        self.route = []
+        self.routeIndex = 0
         self.dest = dest
-        self.dt = dt
-        self.path = []
+        self.sTraversed = 0
         self.state = "NAN"
-        self.disp = 0
         self.velRef = velRef
+        self.cr = []
+        self.updateParameters(ego,dt)
+        self.id = ego.id
         if model == 0: 
             self.doubleS()
         if model == 1: 
@@ -95,21 +101,18 @@ class actorX:
         if model == 2: 
             self.bicycle()
 
-    def updateParameters(self,ego):
+    def updateParameters(self,ego,dt):
         self.ego = ego
+        self.dt = dt
         self.velocity = ego.get_velocity()
         self.vel_norm = np.linalg.norm([self.velocity.x,self.velocity.y])
         self.location = ego.get_transform().location
-        self.orientation = ego.get_transform().rotation
+        self.rotation = ego.get_transform().rotation
+        self.sTraversed += self.dt*self.vel_norm
 
-    def conflictResolution(self,obj):
-        self.cr = obj
-    def updatePath(self,path):
-        self.path = path
     def discreteState(self,state):
         self.state = state
-    def tick(self,dt):
-        self.disp += dt*self.vel_norm
+        
     def doubleS(self):
         # Double integrator for x,y
         # States:   [x,xdot,y,ydot]'  

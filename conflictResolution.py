@@ -41,14 +41,8 @@ class priorityPolicy:
         return fnc(para)
 
     def FCFS(self,actorList):
-        actorList.sort(key = lambda x: (x.cr.arrivalTime,x.id))
+        actorList.sort(key = lambda x: (round(x.cr.cd.arrivalTime),x.id))
         return actorList
-
-    def actorID(self,actorX):
-        return actorX.id
-
-    def arrivalTime(self,actorX):
-        return actorX.cr.arrivalTime
     
 
 class conflictResolution:
@@ -59,32 +53,28 @@ class conflictResolution:
     def switchCreate(self,arg,para):
         cases = {
             "TEP": TEP,
+            "TEP_fix": TEP_fix,
             "MPIP": MPIP,
         }
         fnc = cases.get(arg)
         return fnc(*para)
 
 class TEP:
-    def __init__(self,err,policy,para=[]):
-        self.id = -1
-        self.para = para
+    #! TEP has deadlock if arrivalTime is a changing estimate, design is flawed, cannot avoid deadlocks!!!
+    def __init__(self,err,policy):
         self.err = err
         self.wait =[]
-        self.arrivalTime = np.inf
-        self.exitTime = np.inf
         self.pp = priorityPolicy(policy)
-    def resolve(self,egoX,worldX):
-        cd_obj = cd.conflictDetection("timeSlot",self.err).obj
-        aeTimes = cd_obj.predictTimes(egoX,worldX)
-        self.arrivalTime = aeTimes[0]
-        self.exitTime = aeTimes[1]
+        self.cd = cd.conflictDetection("timeSlot",self.err).obj
 
+    def resolve(self,egoX,worldX):
+        # [self.ttArrival, self.ttExit] = self.cd.predictTimes(egoX,worldX)
         if len(worldX.msg.inbox) == 0:
             return 0
         for msg in worldX.msg.inbox[egoX.id]:
             if msg.mtype == "STOP" and msg.idSend not in self.wait:
                 actorX = worldX.actorDict.dict.get(msg.idSend)
-                if cd_obj.detect(egoX,actorX,worldX):
+                if self.cd.detect(egoX,actorX,worldX):
                     pOrder = self.pp.order([egoX,actorX])
                     if pOrder[0].id == egoX.id:
                         continue
@@ -95,16 +85,59 @@ class TEP:
             elif msg.mtype == "CLEAR":
                 if msg.idSend in self.wait:
                     self.wait.remove(msg.idSend)
+
     def outbox(self,actorX):
         if actorX.state == "ENTER" or actorX.state == "CROSS":
-            msg_obj = msg(actorX.id,"STOP",{"arrivalTime":self.arrivalTime})
+            msg_obj = msg(actorX.id,"STOP",{"arrivalTime":self.cd.arrivalTime})
             return msg_obj
         elif actorX.state == "EXIT":
             msg_obj = msg(actorX.id,"CLEAR")
             return msg_obj
 
-    def tick(self):
-        pass
+    def setup(self,egoX,worldX):
+        self.cd.sPathCalc(egoX,worldX)
+        self.cd.predictTimes(egoX,worldX)
+
+class TEP_fix:
+    #! Fix deadlocks by changing logic, vehicles are removed from waitlist they have lower Priority 
+    def __init__(self,err,policy):
+        self.err = err
+        self.wait =[]
+        self.pp = priorityPolicy(policy)
+        self.cd = cd.conflictDetection("timeSlot",self.err).obj
+
+    def resolve(self,egoX,worldX):
+        # [self.ttArrival, self.ttExit] = self.cd.predictTimes(egoX,worldX)
+        if len(worldX.msg.inbox) == 0:
+            return 0
+        for msg in worldX.msg.inbox[egoX.id]:
+            if msg.mtype == "STOP":
+                actorX = worldX.actorDict.dict.get(msg.idSend)
+                if self.cd.detect(egoX,worldX,msg.content.get("timeSlot")):
+                    pOrder = self.pp.order([egoX,actorX])
+                    if pOrder[0].id == egoX.id:
+                        if msg.idSend in self.wait:
+                            self.wait.remove(msg.idSend)
+                    else:
+                        if msg.idSend not in self.wait:
+                            self.wait.append(msg.idSend)
+                else: 
+                    continue
+            elif msg.mtype == "CLEAR":
+                if msg.idSend in self.wait:
+                    self.wait.remove(msg.idSend)
+
+    def outbox(self,actorX):
+        if actorX.state == "ENTER" or actorX.state == "CROSS":
+            msg_obj = msg(actorX.id,"STOP",{"timeSlot":[self.cd.arrivalTime,self.cd.exitTime]})
+            return msg_obj
+        elif actorX.state == "EXIT":
+            msg_obj = msg(actorX.id,"CLEAR")
+            return msg_obj
+
+    def setup(self,egoX,worldX):
+        self.cd.sPathCalc(egoX,worldX)
+        self.cd.predictTimes(egoX,worldX)
 
 
 class RR:

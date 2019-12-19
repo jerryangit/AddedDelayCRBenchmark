@@ -881,9 +881,7 @@ class World(object):
         self.world, self.town_map = self._get_data_from_carla()
         # Disable rendering and make sim run at fixed tiemsteps
         settings = self.world.get_settings()
-        settings.fixed_delta_seconds = 0.1
-        settings.no_rendering_mode = True
-        settings.synchronous_mode = True
+        settings.no_rendering_mode = False
         self.world.apply_settings(settings)
 
         # Create Surfaces
@@ -1497,7 +1495,7 @@ def main():
     argparser.add_argument(
         '--res',
         metavar='WIDTHxHEIGHT',
-        default='1280x720',
+        default='1920x1080',
         help='window resolution (default: 1280x720)')
     argparser.add_argument(
         '--filter',

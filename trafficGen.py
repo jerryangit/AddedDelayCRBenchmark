@@ -15,9 +15,9 @@ import csv
 import datetime
 # Adds carla PythonAPI to path
 try:
-    sys.path.append(glob.glob('../carla/dist/carla-*%d.5-%s.egg' % (
+    sys.path.append(glob.glob('../carla/dist/carla-*%d.%d-%s.egg' % (
         sys.version_info.major,
-        # sys.version_info.minor,
+        sys.version_info.minor,
         'win-amd64' if os.name == 'nt' else 'linux-x86_64'))[0])
 except IndexError:
     pass
@@ -44,12 +44,13 @@ def main():
     ###############################################
     # Config
     ###############################################  
-    syncmode = 1         # Whether ticks are synced
-    random.seed(27)      # Random seed
-    maxVehicle = 20      # Max simultaneous vehicle
-    totalVehicle = 8    # Total vehicles for entire simulation
-    scenario = 1         # 0 is random 1/tick, 1 is 4/tick all roads (Ensure totalVehicle is a multiple of 4 if scenario is 1)
-    cr_method = "TEP"    # Which conflict resolution method is used
+    syncmode = 1            # Whether ticks are synced
+    random.seed(23)         # Random seed
+    maxVehicle = 20         # Max simultaneous vehicle
+    totalVehicle = 12       # Total vehicles for entire simulation
+    scenario = 0            # 0 is random 1/tick, 1 is 4/tick all roads (Ensure totalVehicle is a multiple of 4 if scenario is 1)
+    cr_method = "TEP_fix"   # Which conflict resolution method is used
+    spwnInterval = 1        # Time between each spawn cycle
     ###############################################
     # Initialize values
     ###############################################  
@@ -63,10 +64,17 @@ def main():
         # Retrieve world
         world = client.get_world()
         if syncmode == 1: 
+            settings = world.get_settings()
+            if settings.synchronous_mode == False:
+                settings.fixed_delta_seconds = 0.1
+                settings.synchronous_mode = True
+                settings.no_rendering_mode = True
+                world.apply_settings(settings)
             world.tick()
             tick0 = world.get_snapshot()
         else:
             tick0 = world.wait_for_tick()
+        #TODO are these used?
         ts0 = tick0.timestamp
         ts0s = tick0.timestamp.elapsed_seconds
         # ! Clear previous actors if present
@@ -101,10 +109,16 @@ def main():
         # Change laneList if not 4 way cross road
         # Method does not allow same lane for entry and exit
         laneList= np.array([1,2,3,4])
-        spwnRand = np.array([random.choice(laneList) for iter in range(totalVehicle)])
-        destRand = np.array([random.choice(np.delete(laneList,spwnRand[iter]-1)) for iter in range(totalVehicle)])
-        spwnTime = []
-        destTime = []
+        if scenario == 0: 
+            kmax = 1
+            spwnRand = np.array([random.choice(laneList) for iter in range(totalVehicle)])
+            destRand = np.array([random.choice(np.delete(laneList,spwnRand[iter]-1)) for iter in range(totalVehicle)])
+        elif scenario == 1:
+            kmax = 4
+            spwnRand = np.array([[1,2,3,4] for iter in range(int(totalVehicle/4))]).flatten()
+            destRand = np.array([random.choice(np.delete(laneList,spwnRand[iter]-1)) for iter in range(totalVehicle)])
+        spwnTime = [0]
+        destTime = [0]
 
         # Integrate into map object?
         # Map Locations, spwnLoc contains loc, 0= intersec, 1 = N, 2 = E, 3 = S, 4 = W.
@@ -123,12 +137,11 @@ def main():
 
         # Create Objects to use in loop
         #<<
-        worldX_obj = ah.worldX(world,intersection.location,8)
+        worldX_obj = ah.worldX(world,intersection.location,8,tick0,hop_resolution)
         actorDict_obj = ah.actorDict()
         #>>
         
         #*  << Main Loop >>
-        
         notComplete = 1
         while notComplete: 
             if syncmode == 1: 
@@ -138,44 +151,39 @@ def main():
                 tick = world.wait_for_tick()
             ts = tick.timestamp
             dt = ts.delta_seconds
+            worldX_obj.tock(tick)
             
+
             # TODO Spawn Vehicles code ( separate class or function)
-            if i < totalVehicle and len(actorDict_obj.actor_list) <= maxVehicle:
+            if ts.elapsed_seconds - ts0s - spwnTime[-1] > spwnInterval and i < totalVehicle and len(actorDict_obj.actor_list) <= maxVehicle:
                 if False:
                     bp = random.choice(blueprint_library.filter('vehicle'))
                 else:
                     bp = blueprint_library.find('vehicle.audi.a2')
-                if scenario == 0:
+
+                for _k in range(kmax):
                     spwn = world.try_spawn_actor(bp, spwnLoc[spwnRand[i]])
                     if spwn is not None:
+                        # Add new spwn to actor_list
                         actorDict_obj.actor_list.append(spwn)
-                        # spwn.set_autopilot()
+                        #// spwn.set_autopilot()
+                        # Create inbox for new vehicle
                         worldX_obj.msg.inbox[spwn.id] = []
-                        spwnX = ah.actorX(spwn,0,dt,exitLoc[destRand[i]])
-                        route = grp.trace_route(spwnX.ego.get_location(),spwnX.dest.location,8.33)
-                        spwnX.updatePath(route)
-                        spwnX.conflictResolution(cr.conflictResolution("TEP",[0.5,"FCFS"]).obj) 
+                        # Create actorX object for new vehicle
+                        spwnX = ah.actorX(spwn,0,dt,exitLoc[destRand[i]],8.33)
+                        # Trace route using A* and set to spwnX.route
+                        spwnX.route = grp.trace_route(spwnLoc[spwnRand[i]].location,spwnX.dest.location)
+                        # Create conflict resolution object and save it
+                        spwnX.cr = cr.conflictResolution(cr_method,[0.5,"FCFS"]).obj
+                        # Setup conflict resolution using egoX and worldX
+                        spwnX.cr.setup(spwnX,worldX_obj)
+                        # Add new objects to dictionary
                         actorDict_obj.addKey(spwn.id,spwnX)
+                        # Add spawn time to list for analysis
                         spwnTime.append(ts.elapsed_seconds-ts0s)
-                        print('[%d] created %s at %d with id %d' % (i,spwn.type_id,spwnRand[i],spwn.id))
+                        # Print out to console
+                        print('[%d,%d] created %s at %d with dest %d' % (i,spwn.id,spwn.type_id,spwnRand[i],destRand[i]))
                         i += 1
-
-                if scenario == 1:
-                    k = 1
-                    while k <= 4:
-                        spwn = world.try_spawn_actor(bp, spwnLoc[k])
-                        if spwn is not None:
-                            actorDict_obj.actor_list.append(spwn)
-                            worldX_obj.msg.inbox[spwn.id] = []
-                            spwnX = ah.actorX(spwn,0,dt,exitLoc[random.choice(np.delete(laneList,k-1))],8.33)
-                            route = grp.trace_route(spwnLoc[k].location,spwnX.dest.location)
-                            spwnX.updatePath(route)
-                            spwnX.conflictResolution(cr.conflictResolution("TEP",[0.5,"FCFS"]).obj) 
-                            actorDict_obj.addKey(spwn.id,spwnX)
-                            spwnTime.append(ts.elapsed_seconds-ts0s)                            
-                            print('[%d] created %s at %d with id %d' % (i,spwn.type_id,spwnRand[i],spwn.id))
-                            i += 1
-                        k += 1
 
             #* Destroy Vehicles code 
             # TODO separate class or function
@@ -195,16 +203,16 @@ def main():
             # TODO separate class or function)
             # <<
             for actor in actorDict_obj.actor_list:
+                actorX = actorDict_obj.dict.get(actor.id)
                 worldX_obj.msg.receive(actor)
-
+                actorX.updateParameters(actor,dt)
             worldX_obj.msg.clearCloud()
 
             for actor in actorDict_obj.actor_list:
                 actorX = actorDict_obj.dict.get(actor.id)
-                actorX.updateParameters(actor)
                 actorX.cr.resolve(actorX,worldX_obj)
                 msg = actorX.cr.outbox(actorX)
-                worldX_obj.msg.broadcast(actor,msg)
+                worldX_obj.msg.broadcast(actor,msg,50)
             # >>
 
 
@@ -216,15 +224,15 @@ def main():
                 # para = 0 # make class where para contains useful info
                 actorX = actorDict_obj.dict.get(actor.id)
                 actorX.discreteState(ac.TEPControl(actorX,worldX_obj))
-                actorX.tick(dt)
+
                 # ac.simpleControl(actor,worldX_obj)
                 j += 1
             # >>
-
             #* End the loop 
             # TODO Integrate in while loop if useless
             if i >= totalVehicle and len(actorDict_obj.actor_list) == 0:
                 notComplete = 0
+                
 
 
     finally:
@@ -244,8 +252,19 @@ def main():
         print('done.')
         world.tick()
 
+def tic():
+    #Homemade version of matlab tic and toc functions
+    import time
+    global startTime_for_tictoc
+    startTime_for_tictoc = time.time()
+
+def toc():
+    import time
+    if 'startTime_for_tictoc' in globals():
+        print("Elapsed time is " + str(time.time() - startTime_for_tictoc) + " seconds.")
+    else:
+        print("Toc: start time not set")
 
 
 if __name__ == '__main__':
-
     main()
