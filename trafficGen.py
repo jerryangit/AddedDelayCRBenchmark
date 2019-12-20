@@ -50,7 +50,7 @@ def main():
     totalVehicle = 48           # Total vehicles for entire simulation
     scenario = 1                # 0 is random 1/tick, 1 is 4/tick all roads (Ensure totalVehicle is a multiple of 4 if scenario is 1)
     spwnInterval = 2            # Time between each spawn cycle
-    cr_method = "MPIP"          # Which conflict resolution method is used
+    cr_method = "AMPIP"          # Which conflict resolution method is used
     ctrlPolicy = "MPIPControl"   # Which control policy is used
     ###############################################
     # Initialize values
