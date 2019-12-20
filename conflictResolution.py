@@ -41,7 +41,7 @@ class priorityPolicy:
         return fnc(para)
 
     def FCFS(self,actorList):
-        actorList.sort(key = lambda x: (round(x.cr.cd.arrivalTime),x.id))
+        actorList.sort(key = lambda x: (round(x.cr.cd.arrivalTime),x.VIN))
         return actorList
     
 
@@ -65,7 +65,6 @@ class TEP:
         self.err = err
         self.wait =[]
         self.pp = priorityPolicy(policy)
-        self.cd = cd.conflictDetection("timeSlot",self.err).obj
 
     def resolve(self,egoX,worldX):
         # [self.ttArrival, self.ttExit] = self.cd.predictTimes(egoX,worldX)
@@ -74,7 +73,8 @@ class TEP:
         for msg in worldX.msg.inbox[egoX.id]:
             if msg.mtype == "STOP" and msg.idSend not in self.wait:
                 actorX = worldX.actorDict.dict.get(msg.idSend)
-                if self.cd.detect(egoX,actorX,worldX):
+                [bool,TIC] = self.cd.detect(egoX,worldX,msg)
+                if bool:
                     pOrder = self.pp.order([egoX,actorX])
                     if pOrder[0].id == egoX.id:
                         continue
@@ -88,15 +88,17 @@ class TEP:
 
     def outbox(self,actorX):
         if actorX.state == "ENTER" or actorX.state == "CROSS":
-            msg_obj = msg(actorX.id,"STOP",{"timeSlot":[self.cd.arrivalTime,self.cd.exitTime]})
+            msg_obj = msg(actorX.id,"STOP",{"timeSlot":[self.cd.arrivalTime,self.cd.exitTime],"TCL":self.cd.TCL})
             return msg_obj
         elif actorX.state == "EXIT":
             msg_obj = msg(actorX.id,"CLEAR")
             return msg_obj
 
     def setup(self,egoX,worldX):
-        self.cd.sPathCalc(egoX,worldX)
-        self.cd.predictTimes(egoX,worldX)
+        # self.cd = cd.conflictDetection("timeSlot",[self.err]).obj
+        self.cd = cd.conflictDetection("gridCell",[worldX.inter_location,4,16,self.err]).obj
+        self.cd.setup(egoX,worldX)
+
 
 class TEP_fix:
     #! Fix deadlocks by changing logic, vehicles are removed from waitlist they have lower Priority 
@@ -112,7 +114,8 @@ class TEP_fix:
         for msg in worldX.msg.inbox[egoX.id]:
             if msg.mtype == "STOP":
                 actorX = worldX.actorDict.dict.get(msg.idSend)
-                if self.cd.detect(egoX,worldX,msg):
+                [bool,TIC] = self.cd.detect(egoX,worldX,msg)
+                if bool:
                     pOrder = self.pp.order([egoX,actorX])
                     if pOrder[0].id == egoX.id:
                         if msg.idSend in self.wait:
@@ -148,6 +151,47 @@ class RR:
 
 
 class MPIP:
-    def __init__(self): 
-        pass
+    def __init__(self,err,policy):
+        self.err = err
+        self.wait ={}
+        self.pp = priorityPolicy(policy)
+
+    def resolve(self,egoX,worldX):
+        # [self.ttArrival, self.ttExit] = self.cd.predictTimes(egoX,worldX)
+        if len(worldX.msg.inbox) == 0:
+            return 0
+        for msg in worldX.msg.inbox[egoX.id]:
+            if msg.mtype == "ENTER" or msg.mtype == "CROSS":
+                actorX = worldX.actorDict.dict.get(msg.idSend)
+                TIC = self.cd.detect(egoX,worldX,msg)
+                [bool,TIC] = self.cd.detect(egoX,worldX,msg)
+                if bool:
+                    pOrder = self.pp.order([egoX,actorX])
+                    if pOrder[0].id == egoX.id:
+                        if msg.idSend in self.wait:
+                            del self.wait[msg.idSend]
+                    else:
+                        if msg.idSend not in self.wait:
+                            self.wait[msg.idSend] = TIC
+                else: 
+                    continue
+            elif msg.mtype == "EXIT":
+                if msg.idSend in self.wait:
+                    del self.wait[msg.idSend]
+
+    def outbox(self,actorX):
+        if actorX.state == "ENTER":
+            msg_obj = msg(actorX.id,"ENTER",{"timeSlot":[self.cd.arrivalTime,self.cd.exitTime],"TCL":self.cd.TCL})
+            return msg_obj
+        if actorX.state == "CROSS":
+            msg_obj = msg(actorX.id,"CROSS",{"timeSlot":[self.cd.arrivalTime,self.cd.exitTime],"TCL":self.cd.TCL})
+            return msg_obj
+        elif actorX.state == "EXIT":
+            msg_obj = msg(actorX.id,"EXIT")
+            return msg_obj
+
+    def setup(self,egoX,worldX):
+        self.cd = cd.conflictDetection("gridCell",[worldX.inter_location,4,16,self.err]).obj
+        self.cd.setup(egoX,worldX)
+
 

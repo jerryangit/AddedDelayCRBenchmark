@@ -105,33 +105,32 @@ class gridCell:
         actor_TCL = msg.content.get("TCL")
         ego_t = self.predictTimes(egoX,worldX)
         if ego_t[1] > actor_t[0] + self.error and ego_t[0] < actor_t[1] - self.error:
-            if cap(self.TCL,actor_TCL) != []:
-                return 1
-        if actor_t[1] > ego_t[0] + self.error and actor_t[0] < ego_t[1] - self.error:
-            if cap(self.TCL,actor_TCL) != []:
-                return 1
-        return 0 
+            TIC = cap(self.TCL,actor_TCL)
+            if TIC != []:
+                return [1,TIC]
+        elif actor_t[1] > ego_t[0] + self.error and actor_t[0] < ego_t[1] - self.error:
+            TIC = cap(self.TCL,actor_TCL)
+            if TIC != []:
+                return [1,TIC]
+        return [0,[]]
 
     def calcGrid(self):
-        # TODO maybe throw away, not very useful
         self.x_list = []
         self.y_list = []
         x0 = self.center.x - self.size/2
         y0 = self.center.y - self.size/2
-        dx = self.size/self.resolution
-        dy = self.size/self.resolution
+        self.dx = self.size/self.resolution
+        self.dy = self.size/self.resolution
         for i_x in range(self.resolution+1):
-            self.x_list.append(x0+dx*i_x)
+            self.x_list.append(x0+self.dx*i_x)
         for i_y in range(self.resolution+1):
-            self.y_list.append(y0+dy*i_y)
+            self.y_list.append(y0+self.dy*i_y)
 
     def sPathCalc(self,egoX,worldX):
         self.sArrival = np.inf
         self.sExit = np.inf
         self.sPath = []
         self.TCL = []
-        dx = self.size/self.resolution
-        dy = self.size/self.resolution
         s = 0
         s0 = egoX.route[0][0].transform.location
         for wr in egoX.route:
@@ -145,8 +144,8 @@ class gridCell:
                 if self.x_list[0] < wr_x and wr_x < self.x_list[-1] and self.y_list[0] < wr_y and wr_y < self.y_list[-1]:
                     self.sArrival = s
                     self.sPath.append([s,1,"enter"])
-                    row = int(np.floor(wr_y0/dy))
-                    col = int(np.floor(wr_x0/dx))
+                    row = int(np.floor(wr_y0/self.dy))
+                    col = int(np.floor(wr_x0/self.dx))
                     self.TCL.append([row,col])
                 else:
                     self.sPath.append([s,0,"pre"])
@@ -156,13 +155,13 @@ class gridCell:
                     self.sPath.append([s,3,"exit"])
                 else:
                     self.sPath.append([s,2,"cross"])
-                    row = int(np.floor(wr_y0/dy))
-                    col = int(np.floor(wr_x0/dx))
+                    row = int(np.floor(wr_y0/self.dy))
+                    col = int(np.floor(wr_x0/self.dx))
                     if [row,col] != self.TCL[-1]: 
                         self.TCL.append([row,col])
             else:
                 self.sPath.append([s,4,"post"])
-
+    
     def predictTimes(self,egoX,worldX):
         if egoX.cr.cd.arr[0] != 1:
             self.arrivalTime = ( (self.sArrival-egoX.sTraversed) / egoX.velRef ) + worldX.tick.timestamp.elapsed_seconds
@@ -173,6 +172,12 @@ class gridCell:
         else: 
             self.exitTime = egoX.cr.cd.ext[1]
         return [self.arrivalTime,self.exitTime]
+
+    def TIC2Loc(self,TIC):
+        x = self.x_list[TIC[1]]+0.5*self.dx
+        y = self.y_list[TIC[0]]+0.5*self.dy
+        z = self.center.z
+        return carla.Location(x,y,z)
 
     def setup(self,egoX,worldX):
         self.sPathCalc(egoX,worldX)
@@ -235,9 +240,11 @@ class coneDetect:
         return smpArr
 
 def cap(A,B):
+    # Returns first common element search depth first through x with y
     cap = []
     for x in A:
         for y in B:
             if x == y:
-                cap = x
+                return x
     return cap
+    

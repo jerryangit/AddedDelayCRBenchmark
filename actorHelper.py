@@ -84,7 +84,7 @@ class actorDict:
 class actorX:
     # TODO optimize calculations, e.g. calc location once per loop save in this class object
     # Class containing information for each vehicle, used to unify required data, can't modify cpp actor class
-    def __init__(self,ego,model,dt,dest,velRef):
+    def __init__(self,ego,model,dt,dest,velRef,VIN):
         self.route = []
         self.routeIndex = 0
         self.dest = dest
@@ -94,6 +94,7 @@ class actorX:
         self.cr = []
         self.updateParameters(ego,dt)
         self.id = ego.id
+        self.VIN = VIN
         if model == 0: 
             self.doubleS()
         if model == 1: 
@@ -112,7 +113,7 @@ class actorX:
 
     def discreteState(self,state):
         self.state = state
-        
+
     def doubleS(self):
         # Double integrator for x,y
         # States:   [x,xdot,y,ydot]'  

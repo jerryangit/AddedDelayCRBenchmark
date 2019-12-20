@@ -44,13 +44,14 @@ def main():
     ###############################################
     # Config
     ###############################################  
-    syncmode = 1            # Whether ticks are synced
-    random.seed(23)         # Random seed
-    maxVehicle = 20         # Max simultaneous vehicle
-    totalVehicle = 12       # Total vehicles for entire simulation
-    scenario = 0            # 0 is random 1/tick, 1 is 4/tick all roads (Ensure totalVehicle is a multiple of 4 if scenario is 1)
-    cr_method = "TEP_fix"   # Which conflict resolution method is used
-    spwnInterval = 1        # Time between each spawn cycle
+    syncmode = 1                # Whether ticks are synced
+    random.seed(23)             # Random seed
+    maxVehicle = 20             # Max simultaneous vehicle
+    totalVehicle = 48           # Total vehicles for entire simulation
+    scenario = 1                # 0 is random 1/tick, 1 is 4/tick all roads (Ensure totalVehicle is a multiple of 4 if scenario is 1)
+    spwnInterval = 2            # Time between each spawn cycle
+    cr_method = "MPIP"          # Which conflict resolution method is used
+    ctrlPolicy = "MPIPControl"   # Which control policy is used
     ###############################################
     # Initialize values
     ###############################################  
@@ -68,7 +69,7 @@ def main():
             if settings.synchronous_mode == False:
                 settings.fixed_delta_seconds = 0.1
                 settings.synchronous_mode = True
-                settings.no_rendering_mode = True
+                settings.no_rendering_mode = False
                 world.apply_settings(settings)
             world.tick()
             tick0 = world.get_snapshot()
@@ -117,6 +118,8 @@ def main():
             kmax = 4
             spwnRand = np.array([[1,2,3,4] for iter in range(int(totalVehicle/4))]).flatten()
             destRand = np.array([random.choice(np.delete(laneList,spwnRand[iter]-1)) for iter in range(totalVehicle)])
+        # idRand is only used for tie breaking, used to avoid odd behavior
+        idRand = np.array([random.randint(100000,999999) for iter in range(totalVehicle)])
         spwnTime = [0]
         destTime = [0]
 
@@ -139,6 +142,7 @@ def main():
         #<<
         worldX_obj = ah.worldX(world,intersection.location,8,tick0,hop_resolution)
         actorDict_obj = ah.actorDict()
+        ctrl_obj = ac.actorControl(ctrlPolicy)
         #>>
         
         #*  << Main Loop >>
@@ -170,7 +174,7 @@ def main():
                         # Create inbox for new vehicle
                         worldX_obj.msg.inbox[spwn.id] = []
                         # Create actorX object for new vehicle
-                        spwnX = ah.actorX(spwn,0,dt,exitLoc[destRand[i]],8.33)
+                        spwnX = ah.actorX(spwn,0,dt,exitLoc[destRand[i]],8.33,idRand[i])
                         # Trace route using A* and set to spwnX.route
                         spwnX.route = grp.trace_route(spwnLoc[spwnRand[i]].location,spwnX.dest.location)
                         # Create conflict resolution object and save it
@@ -223,7 +227,7 @@ def main():
                 # Apply desired control function (control should be simple, precompute common info)
                 # para = 0 # make class where para contains useful info
                 actorX = actorDict_obj.dict.get(actor.id)
-                actorX.discreteState(ac.TEPControl(actorX,worldX_obj))
+                actorX.discreteState(ctrl_obj.control(actorX,worldX_obj))
 
                 # ac.simpleControl(actor,worldX_obj)
                 j += 1
