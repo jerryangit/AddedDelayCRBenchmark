@@ -42,8 +42,9 @@ class timeSlot:
         self.error = error
         self.arr = [0,0]
         self.ext = [0,0]
-    def detect(self,egoX,worldX,actor_t): 
+    def detect(self,egoX,worldX,msg): 
         # slot is a list with [0], being the start of the slot and [1] being the end of the slot
+        actor_t = msg.content.get("timeSlot")
         ego_t = self.predictTimes(egoX,worldX)
         if ego_t[1] > actor_t[0] + self.error and ego_t[0] < actor_t[1] - self.error:
             return 1
@@ -78,7 +79,7 @@ class timeSlot:
                 else:
                     self.sPath.append([s,0,"pre"])
             elif self.sExit == np.inf:
-                if s > self.sArrival + 2 and wr[0].transform.location.distance(worldX.inter_location)>=worldX.inter_bounds:
+                if s > self.sArrival + 0.5 and wr[0].transform.location.distance(worldX.inter_location)>=worldX.inter_bounds:
                     self.sExit = s
                     self.sPath.append([s,3,"exit"])
                 else:
@@ -86,53 +87,96 @@ class timeSlot:
             else:
                 self.sPath.append([s,4,"post"])
         return self.sPath
+    def setup(self,egoX,worldX):
+        self.sPathCalc(egoX,worldX)
+        self.predictTimes(egoX,worldX)
 
 class gridCell:
-    def __init__(self,center,resolution=4,size=16):
+    def __init__(self,center,resolution=4,size=16,error=0):
         self.center = center            # Carla.Location of intersection center
         self.resolution = resolution    # Ammount of cells per row/column
         self.size = size                # Distance in m between edges of grid        
+        self.error = error
         self.calcGrid()
-    def detect(self,egoX,actorX,worldX): 
-        pass
+        self.arr = [0,0]
+        self.ext = [0,0]
+    def detect(self,egoX,worldX,msg): 
+        actor_t = msg.content.get("timeSlot")
+        actor_TCL = msg.content.get("TCL")
+        ego_t = self.predictTimes(egoX,worldX)
+        if ego_t[1] > actor_t[0] + self.error and ego_t[0] < actor_t[1] - self.error:
+            if cap(self.TCL,actor_TCL) != []:
+                return 1
+        if actor_t[1] > ego_t[0] + self.error and actor_t[0] < ego_t[1] - self.error:
+            if cap(self.TCL,actor_TCL) != []:
+                return 1
+        return 0 
+
     def calcGrid(self):
-        
-        # for i_x in range(self.resolution+1):
-        #         dx = self.size/self.resolution
-        #         # top = [tl[0]+i_x*dx,tl[1]] 
-        #         bot = [bl[0]+i_x*dx,bl[1]]
-        #         x_list.append()
-        # for i_y in range(self.resolution+1):
-        #         dy = self.size/self.resolution
-        #         lef = [tl[0],tl[1]+i_y*dy] 
-        #         rig = [tr[0],tr[1]+i_y*dy]
-        #         y_list.append()
-        self.resolution
+        # TODO maybe throw away, not very useful
+        self.x_list = []
+        self.y_list = []
+        x0 = self.center.x - self.size/2
+        y0 = self.center.y - self.size/2
+        dx = self.size/self.resolution
+        dy = self.size/self.resolution
+        for i_x in range(self.resolution+1):
+            self.x_list.append(x0+dx*i_x)
+        for i_y in range(self.resolution+1):
+            self.y_list.append(y0+dy*i_y)
 
     def sPathCalc(self,egoX,worldX):
         self.sArrival = np.inf
         self.sExit = np.inf
         self.sPath = []
+        self.TCL = []
+        dx = self.size/self.resolution
+        dy = self.size/self.resolution
         s = 0
         s0 = egoX.route[0][0].transform.location
         for wr in egoX.route:
             s = wr[0].transform.location.distance(s0) + s
             s0 = wr[0].transform.location
+            wr_x = wr[0].transform.location.x
+            wr_y = wr[0].transform.location.y
+            wr_x0 = wr_x - self.x_list[0]
+            wr_y0 = wr_y - self.y_list[0]
             if self.sArrival == np.inf:
-                if wr[0].transform.location.distance(worldX.inter_location)<=worldX.inter_bounds:
+                if self.x_list[0] < wr_x and wr_x < self.x_list[-1] and self.y_list[0] < wr_y and wr_y < self.y_list[-1]:
                     self.sArrival = s
                     self.sPath.append([s,1,"enter"])
+                    row = int(np.floor(wr_y0/dy))
+                    col = int(np.floor(wr_x0/dx))
+                    self.TCL.append([row,col])
                 else:
                     self.sPath.append([s,0,"pre"])
             elif self.sExit == np.inf:
-                if s > self.sArrival + 2 and wr[0].transform.location.distance(worldX.inter_location)>=worldX.inter_bounds:
+                if self.x_list[0]> wr_x or wr_x > self.x_list[-1] or self.y_list[0] > wr_y or wr_y > self.y_list[-1] :
                     self.sExit = s
                     self.sPath.append([s,3,"exit"])
                 else:
                     self.sPath.append([s,2,"cross"])
+                    row = int(np.floor(wr_y0/dy))
+                    col = int(np.floor(wr_x0/dx))
+                    if [row,col] != self.TCL[-1]: 
+                        self.TCL.append([row,col])
             else:
                 self.sPath.append([s,4,"post"])
-        return self.sPath
+
+    def predictTimes(self,egoX,worldX):
+        if egoX.cr.cd.arr[0] != 1:
+            self.arrivalTime = ( (self.sArrival-egoX.sTraversed) / egoX.velRef ) + worldX.tick.timestamp.elapsed_seconds
+        else: 
+            self.arrivalTime = egoX.cr.cd.arr[1]
+        if egoX.cr.cd.ext[0] != 1:
+            self.exitTime = ( (self.sExit-egoX.sTraversed) / egoX.velRef ) + worldX.tick.timestamp.elapsed_seconds
+        else: 
+            self.exitTime = egoX.cr.cd.ext[1]
+        return [self.arrivalTime,self.exitTime]
+
+    def setup(self,egoX,worldX):
+        self.sPathCalc(egoX,worldX)
+        self.predictTimes(egoX,worldX)
 
 class coneDetect:
     def __init__(self,radius=2.5,angle=0.33*np.pi,actorSamples=5):
@@ -190,3 +234,10 @@ class coneDetect:
         smpArr = smpArr + [ actor.get_location().x , actor.get_location().y ]
         return smpArr
 
+def cap(A,B):
+    cap = []
+    for x in A:
+        for y in B:
+            if x == y:
+                cap = x
+    return cap

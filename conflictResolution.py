@@ -88,7 +88,7 @@ class TEP:
 
     def outbox(self,actorX):
         if actorX.state == "ENTER" or actorX.state == "CROSS":
-            msg_obj = msg(actorX.id,"STOP",{"arrivalTime":self.cd.arrivalTime})
+            msg_obj = msg(actorX.id,"STOP",{"timeSlot":[self.cd.arrivalTime,self.cd.exitTime]})
             return msg_obj
         elif actorX.state == "EXIT":
             msg_obj = msg(actorX.id,"CLEAR")
@@ -104,8 +104,6 @@ class TEP_fix:
         self.err = err
         self.wait =[]
         self.pp = priorityPolicy(policy)
-        self.cd = cd.conflictDetection("timeSlot",self.err).obj
-        # self.cd = cd.conflictDetection("gridCell",self.err).obj
 
     def resolve(self,egoX,worldX):
         # [self.ttArrival, self.ttExit] = self.cd.predictTimes(egoX,worldX)
@@ -114,7 +112,7 @@ class TEP_fix:
         for msg in worldX.msg.inbox[egoX.id]:
             if msg.mtype == "STOP":
                 actorX = worldX.actorDict.dict.get(msg.idSend)
-                if self.cd.detect(egoX,worldX,msg.content.get("timeSlot")):
+                if self.cd.detect(egoX,worldX,msg):
                     pOrder = self.pp.order([egoX,actorX])
                     if pOrder[0].id == egoX.id:
                         if msg.idSend in self.wait:
@@ -130,15 +128,18 @@ class TEP_fix:
 
     def outbox(self,actorX):
         if actorX.state == "ENTER" or actorX.state == "CROSS":
-            msg_obj = msg(actorX.id,"STOP",{"timeSlot":[self.cd.arrivalTime,self.cd.exitTime]})
+            msg_obj = msg(actorX.id,"STOP",{"timeSlot":[self.cd.arrivalTime,self.cd.exitTime],"TCL":self.cd.TCL})
             return msg_obj
         elif actorX.state == "EXIT":
             msg_obj = msg(actorX.id,"CLEAR")
             return msg_obj
 
     def setup(self,egoX,worldX):
-        self.cd.sPathCalc(egoX,worldX)
-        self.cd.predictTimes(egoX,worldX)
+        # self.cd = cd.conflictDetection("timeSlot",[self.err]).obj
+        #TODO Grid TCL is more like MP-IP fix later
+        self.cd = cd.conflictDetection("gridCell",[worldX.inter_location,4,16,self.err]).obj
+        self.cd.setup(egoX,worldX)
+
 
 
 class RR:
