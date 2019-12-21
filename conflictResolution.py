@@ -27,7 +27,6 @@ class msg:
         self.idSend = idSend
         self.content = content
     
-
 class priorityPolicy:
     def __init__(self,policy):
         self.policy = policy
@@ -41,10 +40,9 @@ class priorityPolicy:
         return fnc(para)
 
     def FCFS(self,actorList):
-        actorList.sort(key = lambda x: (round(x.cr.cd.arrivalTime),x.VIN))
+        actorList.sort(key = lambda x: (round(x.cr.cd.arrivalTime,1),x.VIN))
         return actorList
     
-
 class conflictResolution:
     def __init__(self,method,para=[]):
         self.method = method
@@ -143,10 +141,6 @@ class TEP_fix:
         self.cd = cd.conflictDetection("gridCell",[worldX.inter_location,4,16,self.err]).obj
         self.cd.setup(egoX,worldX)
 
-class RR:
-    def __init__(self): 
-        pass
-
 class MPIP:
     def __init__(self,err,policy):
         self.err = err
@@ -212,8 +206,14 @@ class AMPIP:
                         if msg.idSend in self.wait:
                             del self.wait[msg.idSend]
                     else:
+                        [tAi,tEi] = self.cd.cellTimes(TIC,egoX)
+                        [tAj,tEj] = actorX.cr.cd.cellTimes(TIC,actorX)
                         if msg.idSend not in self.wait:
-                            self.wait[msg.idSend] = TIC
+                            if tEi > tAj:
+                                self.wait[msg.idSend] = TIC
+                            else:
+                                # print(egoX.id," Going before ", msg.idSend)
+                                continue
                 else: 
                     continue
             elif msg.mtype == "EXIT":
@@ -234,5 +234,3 @@ class AMPIP:
     def setup(self,egoX,worldX):
         self.cd = cd.conflictDetection("gridCell",[worldX.inter_location,4,16,self.err]).obj
         self.cd.setup(egoX,worldX)
-
-

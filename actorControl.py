@@ -29,6 +29,8 @@ class actorControl:
         cases = {
             "TEPControl": TEPControl,
             "MPIPControl": MPIPControl,
+            "AMPIPControl": AMPIPControl,
+
             "simpleControl": simpleControl,
         }
         fnc = cases.get(self.method)
@@ -78,8 +80,6 @@ def MPIPControl(egoX,worldX):
             if cd_obj.detect(ego,actor):
                 ego.apply_control(carla.VehicleControl(throttle=0.0, steer=0.0,brake = 1.0))
     if len(egoX.cr.wait) > 0:
-        if egoX.cr.cd.arr[0] != 1:
-                egoX.cr.cd.arr = [1,egoX.cr.cd.arrivalTime]
         for idSend in egoX.cr.wait:
             dist = ego.get_location().distance(egoX.cr.cd.TIC2Loc(egoX.cr.wait[idSend])) 
             if dist<= egoX.cr.cd.dx + 1.3 :
@@ -89,6 +89,38 @@ def MPIPControl(egoX,worldX):
     if egoX.state == "NAN":
         state = "ENTER"
     elif egoX.state == "ENTER" and ego.get_location().distance(worldX.inter_location) <= worldX.inter_bounds:
+        if egoX.cr.cd.arr[0] != 1:
+            egoX.cr.cd.arr = [1,egoX.cr.cd.arrivalTime]
+        state = "CROSS"
+    elif egoX.state == "CROSS" and ego.get_location().distance(worldX.inter_location) >= worldX.inter_bounds+3:
+        if egoX.cr.cd.ext[0] != 1:
+            egoX.cr.cd.ext = [1,egoX.cr.cd.exitTime]
+        state = "EXIT"
+    return state
+
+def AMPIPControl(egoX,worldX):
+    # TODO Fix arrival time when near intersection, shouldn't increase as it is FCFS
+    ego = egoX.ego
+    if egoX.location == carla.Location(0,0,0):
+        return "NAN"
+    u_v = velocityPID(ego,egoX.velRef)
+    u_theta = pathFollow(egoX,worldX)
+    ego.apply_control(carla.VehicleControl(throttle=u_v, steer=u_theta,brake = 0.0))
+    cd_obj = cd.conflictDetection("coneDetect",[4,0.155*np.pi,5]).obj
+    for actor in worldX.actorDict.actor_list:
+        if ego.id != actor.id and carla.Location.distance ( ego.get_location() , actor.get_location() ) < 12 : 
+            if cd_obj.detect(ego,actor):
+                ego.apply_control(carla.VehicleControl(throttle=0.0, steer=0.0,brake = 1.0))
+    if len(egoX.cr.wait) > 0:
+        for idSend in egoX.cr.wait:
+            dist = ego.get_location().distance(egoX.cr.cd.TIC2Loc(egoX.cr.wait[idSend])) 
+            if dist<= egoX.cr.cd.dx + 1.3 :
+                u = 1/dist * egoX.vel_norm
+                ego.apply_control(carla.VehicleControl(throttle=0.0, steer=0.0,brake = u))
+    state = egoX.state
+    if egoX.state == "NAN":
+        state = "ENTER"
+    elif egoX.state == "ENTER" and ego.get_location().distance(worldX.inter_location) <= worldX.inter_bounds+2:
         if egoX.cr.cd.arr[0] != 1:
             egoX.cr.cd.arr = [1,egoX.cr.cd.arrivalTime]
         state = "CROSS"

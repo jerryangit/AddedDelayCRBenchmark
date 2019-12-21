@@ -62,7 +62,7 @@ class timeSlot:
         else: 
             self.exitTime = egoX.cr.cd.ext[1]
         return [self.arrivalTime,self.exitTime]
-
+    
     def sPathCalc(self,egoX,worldX):
         self.sArrival = np.inf
         self.sExit = np.inf
@@ -100,19 +100,20 @@ class gridCell:
         self.calcGrid()
         self.arr = [0,0]
         self.ext = [0,0]
+
     def detect(self,egoX,worldX,msg): 
         actor_t = msg.content.get("timeSlot")
         actor_TCL = msg.content.get("TCL")
         ego_t = self.predictTimes(egoX,worldX)
         if ego_t[1] > actor_t[0] + self.error and ego_t[0] < actor_t[1] - self.error:
             TIC = cap(self.TCL,actor_TCL)
-            if TIC != []:
+            if TIC != ():
                 return [1,TIC]
         elif actor_t[1] > ego_t[0] + self.error and actor_t[0] < ego_t[1] - self.error:
             TIC = cap(self.TCL,actor_TCL)
-            if TIC != []:
+            if TIC != ():
                 return [1,TIC]
-        return [0,[]]
+        return [0,()]
 
     def calcGrid(self):
         self.x_list = []
@@ -131,6 +132,8 @@ class gridCell:
         self.sExit = np.inf
         self.sPath = []
         self.TCL = []
+        self.sTCL = {}
+
         s = 0
         s0 = egoX.route[0][0].transform.location
         for wr in egoX.route:
@@ -146,7 +149,7 @@ class gridCell:
                     self.sPath.append([s,1,"enter"])
                     row = int(np.floor(wr_y0/self.dy))
                     col = int(np.floor(wr_x0/self.dx))
-                    self.TCL.append([row,col])
+                    self.TCL.append((row,col))
                 else:
                     self.sPath.append([s,0,"pre"])
             elif self.sExit == np.inf:
@@ -154,11 +157,12 @@ class gridCell:
                     self.sExit = s
                     self.sPath.append([s,3,"exit"])
                 else:
-                    self.sPath.append([s,2,"cross"])
                     row = int(np.floor(wr_y0/self.dy))
                     col = int(np.floor(wr_x0/self.dx))
                     if [row,col] != self.TCL[-1]: 
-                        self.TCL.append([row,col])
+                        self.TCL.append((row,col))
+                        self.sTCL[(row,col)] = s
+                    self.sPath.append([s,2,"cross"])
             else:
                 self.sPath.append([s,4,"post"])
     
@@ -172,6 +176,13 @@ class gridCell:
         else: 
             self.exitTime = egoX.cr.cd.ext[1]
         return [self.arrivalTime,self.exitTime]
+
+    def cellTimes(self,TIC,egoX):
+        a_max = 12
+        arrDist = (self.sTCL[TIC]-self.sArrival)
+        arrivalTime = self.arrivalTime + arrDist/egoX.velRef
+        exitTime = arrivalTime + np.sqrt(2 * a_max * self.dx)/(2 * a_max)
+        return [arrivalTime,exitTime]
 
     def TIC2Loc(self,TIC):
         x = self.x_list[TIC[1]]+0.5*self.dx
@@ -241,7 +252,7 @@ class coneDetect:
 
 def cap(A,B):
     # Returns first common element search depth first through x with y
-    cap = []
+    cap = ()
     for x in A:
         for y in B:
             if x == y:

@@ -49,9 +49,9 @@ def main():
     maxVehicle = 20             # Max simultaneous vehicle
     totalVehicle = 48           # Total vehicles for entire simulation
     scenario = 1                # 0 is random 1/tick, 1 is 4/tick all roads (Ensure totalVehicle is a multiple of 4 if scenario is 1)
-    spwnInterval = 2            # Time between each spawn cycle
+    spwnInterval = 0.2            # Time between each spawn cycle
     cr_method = "AMPIP"          # Which conflict resolution method is used
-    ctrlPolicy = "MPIPControl"   # Which control policy is used
+    ctrlPolicy = "AMPIPControl"   # Which control policy is used
     ###############################################
     # Initialize values
     ###############################################  
@@ -84,7 +84,7 @@ def main():
 
         # get map and establish grp
         map = world.get_map()
-        hop_resolution = 0.5
+        hop_resolution = 0.25
         dao = GlobalRoutePlannerDAO(map, hop_resolution)
         grp = GlobalRoutePlanner(dao)
         grp.setup()
@@ -114,10 +114,27 @@ def main():
             kmax = 1
             spwnRand = np.array([random.choice(laneList) for iter in range(totalVehicle)])
             destRand = np.array([random.choice(np.delete(laneList,spwnRand[iter]-1)) for iter in range(totalVehicle)])
+            velRand = np.array([8+random.uniform(-1.5,2) for iter in range(totalVehicle)])
         elif scenario == 1:
             kmax = 4
             spwnRand = np.array([[1,2,3,4] for iter in range(int(totalVehicle/4))]).flatten()
             destRand = np.array([random.choice(np.delete(laneList,spwnRand[iter]-1)) for iter in range(totalVehicle)])
+            velRand = np.array([8+random.uniform(-1.5,2) for iter in range(totalVehicle)])
+        elif scenario == 2: # Artificial AMPIP example
+            totalVehicle = 2
+            spwnInterval = 4.5
+            kmax = 1
+            spwnRand = [4,2]
+            destRand = [1,1]
+            velRand = [6,9]
+        elif scenario == 3:
+            # Artificial Deadlock for AMPIP, proof of not deadlock free in real environments
+            totalVehicle = 4
+            spwnInterval = 2.8
+            kmax = 2
+            spwnRand = [4,2,3,1]
+            destRand = [2,4,1,3]
+            velRand = [6.9,6.9,9.2,9.2]
         # idRand is only used for tie breaking, used to avoid odd behavior
         idRand = np.array([random.randint(100000,999999) for iter in range(totalVehicle)])
         spwnTime = [0]
@@ -174,7 +191,7 @@ def main():
                         # Create inbox for new vehicle
                         worldX_obj.msg.inbox[spwn.id] = []
                         # Create actorX object for new vehicle
-                        spwnX = ah.actorX(spwn,0,dt,exitLoc[destRand[i]],8.33,idRand[i])
+                        spwnX = ah.actorX(spwn,0,dt,exitLoc[destRand[i]],velRand[i],idRand[i])
                         # Trace route using A* and set to spwnX.route
                         spwnX.route = grp.trace_route(spwnLoc[spwnRand[i]].location,spwnX.dest.location)
                         # Create conflict resolution object and save it
@@ -218,8 +235,6 @@ def main():
                 msg = actorX.cr.outbox(actorX)
                 worldX_obj.msg.broadcast(actor,msg,50)
             # >>
-
-
             #* Loop to apply vehicle control (TODO separate class or function) 
             # <<
             j = 0
@@ -228,7 +243,6 @@ def main():
                 # para = 0 # make class where para contains useful info
                 actorX = actorDict_obj.dict.get(actor.id)
                 actorX.discreteState(ctrl_obj.control(actorX,worldX_obj))
-
                 # ac.simpleControl(actor,worldX_obj)
                 j += 1
             # >>
@@ -237,8 +251,6 @@ def main():
             if i >= totalVehicle and len(actorDict_obj.actor_list) == 0:
                 notComplete = 0
                 
-
-
     finally:
         # Save lists as csv
         data = []
@@ -255,6 +267,10 @@ def main():
             actor.destroy()
         print('done.')
         world.tick()
+        print("setting synchronous_mode to False")
+        settings.synchronous_mode = True
+        world.apply_settings(settings)
+
 
 def tic():
     #Homemade version of matlab tic and toc functions
