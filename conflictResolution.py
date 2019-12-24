@@ -251,6 +251,9 @@ class DCR:
 
     def resolve(self,egoX,worldX):
         # [self.ttArrival, self.ttExit] = self.cd.predictTimes(egoX,worldX)
+        idFront =0
+        act =0
+        ego =0
         if len(worldX.msg.inbox) == 0:
             return 0
         if egoX.state == "IL":
@@ -263,13 +266,13 @@ class DCR:
                 if tmpBool == 0:
                     actorX = worldX.actorDict.dict.get(msg.idSend)
                     pOrder = self.pp.order([egoX,actorX])
-                    if No Tie(ego,act) or pOrder[1].id == egoX.id:
+                    if self.Tie(ego,act) == 0 or pOrder[1].id == egoX.id:
                         self.wait[egoX.id] = 1
                 # If Ego has temporal advantage over msg sender
                 if tmpBool == 1:  
                     actorX = worldX.actorDict.dict.get(msg.idSend)
                     pOrder = self.pp.order([egoX,actorX])
-                    if Tie(act,ego) and pOrder[0].id == egoX.id:
+                    if self.Tie(act,ego) == 1 and pOrder[0].id == egoX.id:
                         self.wait[egoX.id] = 1
     def outbox(self,actorX):
         pass
@@ -277,4 +280,6 @@ class DCR:
     def setup(self,egoX,worldX):
         self.cd = cd.conflictDetection("conflictZones",[worldX.inter_location,2,8,self.err]).obj
         self.cd.setup(egoX,worldX)
+    def Tie(self,ego,actor):
+        pass
 
