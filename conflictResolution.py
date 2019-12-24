@@ -5,6 +5,7 @@
 # This work is licensed under the terms of the MIT license.
 # For a copy, see <https://opensource.org/licenses/MIT>.
 import conflictDetection as cd
+import deadlockDetection as dd
 import glob
 import os
 import sys
@@ -34,6 +35,7 @@ class priorityPolicy:
     def order(self,para):
         cases = {
             "FCFS": self.FCFS,
+            "TimeSpent": self.TimeSpent
         }
         fnc = cases.get(self.policy)
         #* 1 = ego holds priorty, 0 = ego has to yield
@@ -42,7 +44,12 @@ class priorityPolicy:
     def FCFS(self,actorList):
         actorList.sort(key = lambda x: (round(x.cr.cd.arrivalTime,1),x.VIN))
         return actorList
-    
+
+    def TimeSpent(self,actorList):
+        actorList.sort(key = lambda x: (round(x.cr.cd.intersectionTime,1),x.VIN))
+        return actorList
+
+        
 class conflictResolution:
     def __init__(self,method,para=[]):
         self.method = method
@@ -234,3 +241,40 @@ class AMPIP:
     def setup(self,egoX,worldX):
         self.cd = cd.conflictDetection("gridCell",[worldX.inter_location,4,16,self.err]).obj
         self.cd.setup(egoX,worldX)
+
+class DCR:
+    def __init__(self,err,policy):
+        self.err = err
+        self.wait ={}
+        self.pp = priorityPolicy(policy)
+        self.dd = dd.deadlockDetection("Tie")
+
+    def resolve(self,egoX,worldX):
+        # [self.ttArrival, self.ttExit] = self.cd.predictTimes(egoX,worldX)
+        if len(worldX.msg.inbox) == 0:
+            return 0
+        if egoX.state == "IL":
+            self.wait[idFront] = "Queue"
+        for msg in worldX.msg.inbox[egoX.id]:
+            (sptBool,tmpBool) = self.cd.detect(egoX,worldX,msg)
+            # If Ego has a spatial conflict with msg sender
+            if sptBool:
+                # If msg sender has temporal advantage over Ego
+                if tmpBool == 0:
+                    actorX = worldX.actorDict.dict.get(msg.idSend)
+                    pOrder = self.pp.order([egoX,actorX])
+                    if No Tie(ego,act) or pOrder[1].id == egoX.id:
+                        self.wait[egoX.id] = 1
+                # If Ego has temporal advantage over msg sender
+                if tmpBool == 1:  
+                    actorX = worldX.actorDict.dict.get(msg.idSend)
+                    pOrder = self.pp.order([egoX,actorX])
+                    if Tie(act,ego) and pOrder[0].id == egoX.id:
+                        self.wait[egoX.id] = 1
+    def outbox(self,actorX):
+        pass
+
+    def setup(self,egoX,worldX):
+        self.cd = cd.conflictDetection("conflictZones",[worldX.inter_location,2,8,self.err]).obj
+        self.cd.setup(egoX,worldX)
+

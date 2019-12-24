@@ -47,14 +47,21 @@ def main():
     syncmode = 1                # Whether ticks are synced
     random.seed(23)             # Random seed
     maxVehicle = 20             # Max simultaneous vehicle
-    totalVehicle = 48           # Total vehicles for entire simulation
+    totalVehicle = 256           # Total vehicles for entire simulation
     scenario = 1                # 0 is random 1/tick, 1 is 4/tick all roads (Ensure totalVehicle is a multiple of 4 if scenario is 1)
-    spwnInterval = 0.2            # Time between each spawn cycle
-    cr_method = "AMPIP"          # Which conflict resolution method is used
-    ctrlPolicy = "AMPIPControl"   # Which control policy is used
+    spwnInterval = 0.4          # Time between each spawn cycle
+    cr_method = "MPIP"           # Which conflict resolution method is used
+    ctrlPolicy = "MPIPControl"          # Which control policy is used
     ###############################################
-    # Initialize values
+    # Other variables
     ###############################################  
+    weather = carla.WeatherParameters(
+        cloudyness=0.0,
+        precipitation=0.0,
+        precipitation_deposits=0.0, 
+        wind_intensity=0.0, 
+        sun_azimuth_angle=70.0, 
+        sun_altitude_angle=70.0)                  # Doesn't affect simulation, but does affect visuals
 
 
     try:
@@ -64,12 +71,13 @@ def main():
 
         # Retrieve world
         world = client.get_world()
+        world.set_weather(weather)
         if syncmode == 1: 
             settings = world.get_settings()
             if settings.synchronous_mode == False:
                 settings.fixed_delta_seconds = 0.1
                 settings.synchronous_mode = True
-                settings.no_rendering_mode = False
+                settings.no_rendering_mode = True
                 world.apply_settings(settings)
             world.tick()
             tick0 = world.get_snapshot()
@@ -173,7 +181,6 @@ def main():
             ts = tick.timestamp
             dt = ts.delta_seconds
             worldX_obj.tock(tick)
-            
 
             # TODO Spawn Vehicles code ( separate class or function)
             if ts.elapsed_seconds - ts0s - spwnTime[-1] > spwnInterval and i < totalVehicle and len(actorDict_obj.actor_list) <= maxVehicle:
@@ -183,28 +190,29 @@ def main():
                     bp = blueprint_library.find('vehicle.audi.a2')
 
                 for _k in range(kmax):
-                    spwn = world.try_spawn_actor(bp, spwnLoc[spwnRand[i]])
-                    if spwn is not None:
-                        # Add new spwn to actor_list
-                        actorDict_obj.actor_list.append(spwn)
-                        #// spwn.set_autopilot()
-                        # Create inbox for new vehicle
-                        worldX_obj.msg.inbox[spwn.id] = []
-                        # Create actorX object for new vehicle
-                        spwnX = ah.actorX(spwn,0,dt,exitLoc[destRand[i]],velRand[i],idRand[i])
-                        # Trace route using A* and set to spwnX.route
-                        spwnX.route = grp.trace_route(spwnLoc[spwnRand[i]].location,spwnX.dest.location)
-                        # Create conflict resolution object and save it
-                        spwnX.cr = cr.conflictResolution(cr_method,[0.5,"FCFS"]).obj
-                        # Setup conflict resolution using egoX and worldX
-                        spwnX.cr.setup(spwnX,worldX_obj)
-                        # Add new objects to dictionary
-                        actorDict_obj.addKey(spwn.id,spwnX)
-                        # Add spawn time to list for analysis
-                        spwnTime.append(ts.elapsed_seconds-ts0s)
-                        # Print out to console
-                        print('[%d,%d] created %s at %d with dest %d' % (i,spwn.id,spwn.type_id,spwnRand[i],destRand[i]))
-                        i += 1
+                    if i < totalVehicle:
+                        spwn = world.try_spawn_actor(bp, spwnLoc[spwnRand[i]])
+                        if spwn is not None:
+                            # Add new spwn to actor_list
+                            actorDict_obj.actor_list.append(spwn)
+                            #// spwn.set_autopilot()
+                            # Create inbox for new vehicle
+                            worldX_obj.msg.inbox[spwn.id] = []
+                            # Create actorX object for new vehicle
+                            spwnX = ah.actorX(spwn,0,dt,exitLoc[destRand[i]],velRand[i],idRand[i])
+                            # Trace route using A* and set to spwnX.route
+                            spwnX.route = grp.trace_route(spwnLoc[spwnRand[i]].location,spwnX.dest.location)
+                            # Create conflict resolution object and save it
+                            spwnX.cr = cr.conflictResolution(cr_method,[0.5,"FCFS"]).obj
+                            # Setup conflict resolution using egoX and worldX
+                            spwnX.cr.setup(spwnX,worldX_obj)
+                            # Add new objects to dictionary
+                            actorDict_obj.addKey(spwn.id,spwnX)
+                            # Add spawn time to list for analysis
+                            spwnTime.append(ts.elapsed_seconds-ts0s)
+                            # Print out to console
+                            print('[%d,%d] created %s at %d with dest %d' % (i,spwn.id,spwn.type_id,spwnRand[i],destRand[i]))
+                            i += 1
 
             #* Destroy Vehicles code 
             # TODO separate class or function
@@ -250,7 +258,6 @@ def main():
             # TODO Integrate in while loop if useless
             if i >= totalVehicle and len(actorDict_obj.actor_list) == 0:
                 notComplete = 0
-                
     finally:
         # Save lists as csv
         data = []

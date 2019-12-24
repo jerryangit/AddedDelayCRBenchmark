@@ -4,7 +4,6 @@
 #
 # This work is licensed under the terms of the MIT license.
 # For a copy, see <https://opensource.org/licenses/MIT>.
-import conflictDetection as cd
 import glob
 import os
 import sys
@@ -28,9 +27,7 @@ class deadlockDetection:
 
     def switchCreate(self,arg,para):
         cases = {
-            "TEP": TEP,
-            "TEP_fix": TEP_fix,
-            "MPIP": MPIP,
+            "Tie": Tie,
         }
         fnc = cases.get(arg)
         if isinstance(para, list):
@@ -38,3 +35,9 @@ class deadlockDetection:
         else:
             return fnc(para)
 
+class Tie:
+    def __init__(self):
+        pass
+    def detect(self):
+        pass
+    
