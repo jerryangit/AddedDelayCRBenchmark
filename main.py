@@ -45,13 +45,24 @@ def main():
     # Config
     ###############################################  
     syncmode = 1                # Whether ticks are synced
+    freqSimulation = 50          # The frequency at which the simulation is ran 
+    freqOnBoard = 50              # The frequency at which vehicle on board controller is simulated
     random.seed(23)             # Random seed
     maxVehicle = 20             # Max simultaneous vehicle
-    totalVehicle = 256           # Total vehicles for entire simulation
-    scenario = 1                # 0 is random 1/tick, 1 is 4/tick all roads (Ensure totalVehicle is a multiple of 4 if scenario is 1)
-    spwnInterval = 0.4          # Time between each spawn cycle
-    cr_method = "MPIP"           # Which conflict resolution method is used
-    ctrlPolicy = "MPIPControl"          # Which control policy is used
+    totalVehicle = 4            # Total vehicles for entire simulation
+    scenario = 5                # 0 is random 1/tick, 1 is 4/tick all roads (Ensure totalVehicle is a multiple of 4 if scenario is 1)
+    spwnInterval = 0            # Time between each spawn cycle
+    cr_method = "DCR"           # Which conflict resolution method is used
+    ctrlPolicy = "test"          # Which control policy is used
+    PriorityPolicy = "PriorityScore"    # Which priorityPolicy is used
+    ###############################################
+    # Plotting Config
+    ###############################################  
+    plot = 1                    # Whether to plot figures afterwards or not
+    plotVel = 1                 # Whether to plot velocity or not
+    plotLoc = 1                 # Whether to plot location or not
+
+
     ###############################################
     # Other variables
     ###############################################  
@@ -75,7 +86,7 @@ def main():
         if syncmode == 1: 
             settings = world.get_settings()
             if settings.synchronous_mode == False:
-                settings.fixed_delta_seconds = 0.1
+                settings.fixed_delta_seconds = 1/freqSimulation
                 settings.synchronous_mode = True
                 settings.no_rendering_mode = True
                 world.apply_settings(settings)
@@ -122,12 +133,12 @@ def main():
             kmax = 1
             spwnRand = np.array([random.choice(laneList) for iter in range(totalVehicle)])
             destRand = np.array([random.choice(np.delete(laneList,spwnRand[iter]-1)) for iter in range(totalVehicle)])
-            velRand = np.array([8+random.uniform(-1.5,2) for iter in range(totalVehicle)])
+            velRand = np.array([8+random.uniform(-1,1) for iter in range(totalVehicle)])
         elif scenario == 1:
             kmax = 4
             spwnRand = np.array([[1,2,3,4] for iter in range(int(totalVehicle/4))]).flatten()
             destRand = np.array([random.choice(np.delete(laneList,spwnRand[iter]-1)) for iter in range(totalVehicle)])
-            velRand = np.array([8+random.uniform(-1.5,2) for iter in range(totalVehicle)])
+            velRand = np.array([8+random.uniform(-1,1) for iter in range(totalVehicle)])
         elif scenario == 2: # Artificial AMPIP example
             totalVehicle = 2
             spwnInterval = 4.5
@@ -143,6 +154,25 @@ def main():
             spwnRand = [4,2,3,1]
             destRand = [2,4,1,3]
             velRand = [6.9,6.9,9.2,9.2]
+        elif scenario == 4:
+            # fast spawning to test spawn delay
+            kmax = 1
+            totalVehicle = 8
+            spwnInterval = 1.5
+            # spwnRand = [1,2,3,4,1,2,3,4]
+            # destRand = [4,1,2,3,4,1,2,3] 
+            spwnRand = np.ones(totalVehicle, dtype = int)*2
+            destRand = np.ones(totalVehicle, dtype = int)*4
+            velRand = np.array([8+random.uniform(-1,1) for iter in range(totalVehicle)])
+        elif scenario == 5:
+            # testing for DCR
+            kmax = 1
+            totalVehicle = 1
+            spwnInterval = 0
+            spwnRand = [1,2,3,4]
+            destRand = [3,4,1,2]
+            velRand = [8,8,8,8]
+            # velRand = np.array([8+random.uniform(-1,1) for iter in range(totalVehicle)])
         # idRand is only used for tie breaking, used to avoid odd behavior
         idRand = np.array([random.randint(100000,999999) for iter in range(totalVehicle)])
         spwnTime = [0]
@@ -151,15 +181,15 @@ def main():
         # Integrate into map object?
         # Map Locations, spwnLoc contains loc, 0= intersec, 1 = N, 2 = E, 3 = S, 4 = W.
         intersection = carla.Transform(carla.Location(x=-150.0, y=-35.0, z=0.3), carla.Rotation(yaw=180))
-        northSpawn = carla.Transform(carla.Location(x=-151.8, y=-70.0, z=0.3), carla.Rotation(yaw=90))
-        eastSpawn = carla.Transform(carla.Location(x=-115.0, y=-37.0, z=0.3), carla.Rotation(yaw=-180))
-        southSpawn = carla.Transform(carla.Location(x=-148.5, y=0.0, z=0.3), carla.Rotation(yaw=-90))
-        westSpawn = carla.Transform(carla.Location(x=-185.0, y=-33.3, z=0.3), carla.Rotation(yaw=0))
+        northSpawn = carla.Transform(carla.Location(x=-151.7, y=-70.0, z=0.272), carla.Rotation(yaw=90))
+        eastSpawn = carla.Transform(carla.Location(x=-115.0, y=-36.3, z=0.265), carla.Rotation(yaw=-180))
+        southSpawn = carla.Transform(carla.Location(x=-148.49, y=0.0, z=0.31), carla.Rotation(yaw=-90))
+        westSpawn = carla.Transform(carla.Location(x=-185.0, y=-33.3, z=0.01), carla.Rotation(yaw=0))
         spwnLoc = [intersection,northSpawn,eastSpawn,southSpawn,westSpawn]
         
-        northExit = carla.Transform(carla.Location(x=-148.5, y=-70.0, z=0.3), carla.Rotation(yaw=-90))
+        northExit = carla.Transform(carla.Location(x=-148.2, y=-70.0, z=0.3), carla.Rotation(yaw=-90))
         eastExit = carla.Transform(carla.Location(x=-115.0, y=-33.3, z=0.3), carla.Rotation(yaw=0))
-        southExit = carla.Transform(carla.Location(x=-151.8, y=0.0, z=0.3), carla.Rotation(yaw=90))
+        southExit = carla.Transform(carla.Location(x=-152, y=0.0, z=0.3), carla.Rotation(yaw=90))
         westExit = carla.Transform(carla.Location(x=-185.0, y=-37.0, z=0.3), carla.Rotation(yaw=-180))
         exitLoc = [intersection,northExit,eastExit,southExit,westExit]
 
@@ -167,9 +197,16 @@ def main():
         #<<
         worldX_obj = ah.worldX(world,intersection.location,8,tick0,hop_resolution)
         actorDict_obj = ah.actorDict()
-        ctrl_obj = ac.actorControl(ctrlPolicy)
+        # ctrl_obj = ac.actorControl(ctrlPolicy)
         #>>
         
+        # Random variables
+        # TODO Clean up
+        lastCycle = 1
+        velDict = {}
+        locDict = {}
+        aclDict = {}
+        ctrDict = {}
         #*  << Main Loop >>
         notComplete = 1
         while notComplete: 
@@ -181,7 +218,7 @@ def main():
             ts = tick.timestamp
             dt = ts.delta_seconds
             worldX_obj.tock(tick)
-
+            
             # TODO Spawn Vehicles code ( separate class or function)
             if ts.elapsed_seconds - ts0s - spwnTime[-1] > spwnInterval and i < totalVehicle and len(actorDict_obj.actor_list) <= maxVehicle:
                 if False:
@@ -199,31 +236,71 @@ def main():
                             # Create inbox for new vehicle
                             worldX_obj.msg.inbox[spwn.id] = []
                             # Create actorX object for new vehicle
-                            spwnX = ah.actorX(spwn,0,dt,exitLoc[destRand[i]],velRand[i],idRand[i])
+                            spwnX = ah.actorX(spwn,0,dt,ts.elapsed_seconds-ts0s,spwnLoc[spwnRand[i]],spwnRand[i],exitLoc[destRand[i]],destRand[i],velRand[i],idRand[i])
                             # Trace route using A* and set to spwnX.route
                             spwnX.route = grp.trace_route(spwnLoc[spwnRand[i]].location,spwnX.dest.location)
                             # Create conflict resolution object and save it
-                            spwnX.cr = cr.conflictResolution(cr_method,[0.5,"FCFS"]).obj
+                            spwnX.cr = cr.conflictResolution(cr_method,[0.5,PriorityPolicy]).obj
                             # Setup conflict resolution using egoX and worldX
                             spwnX.cr.setup(spwnX,worldX_obj)
+                            # Create control object and save it
+                            spwnX.co = ac.actorControl(ctrlPolicy)
                             # Add new objects to dictionary
                             actorDict_obj.addKey(spwn.id,spwnX)
                             # Add spawn time to list for analysis
                             spwnTime.append(ts.elapsed_seconds-ts0s)
+                            # TODO see if setting velocity reduces start delay
+                            # Set vehicle velocity to its reference
+                            vel3D = proj3D(velRand[i],np.radians(spwnLoc[spwnRand[i]].rotation.yaw))
+                            # spwn.set_velocity(vel3D)
+                            # Set gear to 1 to avoid spawn delay bug
+                            spwn.apply_control(carla.VehicleControl(manual_gear_shift=True,gear=1))
+                            # Set gear back to automatic 
+                            # spwn.apply_control(carla.VehicleControl(manual_gear_shift=False))
                             # Print out to console
-                            print('[%d,%d] created %s at %d with dest %d' % (i,spwn.id,spwn.type_id,spwnRand[i],destRand[i]))
+                            print('[%d,%d] created %s at %d with dest %d, elapsed time: %d s' % (i,spwn.id,spwn.type_id,spwnRand[i],destRand[i],spwnTime[i]))
                             i += 1
+
+                            if plot == 1:
+                                if plotVel == 1:
+                                    #* To Graph out velocities over time
+                                    velDict[spwnX.id] = []
+                                    ctrDict[spwnX.id] = []
+                                    aclDict[spwnX.id] = []
+                                if plotLoc == 1:
+                                    #* To Graph out location over time
+                                    locDict[spwnX.id] = []
 
             #* Destroy Vehicles code 
             # TODO separate class or function
             for actor in actorDict_obj.actor_list:
                 if actor.get_location().distance(carla.Location(x=-150, y=-35, z=0.3)) > 38 and actor.get_location().distance(carla.Location(x=0, y=0, z=0)) > 5:
-                    print(actor.id,' left the area at ', round(actor.get_location().x,2),round(actor.get_location().y,2),round(actor.get_location().z,2))
+                    print(actor.id,' left the area at ', round(actor.get_location().x,2),round(actor.get_location().y,2),round(actor.get_location().z,2), ', elapsed time:  ', round(ts.elapsed_seconds-ts0s), "s")
                     destTime.append(ts.elapsed_seconds-ts0s)
                     actorDict_obj.actor_list.remove(actor)
                     del actorDict_obj.dict[actor.id]
                     worldX_obj.msg.clear(actor.id)
                     actor.destroy()
+
+            #* Temporary code to detect time it takes to reach ref vel
+            if plot == 1:
+                for actorX in actorDict_obj.dict.values():
+                    velDict.get(actorX.id).append([ts.elapsed_seconds-ts0s,actorX.vel_norm])
+                    aclDict.get(actorX.id).append([ts.elapsed_seconds-ts0s,actorX.ego.get_acceleration().x,actorX.ego.get_acceleration().y])
+                    locDict.get(actorX.id).append([ts.elapsed_seconds-ts0s,actorX.location.x,actorX.location.y])
+                    ctrDict.get(actorX.id).append([ts.elapsed_seconds-ts0s,actorX.ego.get_control().throttle,actorX.ego.get_control().steer,actorX.ego.get_control().brake,actorX.ego.get_control().gear,actorX.ego.get_control().manual_gear_shift])
+
+            #* Code to enforce a different freq for on board calculations and simulation
+            tickRatio = freqSimulation/freqOnBoard
+            if lastCycle < tickRatio:
+                lastCycle += 1
+                continue
+            else:
+                lastCycle = 1               
+
+
+
+
 
             # Feed world info to classes and functions streamlined
             worldX_obj.update(actorDict_obj)
@@ -231,28 +308,22 @@ def main():
             #* Loop to communicate information 
             # TODO separate class or function)
             # <<
-            for actor in actorDict_obj.actor_list:
-                actorX = actorDict_obj.dict.get(actor.id)
-                worldX_obj.msg.receive(actor)
-                actorX.updateParameters(actor,dt)
-            worldX_obj.msg.clearCloud()
+            for actorX in actorDict_obj.dict.values():
+                worldX_obj.msg.receive(actorX)
+                actorX.updateParameters(dt)
 
-            for actor in actorDict_obj.actor_list:
-                actorX = actorDict_obj.dict.get(actor.id)
+            worldX_obj.msg.clearCloud()
+            #* Loop to resolve conflicts 
+
+            for actorX in actorDict_obj.dict.values():
                 actorX.cr.resolve(actorX,worldX_obj)
                 msg = actorX.cr.outbox(actorX)
-                worldX_obj.msg.broadcast(actor,msg,50)
+                worldX_obj.msg.broadcast(actorX.id,actorX.location,msg,250)
             # >>
             #* Loop to apply vehicle control (TODO separate class or function) 
             # <<
-            j = 0
-            for actor in actorDict_obj.actor_list:
-                # Apply desired control function (control should be simple, precompute common info)
-                # para = 0 # make class where para contains useful info
-                actorX = actorDict_obj.dict.get(actor.id)
-                actorX.discreteState(ctrl_obj.control(actorX,worldX_obj))
-                # ac.simpleControl(actor,worldX_obj)
-                j += 1
+            for actorX in actorDict_obj.dict.values():
+                actorX.co.control(actorX,worldX_obj)
             # >>
             #* End the loop 
             # TODO Integrate in while loop if useless
@@ -275,8 +346,64 @@ def main():
         print('done.')
         world.tick()
         print("setting synchronous_mode to False")
-        settings.synchronous_mode = True
+        settings.synchronous_mode = False
         world.apply_settings(settings)
+        tick = world.wait_for_tick()
+
+        if plot == 1:
+            import matplotlib.pyplot as plt
+            if plotVel == 1:
+                plt.figure()
+                i = 0
+                for value in velDict.values():
+                    t = [value[k][0] for k in range(len(value))]
+                    v = [value[k][1] for k in range(len(value))]
+                    plt.plot(t,v)
+                    plt.axhline(velRand[i],0,1)
+                    i += 1
+
+                for value in ctrDict.values():
+                    t = [value[k][0] for k in range(len(value))]
+                    throttle = [value[k][1] for k in range(len(value))]
+                    steer = [value[k][2] for k in range(len(value))]
+                    brake = [value[k][3] for k in range(len(value))]
+                    gear = [value[k][4] for k in range(len(value))]
+                    manual = [value[k][5] for k in range(len(value))]
+                    figCtr, axCtr = plt.subplots(4,1)
+                    axCtr[0].plot(t,throttle)
+                    axCtr[0].set_ylim([0,1.1])
+                    axCtr[1].plot(t,steer)
+                    axCtr[1].set_ylim([-1,1])
+                    axCtr[2].plot(t,brake)
+                    axCtr[2].set_ylim([0,1.1])
+                    axCtr[3].plot(t,gear)
+                    axCtr[3].set_ylim([0,6])
+                    axCtr[3].plot(t,manual)
+                    axCtr[0].set_title('Control Inputs')
+
+                for value in aclDict.values():
+                    t = [value[k][0] for k in range(len(value))]
+                    x = [value[k][1] for k in range(len(value))]
+                    y = [value[k][2] for k in range(len(value))]
+                    fig, (ax1, ax2) = plt.subplots(2)
+                    fig.suptitle('Acceleration for X and Y over time (m/s^2)')
+                    ax1.plot(t,x)
+                    ax2.plot(t,v)
+                    ax2.plot(t,y)
+
+                    
+            if plotLoc == 1:
+                for value in locDict.values():
+                    t = [value[k][0] for k in range(len(value))]
+                    x = [value[k][1] for k in range(len(value))]
+                    y = [value[k][2] for k in range(len(value))]
+                    fig, (ax1, ax2) = plt.subplots(2)
+                    fig.suptitle('X and Y over time (m)')
+                    ax1.plot(t,x)
+                    ax2.plot(t,y)
+            plt.show()
+            pass
+
 
 
 def tic():
@@ -292,6 +419,11 @@ def toc():
     else:
         print("Toc: start time not set")
 
+def proj3D(r,theta):
+    x = r*np.cos(theta)
+    y = r*np.sin(theta)
+    z = 0
+    return carla.Vector3D(x,y,z)
 
 if __name__ == '__main__':
     main()

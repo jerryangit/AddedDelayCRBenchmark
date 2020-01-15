@@ -30,6 +30,7 @@ class conflictDetection:
             "coneDetect": coneDetect,
             "timeSlot": timeSlot,
             "gridCell": gridCell,
+            "conflictZones": conflictZones,
         }
         fnc = cases.get(arg,"No valid method found")
         if isinstance(para, list):
@@ -90,7 +91,7 @@ class timeSlot:
     def setup(self,egoX,worldX):
         self.sPathCalc(egoX,worldX)
         self.predictTimes(egoX,worldX)
-
+#TODO improve TCL, now can miss some parts due to detection centered on vehicle
 class gridCell:
     def __init__(self,center,resolution=4,size=16,error=0):
         self.center = center            # Carla.Location of intersection center
@@ -207,20 +208,24 @@ class conflictZones:
         actState = msg.content.get("state")
         actor_TCL = msg.content.get("TCL")
         actor_traj = msg.content.get("traj")
-        TICL = caps(self.TCL,actor_TCL)
-        if len(TICL) != 0:
+        TICL = caps(self.TCL,actor_TCL) # Trajectory intersecting cell list
+        if len(TICL) != 0: # If the TICL is nonempty
             sptBool = 1
-            if self.tempAdvantage(TICL,actor_traj,egoX.state,actState):
+            if self.tempAdvantage(TICL,actor_traj,egoX.state,actState) == 1:
                 tmpBool = 1
             else:
                 tmpBool = 0
         else:
             sptBool = 0
             tmpBool = 0
-        return (sptBool,tmpBool)
+        return (sptBool,tmpBool,TICL)
+
+    def TICL(self,actor_TCL):
+        TICL = caps(self.TCL,actor_TCL)
+        return TICL
 
     def tempAdvantage(self,TICL,actorTraj,egoState,actState):
-        # If Ego is crossing and Actor is first in line
+        # If Ego is crossing and Actor is first in lane
         if egoState == "I" and actState == "FIL":
             for conCell in TICL:
                 egoT = self.traj.get(conCell)
@@ -239,13 +244,15 @@ class conflictZones:
             # If Ego leaves all conflict zones before Actor enters => Ego >TempAdv Actor 
             return 1
         # If Ego and Actor have the same state, being either FIL or I
-        elif egoState == actState and egoState == "FIL" or egoState == "I":
+        elif egoState == actState and ( egoState == "FIL" or egoState == "I") :
             for conCell in TICL:
                 egoT = self.traj.get(conCell)
                 actorT = actorTraj.get(conCell)
                 # If Ego enters any conflict zone before Actor enters => Ego >TempAdv Actor 
                 if egoT[0] < actorT[0]:
                     return 1
+        else:
+            return 0
 
     def calcGrid(self):
         self.x_list = []
@@ -275,6 +282,7 @@ class conflictZones:
             wr_y = wr[0].transform.location.y
             wr_x0 = wr_x - self.x_list[0]
             wr_y0 = wr_y - self.y_list[0]
+            # If sArrival is not yet set time
             if self.sArrival == np.inf:
                 if self.x_list[0] < wr_x and wr_x < self.x_list[-1] and self.y_list[0] < wr_y and wr_y < self.y_list[-1]:
                     self.sArrival = s
@@ -282,6 +290,7 @@ class conflictZones:
                     row = int(np.floor(wr_y0/self.dy))
                     col = int(np.floor(wr_x0/self.dx))
                     self.TCL.append((row,col))
+                    self.sInTCL[(row,col)] = s
                 else:
                     self.sPath.append([s,0,"pre"])
             elif self.sExit == np.inf:
@@ -303,12 +312,24 @@ class conflictZones:
     def predictTimes(self,egoX,worldX):
         traj = {}
         for cell in self.TCL:
+            # time in for a given cell computed by (distance remaining)/(reference velocity) + current time
+            # Add time to compensate for Carla spawning time
             tIn = (self.sInTCL.get(cell)-egoX.sTraversed)/egoX.velRef + worldX.tick.timestamp.elapsed_seconds
-            tOut = tIn + (self.sInTCL.get(cell)-egoX.sTraversed)/egoX.velRef
+            # TODO what to do when we can be in multiple cells at once?
+            # time out for a given cell computed by tIn + (cell diagonal)/(reference velocity)
+            tOut = tIn + (np.sqrt(self.dx**2+self.dy**2))/egoX.velRef
             traj[cell] = (tIn,tOut)
         self.traj = traj
         self.intersectionTime = traj[self.TCL[-1]][1] - traj[self.TCL[0]][0]
         return self.traj
+
+    def loc2Cell(self,location):
+        wr_x0 = location.x - self.x_list[0]
+        wr_y0 = location.y - self.y_list[0]
+        row = int(np.floor(wr_y0/self.dy))
+        col = int(np.floor(wr_x0/self.dx))
+        cell = (row,col)
+        return cell
 
     def cell2Loc(self,cell):
         x = self.x_list[cell[1]]+0.5*self.dx

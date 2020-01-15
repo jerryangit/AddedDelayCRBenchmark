@@ -34,7 +34,7 @@ class msgInterface:
     
     def clear(self,id):
         for msg in self.cloud:
-            if msg[0].id == id:
+            if msg[0] == id:
                 self.cloud.remove(msg)
         del self.inbox[id]
 
@@ -44,16 +44,16 @@ class msgInterface:
     def send(self, msg,recipient):
         self.inbox[recipient].append(msg)
 
-    def broadcast(self,ego,msg,range=100):
+    def broadcast(self,id,location,msg,range=250):
         if msg != None:
-            self.cloud.append([ego,range,msg])
+            self.cloud.append([id,location,range,msg])
 
-    def receive(self, ego):
+    def receive(self, egoX):
         # ! Hard reset inbox each tick
-        self.inbox[ego.id] = []
+        self.inbox[egoX.id] = []
         for msg in self.cloud:
-            if ego.id != msg[0].id and ego.get_location().distance(carla.Location(msg[0].get_location())) < msg[1]:
-                self.inbox[ego.id].append(msg[2])
+            if egoX.id != msg[0] and egoX.location.distance(msg[1]) < msg[2]:
+                self.inbox[egoX.id].append(msg[3])
 
 class worldX:
     # Class containing world info needed for the vehicles, is available for every vehicle
@@ -66,6 +66,7 @@ class worldX:
         self.initialTS = tick.timestamp
         self.tock(tick)
         self.hopres = hopres
+        self.dict = {}
     def update(self,actorDict):
         self.actorDict = actorDict
     def tock(self,tick):
@@ -84,32 +85,62 @@ class actorDict:
 class actorX:
     # TODO optimize calculations, e.g. calc location once per loop save in this class object
     # Class containing information for each vehicle, used to unify required data, can't modify cpp actor class
-    def __init__(self,ego,model,dt,dest,velRef,VIN):
-        self.route = []
-        self.routeIndex = 0
-        self.dest = dest
-        self.sTraversed = 0
-        self.state = "NAN"
-        self.velRef = velRef
+    def __init__(self,ego,model,dt,spwnTime,spwn,spwnid,dest,destid,velRef,VIN):
+        # Conflict Resolution Object
         self.cr = []
-        self.updateParameters(ego,dt)
+        # Control Resolution Object
+        self.co = []
+        # Actor object
+        self.ego = ego
+        # Info dictionary for various purposes
+        self.info = {}
+        # Route list of waypoints
+        self.route = []
+        # Current index of the route
+        self.routeIndex = 0
+        # Current nearest waypoint
+        self.waypoint = []
+        # Spawn location
+        self.spwn = spwn
+        # Spawn ID
+        self.spwnid = spwnid
+        # Spawn Time
+        self.spwnTime = spwnTime
+        # Destination Location
+        self.dest = dest
+        # Destination ID
+        self.destid = destid
+        # Traversed distance
+        self.sTraversed = 0
+        # Current discrete State
+        self.state = "NAN"
+        # Reference velocity
+        self.velRef = velRef
+        # ID
         self.id = ego.id
+        # VIN (Used for policy only)
         self.VIN = VIN
+        # State Spaces        
         if model == 0: 
             self.doubleS()
         if model == 1: 
             self.unicycle()
         if model == 2: 
             self.bicycle()
+        self.updateParameters(dt)
 
-    def updateParameters(self,ego,dt):
-        self.ego = ego
+    def infoSet(self,key,value):
+        self.info[key] = value
+
+    def updateParameters(self,dt):
         self.dt = dt
-        self.velocity = ego.get_velocity()
+        self.velocity = self.ego.get_velocity()
+        # TODO 3D norm?
         self.vel_norm = np.linalg.norm([self.velocity.x,self.velocity.y])
-        self.location = ego.get_transform().location
-        self.rotation = ego.get_transform().rotation
-        self.sTraversed += self.dt*self.vel_norm
+        self.location = self.ego.get_transform().location
+        self.rotation = self.ego.get_transform().rotation
+        # Rough Integration of distance
+        self.sTraversed += self.dt*self.vel_norm        
 
     def discreteState(self,state):
         self.state = state
