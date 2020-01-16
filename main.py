@@ -53,14 +53,14 @@ def main():
     scenario = 5                # 0 is random 1/tick, 1 is 4/tick all roads (Ensure totalVehicle is a multiple of 4 if scenario is 1)
     spwnInterval = 0            # Time between each spawn cycle
     cr_method = "DCR"           # Which conflict resolution method is used
-    ctrlPolicy = "test"          # Which control policy is used
+    ctrlPolicy = "DCRControl"          # Which control policy is used
     PriorityPolicy = "PriorityScore"    # Which priorityPolicy is used
     ###############################################
     # Plotting Config
     ###############################################  
-    plot = 1                    # Whether to plot figures afterwards or not
+    plot = 0                    # Whether to plot figures afterwards or not
     plotVel = 1                 # Whether to plot velocity or not
-    plotLoc = 1                 # Whether to plot location or not
+    plotLoc = 0                 # Whether to plot location or not
 
 
     ###############################################
@@ -252,7 +252,7 @@ def main():
                             # TODO see if setting velocity reduces start delay
                             # Set vehicle velocity to its reference
                             vel3D = proj3D(velRand[i],np.radians(spwnLoc[spwnRand[i]].rotation.yaw))
-                            # spwn.set_velocity(vel3D)
+                            spwn.set_velocity(vel3D)
                             # Set gear to 1 to avoid spawn delay bug
                             spwn.apply_control(carla.VehicleControl(manual_gear_shift=True,gear=1))
                             # Set gear back to automatic 
@@ -284,11 +284,14 @@ def main():
 
             #* Temporary code to detect time it takes to reach ref vel
             if plot == 1:
-                for actorX in actorDict_obj.dict.values():
-                    velDict.get(actorX.id).append([ts.elapsed_seconds-ts0s,actorX.vel_norm])
-                    aclDict.get(actorX.id).append([ts.elapsed_seconds-ts0s,actorX.ego.get_acceleration().x,actorX.ego.get_acceleration().y])
-                    locDict.get(actorX.id).append([ts.elapsed_seconds-ts0s,actorX.location.x,actorX.location.y])
-                    ctrDict.get(actorX.id).append([ts.elapsed_seconds-ts0s,actorX.ego.get_control().throttle,actorX.ego.get_control().steer,actorX.ego.get_control().brake,actorX.ego.get_control().gear,actorX.ego.get_control().manual_gear_shift])
+                if plotLoc == 1:
+                    for actorX in actorDict_obj.dict.values():
+                        locDict.get(actorX.id).append([ts.elapsed_seconds-ts0s,actorX.location.x,actorX.location.y])
+                if plotVel == 1:
+                    for actorX in actorDict_obj.dict.values():
+                        velDict.get(actorX.id).append([ts.elapsed_seconds-ts0s,actorX.vel_norm])
+                        aclDict.get(actorX.id).append([ts.elapsed_seconds-ts0s,actorX.ego.get_acceleration().x,actorX.ego.get_acceleration().y])
+                        ctrDict.get(actorX.id).append([ts.elapsed_seconds-ts0s,actorX.ego.get_control().throttle,actorX.ego.get_control().steer,actorX.ego.get_control().brake,actorX.ego.get_control().gear,actorX.ego.get_control().manual_gear_shift])
 
             #* Code to enforce a different freq for on board calculations and simulation
             tickRatio = freqSimulation/freqOnBoard
@@ -382,14 +385,22 @@ def main():
                     axCtr[0].set_title('Control Inputs')
 
                 for value in aclDict.values():
+                    plt.figure()
                     t = [value[k][0] for k in range(len(value))]
-                    x = [value[k][1] for k in range(len(value))]
-                    y = [value[k][2] for k in range(len(value))]
-                    fig, (ax1, ax2) = plt.subplots(2)
-                    fig.suptitle('Acceleration for X and Y over time (m/s^2)')
-                    ax1.plot(t,x)
-                    ax2.plot(t,v)
-                    ax2.plot(t,y)
+                    a = [np.linalg.norm([value[k][1],value[k][2]]) for k in range(len(value))]
+                    plt.title('Acceleration / time (m/s^2)')
+                    p_a = plt.plot(t,a)
+                    p_v = plt.plot(t,v)
+                    p_th = plt.plot(t,throttle)
+                    p_br = plt.plot(t,brake)
+                    Vref = np.sin([value[k][0]*2 for k in range(len(value))]) + 7
+                    p_ref = plt.plot(t,Vref)
+                    # ax_br.set_ylim([0,15])
+                    ax = plt.gca()
+                    ax.set_ylim([0,16])
+                    plt.legend(["Acceleration", "Velocity","Throttle","Brake"])
+
+
 
                     
             if plotLoc == 1:

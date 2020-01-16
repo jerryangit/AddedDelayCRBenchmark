@@ -242,9 +242,22 @@ class test:
         self.vPIDStates = (0,0,0)
         self.thetaPIDStates = (0,0,0)
     def control(self,egoX,worldX):
-        u_v = 1
-        u_theta = 0
-        egoX.ego.apply_control(carla.VehicleControl(throttle=u_v, steer=u_theta,brake = 0,manual_gear_shift=True,gear=1))
+        # if worldX.tick.timestamp.elapsed_seconds - worldX.initialTS.elapsed_seconds < 2:
+        #     velDes = 5
+        # elif worldX.tick.timestamp.elapsed_seconds - worldX.initialTS.elapsed_seconds < 4:
+        #     velDes = 10
+        # elif worldX.tick.timestamp.elapsed_seconds - worldX.initialTS.elapsed_seconds < 6:
+        #     velDes = 3
+        # else: 
+        #     velDes = 8
+        velDes = np.sin(2*(worldX.tick.timestamp.elapsed_seconds - worldX.initialTS.elapsed_seconds)) + 7
+        (u_v,self.vPIDStates) = velocityPID(egoX,self.vPIDStates,velDes)
+        u_v = np.clip(u_v,-1,1)
+        if u_v >= 0:
+            egoX.ego.apply_control(carla.VehicleControl(throttle=u_v, steer=0,brake = 0,manual_gear_shift=True,gear=1))
+        if u_v < 0:
+            egoX.ego.apply_control(carla.VehicleControl(throttle=0, steer=0,brake = -u_v,manual_gear_shift=True,gear=1))
+
 
 
 
@@ -317,22 +330,37 @@ def wrap(angle):
             angle = angle + 2 * np.pi
     return angle
 
-def modelPredictiveControl():
+def modelPredictiveControl(egoX):
+    dt = egoX.dt
     # Along path, so control is sdotdot, states are s and sdot
     # Finite horizon
     N = 5
-    # State space:
-    ss_A = matrix(np.array([[0,1],[0,0]]))
-    ss_B = matrix(np.array([[0],[0]]))
-    # Constraints
+    #* State space:
+    # ss_A = [1,dt;0,1]
+    # ss_B = [0;1]
+    # x(k) = [s(k);v(k)]
+    # x(k+1) = [s(k+1);v(k+1)] = ss_A*x(k) + ss_B*u(k)
+    ss_A = matrix(np.array([[1,1],[0,0]]))
+    ss_B = matrix(np.array([[0],[1]]))
+    #* Constraints
+    u_max = 1/dt # Maximum acceleration 
+    u_min = -1/dt # Maximum deceleration
+    v_max = 10 # Maximum velocity
+    v_min = 0 # Minimum Velocity
+    # Time constraint implemented as state constraint for displacement at certain timestep
+    Tin = egoX.Tin #Ingoing time 
+    
+
+    #* Stacking
     A = matrix()
     b = matrix()
     Aeq = matrix()
     beq = matrix()
-    # Cost function
+    #* Cost function matrices
     P = matrix([[],[]])
     q = matrix()
-    # Convex Feasible Set 
+    
+    #* Optimization
     # 1/2 xT P x + qx
     # s.t.  G*x <= h
     #       A*x = b
