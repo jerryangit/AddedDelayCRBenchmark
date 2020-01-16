@@ -82,6 +82,12 @@ def main():
 
         # Retrieve world
         world = client.get_world()
+        if world.get_map().name != 'Town07':
+            client.load_world('Town07')
+        else:
+            client.reload_world()
+        world = client.get_world()
+        client.set_timeout(2.0)
         world.set_weather(weather)
         if syncmode == 1: 
             settings = world.get_settings()

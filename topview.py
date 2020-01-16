@@ -907,9 +907,10 @@ class World(object):
             self.client.set_timeout(self.timeout)
 
             if self.args.map is None:
-                world = self.client.load_world('Town07')
-            else:
-                world = self.client.load_world(self.args.map)
+                self.args.map = 'Town07'
+            world = self.client.get_world()
+            # if world.get_map().mame != self.args.map:
+            #     self.client.load_world('Town07')
 
             town_map = world.get_map()
             return (world, town_map)
@@ -1004,7 +1005,11 @@ class World(object):
         self.spawned_hero = self.hero_actor
 
     def tick(self, clock):
-        actors = self.world.get_actors()
+        try: 
+            actors = self.world.get_actors()
+        except RuntimeError:
+            self.world = self.client.get_world()
+            actors = self.world.get_actors()
         self.actors_with_transforms = [(actor, actor.get_transform()) for actor in actors]
         if self.hero_actor is not None:
             self.hero_transform = self.hero_actor.get_transform()
