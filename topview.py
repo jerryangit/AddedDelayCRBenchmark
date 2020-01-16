@@ -1008,8 +1008,13 @@ class World(object):
         try: 
             actors = self.world.get_actors()
         except RuntimeError:
+            # Allows topview to accept world reloads from other clients
             self.world = self.client.get_world()
+            weak_self = weakref.ref(self)
+            self.world.on_tick(lambda timestamp: World.on_world_tick(weak_self, timestamp))
             actors = self.world.get_actors()
+
+
         self.actors_with_transforms = [(actor, actor.get_transform()) for actor in actors]
         if self.hero_actor is not None:
             self.hero_transform = self.hero_actor.get_transform()
