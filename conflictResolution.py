@@ -266,10 +266,10 @@ class DCR:
         if egoX.state == "IL":
             # TODO Fix to be message propagated
             # Get TICL and traj info from front vehicle
-            try:
+            if egoX.info.get("idFront") != None:
                 TICL = egoX.cr.cd.TICL(worldX.actorDict.dict.get(egoX.info.get("idFront")).cr.cd.TCL)
                 traj = worldX.actorDict.dict.get(egoX.info.get("idFront")).cr.cd.traj
-            except: # error when idFront is none therefore try except
+            else: # error when idFront is none therefore try except
                 TICL = []
                 traj = []
             self.wait[egoX.info.get("idFront")] = ["Queue",TICL,traj]

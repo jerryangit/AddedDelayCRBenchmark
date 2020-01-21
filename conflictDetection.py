@@ -267,6 +267,7 @@ class conflictZones:
             self.y_list.append(y0+self.dy*i_y)
 
     def sPathCalc(self,egoX,worldX):
+        #* Calculate the path displacement and at which points it enters which areas
         self.sArrival = np.inf
         self.sExit = np.inf
         self.sPath = []
@@ -275,13 +276,14 @@ class conflictZones:
         self.sOutTCL = {}
         s = 0
         s0 = egoX.route[0][0].transform.location
+        # Loop through the waypoints of the entire route
         for wr in egoX.route:
-            s = wr[0].transform.location.distance(s0) + s
-            s0 = wr[0].transform.location
-            wr_x = wr[0].transform.location.x
-            wr_y = wr[0].transform.location.y
-            wr_x0 = wr_x - self.x_list[0]
-            wr_y0 = wr_y - self.y_list[0]
+            s = wr[0].transform.location.distance(s0) + s               # Current displacement
+            s0 = wr[0].transform.location                               # Current location
+            wr_x = wr[0].transform.location.x                           # Current x value
+            wr_y = wr[0].transform.location.y                           # Current y value
+            wr_x0 = wr_x - self.x_list[0]                               # Current x value - first cell x
+            wr_y0 = wr_y - self.y_list[0]                               # Current y value - first cell y
             # If sArrival is not yet set time
             if self.sArrival == np.inf:
                 if self.x_list[0] < wr_x and wr_x < self.x_list[-1] and self.y_list[0] < wr_y and wr_y < self.y_list[-1]:
@@ -309,7 +311,10 @@ class conflictZones:
             else:
                 self.sPath.append([s,4,"post"])
     # TODO improve and combine trajTimes and predictTimes
+
     def predictTimes(self,egoX,worldX):
+        # TODO is this the best way to do this?
+        #* Predict times for a certain traj
         traj = {}
         for cell in self.TCL:
             # time in for a given cell computed by (distance remaining)/(reference velocity) + current time
@@ -324,6 +329,7 @@ class conflictZones:
         return self.traj
 
     def loc2Cell(self,location):
+        #* Returns the cell (row,col) for a Carla.Location object
         wr_x0 = location.x - self.x_list[0]
         wr_y0 = location.y - self.y_list[0]
         row = int(np.floor(wr_y0/self.dy))
@@ -332,12 +338,14 @@ class conflictZones:
         return cell
 
     def cell2Loc(self,cell):
+        #* Returns the Carla.Location object at the center of a cell (row,col)
         x = self.x_list[cell[1]]+0.5*self.dx
         y = self.y_list[cell[0]]+0.5*self.dy
         z = self.center.z
         return carla.Location(x,y,z)
 
     def setup(self,egoX,worldX):
+        #* Ran once to setup the object
         self.sPathCalc(egoX,worldX)
         self.predictTimes(egoX,worldX)
 
@@ -397,6 +405,43 @@ class coneDetect:
         # Move sample array to global coordinate frame
         smpArr = smpArr + [ actor.get_location().x , actor.get_location().y ]
         return smpArr
+
+def generateSamples(actor,sampleN):
+    # TODO integrate some of these into helper functions
+    # Determine lenght of bbox in x and y directions
+    xLength = actor.bounding_box.extent.x * 2
+    yLength = actor.bounding_box.extent.y * 2
+    # Def amount of sample along x and y edges, rounded to int
+    xSamples = int( round( sampleN * ( xLength / ( xLength + yLength ) ) ) )
+    ySamples = sampleN - xSamples
+    # Find actor orientation
+    actorF = actor.get_transform()
+    # Initialize array with corners, rows = samples, columns = x,y
+    smpArr = np.array([ [actor.bounding_box.extent.x , actor.bounding_box.extent.y] ,\
+        [actor.bounding_box.extent.x,-actor.bounding_box.extent.y],\
+        [-actor.bounding_box.extent.x,actor.bounding_box.extent.y],\
+        [-actor.bounding_box.extent.x,-actor.bounding_box.extent.y] ])
+    # Interpolate sample between corners
+    for i in range(xSamples):
+        # Compute relative x location for sample i from - to + 
+        xi = -actor.bounding_box.extent.x + ( i + 1 ) * ( ( 2 * actor.bounding_box.extent.x ) / ( xSamples + 1) )
+        # Append interpolated sample i on both sides 
+        smpArr = np.append(smpArr,[ [ xi, actor.bounding_box.extent.y ] , [ xi, -actor.bounding_box.extent.y ] ] , 0 )
+    for i in range(ySamples):
+        # Compute relative y location for sample i from - to + 
+        yi = -actor.bounding_box.extent.y + ( i + 1 ) * ( ( 2 * actor.bounding_box.extent.y ) / ( ySamples + 1) )
+        # Append interpolated sample i on both sides 
+        smpArr = np.append(smpArr,[ [ actor.bounding_box.extent.x , yi ] , [ -actor.bounding_box.extent.x , yi ] ] , 0 )
+    # Rotate array with vehicle orientation
+    c = np.cos(np.pi*actorF.rotation.yaw/180)
+    s = np.sin(np.pi*actorF.rotation.yaw/180)
+    # Transposed rotation matrix due to rightside matrix multiplication 
+    RT = np.array( [ [ c , s ] , [ -s, c ] ] ) 
+    smpArr = np.matmul(smpArr,RT)
+    # Move sample array to global coordinate frame
+    smpArr = smpArr + [ actor.get_location().x , actor.get_location().y ]
+    return smpArr
+
 
 def cap(A,B):
     # Returns first common element search depth first through x with y

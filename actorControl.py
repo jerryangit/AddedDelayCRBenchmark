@@ -7,6 +7,7 @@
 from cvxopt import matrix,solvers
 import actorHelper as ah
 import conflictDetection as cd
+from mpc import qpMPC
 import glob
 import os
 import sys
@@ -158,52 +159,28 @@ class DCRControl:
         ego = egoX.ego
         if egoX.location == carla.Location(0,0,0):
             return "NAN"
-        if egoX.state == "NAN":
-            self.nextCell = egoX.cr.cd.TCL[0]
-        #* Time constraints
-        self.currentCell = egoX.cr.cd.loc2Cell(egoX.location)
-        if self.currentCell in egoX.cr.cd.TCL:
-            cellIndex = egoX.cr.cd.TCL.index(self.currentCell)
-            if cellIndex < len(egoX.cr.cd.TCL)-1:
-                self.nextCell = egoX.cr.cd.TCL[cellIndex+1]
-            else:
-                self.nextCell = ()
-        # if worldX.tick.elapsed_seconds + egoX.location.distance(egoX.cr.cd.cell2Loc(nextCell))/egoX.vel_norm < egoX.cr.cd.traj.get(nextCell)[0]:
-        #     dist = egoX.location.distance(egoX.cr.cd.cell2Loc(nextCell))
-        #     if dist < egoX.cr.cd.dx + 0.15 + 1 * egoX.vel_norm:
-        #         u_b = (1/dist * 2*egoX.vel_norm)*2
-        #     else: 
-        #         u_b = 0
-        # else: u_b = 0
-        if self.nextCell != ():
-            dist = egoX.location.distance(egoX.cr.cd.cell2Loc(self.nextCell))
-            dt = egoX.cr.cd.traj.get(self.nextCell)[0] - worldX.tick.elapsed_seconds
-            if dt > 0:
-                velDes = dist/dt
-            else:
-                delay = dist/egoX.vel_norm
-                egoX.cr.cd.traj[self.nextCell] = (egoX.cr.cd.traj.get(self.nextCell)[0]+delay,egoX.cr.cd.traj.get(self.nextCell)[1]+delay)
-                velDes = egoX.vel_norm
-        else:
-            velDes = np.inf
+
+
+
+        #* MPC velocity control:
+        x0 = np.array([[egoX.sTraversed],[egoX.vel_norm]])
+        # cell = (sInCell,TinCell)
+        # From egoX T received as time from current timestep
+        CellList = [] 
+        for cell in egoX.cr.cd.traj:
+            CellList.append((egoX.cr.cd.sInTCL.get(cell),egoX.cr.cd.traj.get(cell)[0]))
+        (sol,u0) = qpMPC(x0,egoX.dt,egoX.velRef,CellList)
+        # TODO return Exit times and update traj
+
         #* PID Control
-        (u_v,self.vPIDStates) = velocityPID(egoX,self.vPIDStates,velDes)
+        (u_v,self.vPIDStates) = velocityPID(egoX,self.vPIDStates,egoX.vel_norm+u0[0])
         (u_theta,self.thetaPIDStates)  = anglePID(egoX,worldX,self.thetaPIDStates)
-        u_b = 0
-        try:
-            # print(round(velDes,2),round(egoX.vel_norm,2),round(dist,2),round(dt,2),round(u_v,2))
-            # print(round(velDes,2),round(egoX.vel_norm,2),self.currentCell)
-            # print(round(dist,2),round(dt,2))
-            # print(egoX.id,round(velDes,2),round(egoX.cr.cd.traj.get(self.nextCell)[0],2),round(egoX.cr.cd.traj.get(self.nextCell)[1],2))
-            pass
-        except:
-            pass
-        u_v = np.clip(u_v-u_b,-1,1)
+        u_v = np.clip(u_v,-1,1)
+
         if u_v >= 0:
             ego.apply_control(carla.VehicleControl(throttle=u_v, steer=u_theta,brake = 0,manual_gear_shift=True,gear=1))
         elif u_v < 0:
             ego.apply_control(carla.VehicleControl(throttle=0, steer=u_theta,brake = - u_v,manual_gear_shift=True,gear=1))
-        # TODO MPC CONTROL
         
         #* Emergency brake
         # cd_obj = cd.conflictDetection("coneDetect",[4,0.155*np.pi,5]).obj
@@ -291,10 +268,8 @@ def anglePID(egoX,worldX,states):
     # Make a list of the current + next 9 waypoints and sort it
     dist = []
     for i in range(10):
-        try:
+        if egoX.routeIndex+i < len(egoX.route):
             dist.append([egoX.location.distance(egoX.route[egoX.routeIndex+i][0].transform.location),i])
-        except:
-            pass
     # the closest waypoint is deemed to be the current index.
     egoX.routeIndex = egoX.routeIndex+sorted(dist)[0][1]
     
@@ -349,11 +324,18 @@ def modelPredictiveControl(egoX):
     v_min = 0 # Minimum Velocity
     # Time constraint implemented as state constraint for displacement at certain timestep
     Tin = egoX.Tin #Ingoing time 
-    
+    x0 = matrix(np.array([egoX.sTraversed],[egoX.vel_norm]))
 
-    #* Stacking
+    #* Constraints Matrix Stacking
+    # Inequality constraints
     A = matrix()
     b = matrix()
+    # Equality constraints
+    x_vec = np.ones(2*N)
+    u_vec = np.ones(N)
+    xi_vec = np.concatenate((x_vec,u_vec),axis=1)
+
+    x0_eq = np.concatenate[np.eye(2,2),np,zeros((2,len(x)))]
     Aeq = matrix()
     beq = matrix()
     #* Cost function matrices
@@ -362,8 +344,8 @@ def modelPredictiveControl(egoX):
     
     #* Optimization
     # 1/2 xT P x + qx
-    # s.t.  G*x <= h
-    #       A*x = b
+    # s.t.  A * x <= b
+    #       Aeq * x = beq
     # for k in range(optim_iter):
     sol = solvers.qp(P,q,A,b,Aeq,beq)
     u = None    

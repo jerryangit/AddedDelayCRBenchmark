@@ -868,6 +868,7 @@ class World(object):
         self.server_fps = 0.0
         self.simulation_time = 0
         self.server_clock = pygame.time.Clock()
+        self.retry = 0
 
         # World data
         self.world = None
@@ -1009,7 +1010,13 @@ class World(object):
             actors = self.world.get_actors()
         except RuntimeError:
             # Allows topview to accept world reloads from other clients
-            self.world = self.client.get_world()
+            try:
+                self.world = self.client.get_world()
+            except:
+                print("client.get_world() failed for some reason, retry #",self.retry)
+                if self.retry > 10:
+                    print("client.get_world() failed too many times, exiting")
+                    exit
             weak_self = weakref.ref(self)
             self.world.on_tick(lambda timestamp: World.on_world_tick(weak_self, timestamp))
             actors = self.world.get_actors()

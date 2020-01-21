@@ -46,7 +46,7 @@ def main():
     ###############################################  
     syncmode = 1                # Whether ticks are synced
     freqSimulation = 50          # The frequency at which the simulation is ran 
-    freqOnBoard = 50              # The frequency at which vehicle on board controller is simulated
+    freqOnBoard = 10              # The frequency at which vehicle on board controller is simulated
     random.seed(23)             # Random seed
     maxVehicle = 20             # Max simultaneous vehicle
     totalVehicle = 4            # Total vehicles for entire simulation
@@ -103,6 +103,7 @@ def main():
         #TODO are these used?
         ts0 = tick0.timestamp
         ts0s = tick0.timestamp.elapsed_seconds
+        lastTick_s = ts0s
         # ! Clear previous actors if present
         for actor in world.get_actors().filter("vehicle.*"):
             actor.destroy()
@@ -172,8 +173,8 @@ def main():
             velRand = np.array([8+random.uniform(-1,1) for iter in range(totalVehicle)])
         elif scenario == 5:
             # testing for DCR
-            kmax = 1
-            totalVehicle = 1
+            kmax = 4
+            totalVehicle = 4
             spwnInterval = 0
             spwnRand = [1,2,3,4]
             destRand = [3,4,1,2]
@@ -307,11 +308,10 @@ def main():
             else:
                 lastCycle = 1               
 
-
-
-
-
-            # Feed world info to classes and functions streamlined
+            currTick_s = ts.elapsed_seconds
+            dt_ob = currTick_s - lastTick_s
+            lastTick_s = currTick_s
+            # Feed world info to classes and functions streamlined      
             worldX_obj.update(actorDict_obj)
 
             #* Loop to communicate information 
@@ -319,7 +319,7 @@ def main():
             # <<
             for actorX in actorDict_obj.dict.values():
                 worldX_obj.msg.receive(actorX)
-                actorX.updateParameters(dt)
+                actorX.updateParameters(dt_ob)
 
             worldX_obj.msg.clearCloud()
             #* Loop to resolve conflicts 
@@ -399,8 +399,6 @@ def main():
                     p_v = plt.plot(t,v)
                     p_th = plt.plot(t,throttle)
                     p_br = plt.plot(t,brake)
-                    Vref = np.sin([value[k][0]*2 for k in range(len(value))]) + 7
-                    p_ref = plt.plot(t,Vref)
                     # ax_br.set_ylim([0,15])
                     ax = plt.gca()
                     ax.set_ylim([0,16])
