@@ -255,8 +255,8 @@ class conflictZones:
             return 0
 
     def calcGrid(self):
-        self.x_list = []
-        self.y_list = []
+        self.x_list = []        # List of grid lines x values
+        self.y_list = []        # List of grid lines y values
         x0 = self.center.x - self.size/2
         y0 = self.center.y - self.size/2
         self.dx = self.size/self.resolution
@@ -268,49 +268,45 @@ class conflictZones:
 
     def sPathCalc(self,egoX,worldX):
         #* Calculate the path displacement and at which points it enters which areas
-        self.sArrival = np.inf
-        self.sExit = np.inf
         self.sPath = []
         self.TCL = []
-        self.sInTCL = {}
-        self.sOutTCL = {}
+        self.sTCL = {} # sTCL.get(cell)[0] = sIn, sTCL.get(cell)[1] = sOut
+        exitQueue = []
         s = 0
         s0 = egoX.route[0][0].transform.location
         # Loop through the waypoints of the entire route
         for wr in egoX.route:
-            s = wr[0].transform.location.distance(s0) + s               # Current displacement
+            detectList = []
+            s = wr[0].transform.location.distance(s0) + s               # Current displacement (prev disp + distance from previous waypoint)
             s0 = wr[0].transform.location                               # Current location
             wr_x = wr[0].transform.location.x                           # Current x value
             wr_y = wr[0].transform.location.y                           # Current y value
             wr_x0 = wr_x - self.x_list[0]                               # Current x value - first cell x
             wr_y0 = wr_y - self.y_list[0]                               # Current y value - first cell y
-            # If sArrival is not yet set time
-            if self.sArrival == np.inf:
-                if self.x_list[0] < wr_x and wr_x < self.x_list[-1] and self.y_list[0] < wr_y and wr_y < self.y_list[-1]:
-                    self.sArrival = s
-                    self.sPath.append([s,1,"enter"])
-                    row = int(np.floor(wr_y0/self.dy))
-                    col = int(np.floor(wr_x0/self.dx))
-                    self.TCL.append((row,col))
-                    self.sInTCL[(row,col)] = s
-                else:
-                    self.sPath.append([s,0,"pre"])
-            elif self.sExit == np.inf:
-                if self.x_list[0]> wr_x or wr_x > self.x_list[-1] or self.y_list[0] > wr_y or wr_y > self.y_list[-1] :
-                    self.sExit = s
-                    self.sPath.append([s,3,"exit"])
-                    self.sOutTCL[self.TCL[-1]] = s
-                else:
-                    row = int(np.floor(wr_y0/self.dy))
-                    col = int(np.floor(wr_x0/self.dx))
-                    if (row,col) != self.TCL[-1]: 
-                        self.TCL.append((row,col))
-                        self.sOutTCL[self.TCL[-1]] = s
-                        self.sInTCL[(row,col)] = s
-                    self.sPath.append([s,2,"cross"])
-            else:
-                self.sPath.append([s,4,"post"])
-    # TODO improve and combine trajTimes and predictTimes
+            
+            # Update displacement of the center of the vehicle to self.sPath
+            self.sPath.append(s)
+
+            # Generate samples for vehicle at current waypoint
+            smpArr = generateSamples(egoX.ego,5,s0)
+            # For each sample check the area it is in
+            for smp in smpArr:
+                # x = smp[0], y = smp[1]
+                cell = self.xy2Cell(smp[0],smp[1])
+                # Save cell in detectList if sample is in the grid
+                if cell not in detectList and self.inGrid(cell):
+                    detectList.append(cell)
+                    # Add cell to TCL and save its entry s if new
+                    if cell not in self.TCL:
+                        exitQueue.append(cell)
+                        self.TCL.append(cell)
+                        self.sTCL[cell] = (s,None)    
+
+            # Go through cells in exitQueue and determine if they are still occupied or not                                        
+            for cell in exitQueue:
+                if cell not in detectList:
+                    self.sTCL[cell] = (self.sTCL.get(cell)[0],s)
+                    exitQueue.remove(cell)
 
     def predictTimes(self,egoX,worldX):
         # TODO is this the best way to do this?
@@ -318,22 +314,31 @@ class conflictZones:
         traj = {}
         for cell in self.TCL:
             # time in for a given cell computed by (distance remaining)/(reference velocity) + current time
-            # Add time to compensate for Carla spawning time
-            tIn = (self.sInTCL.get(cell)-egoX.sTraversed)/egoX.velRef + worldX.tick.timestamp.elapsed_seconds
-            # TODO what to do when we can be in multiple cells at once?
-            # time out for a given cell computed by tIn + (cell diagonal)/(reference velocity)
-            tOut = tIn + (np.sqrt(self.dx**2+self.dy**2))/egoX.velRef
+            (sIn,sOut) = self.sTCL.get(cell)
+            tIn = (sIn-egoX.sTraversed)/egoX.velRef + worldX.tick.timestamp.elapsed_seconds 
+            tOut = (sOut-egoX.sTraversed)/egoX.velRef + worldX.tick.timestamp.elapsed_seconds + self.error
             traj[cell] = (tIn,tOut)
         self.traj = traj
-        self.intersectionTime = traj[self.TCL[-1]][1] - traj[self.TCL[0]][0]
+        # self.intersectionTime
         return self.traj
+
+    def inGrid(self,cell):
+        if cell[0] >= 0 and cell[0] <= self.resolution:
+            if cell[1] >= 0 and cell[1] <= self.resolution: 
+                return 1
+        return 0
 
     def loc2Cell(self,location):
         #* Returns the cell (row,col) for a Carla.Location object
-        wr_x0 = location.x - self.x_list[0]
-        wr_y0 = location.y - self.y_list[0]
-        row = int(np.floor(wr_y0/self.dy))
-        col = int(np.floor(wr_x0/self.dx))
+        row = int(np.floor((location.y - self.y_list[0]))/self.dy)
+        col = int(np.floor((location.x - self.x_list[0]))/self.dx)
+        cell = (row,col)
+        return cell
+
+    def xy2Cell(self,x,y):
+        #* Returns the cell (row,col) for a Carla.Location object
+        row = int(np.floor((y - self.y_list[0]))/self.dy)
+        col = int(np.floor((x - self.x_list[0]))/self.dx)
         cell = (row,col)
         return cell
 
@@ -406,7 +411,7 @@ class coneDetect:
         smpArr = smpArr + [ actor.get_location().x , actor.get_location().y ]
         return smpArr
 
-def generateSamples(actor,sampleN):
+def generateSamples(actor,sampleN=5,location=None):
     # TODO integrate some of these into helper functions
     # Determine lenght of bbox in x and y directions
     xLength = actor.bounding_box.extent.x * 2
@@ -439,7 +444,12 @@ def generateSamples(actor,sampleN):
     RT = np.array( [ [ c , s ] , [ -s, c ] ] ) 
     smpArr = np.matmul(smpArr,RT)
     # Move sample array to global coordinate frame
-    smpArr = smpArr + [ actor.get_location().x , actor.get_location().y ]
+        # If no location is provided use actor location
+    if location == None:
+        smpArr = smpArr + [ actor.get_location().x , actor.get_location().y ]
+        # If location is provided use given location
+    else:
+        smpArr = smpArr + [ location.x , location.y ]
     return smpArr
 
 

@@ -168,7 +168,8 @@ class DCRControl:
         # From egoX T received as time from current timestep
         CellList = [] 
         for cell in egoX.cr.cd.traj:
-            CellList.append((egoX.cr.cd.sInTCL.get(cell),egoX.cr.cd.traj.get(cell)[0]))
+            # For each cell in traj get its sIn and tIn
+            CellList.append((egoX.cr.cd.sTCL.get(cell)[0],egoX.cr.cd.traj.get(cell)[0]))
         (sol,u0) = qpMPC(x0,egoX.dt,egoX.velRef,CellList)
         # TODO return Exit times and update traj
 
