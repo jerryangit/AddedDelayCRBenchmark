@@ -977,7 +977,10 @@ class World(object):
         # self._input.control = carla.VehicleControl()
 
         weak_self = weakref.ref(self)
-        self.world.on_tick(lambda timestamp: World.on_world_tick(weak_self, timestamp))
+        try:
+            self.world.on_tick(lambda timestamp: World.on_world_tick(weak_self, timestamp))
+        except:
+            pass
 
     def select_hero_actor(self):
         hero_vehicles = [actor for actor in self.world.get_actors(

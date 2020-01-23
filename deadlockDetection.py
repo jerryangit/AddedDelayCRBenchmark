@@ -47,21 +47,21 @@ class DCRgraph:
     def setState(self,id,state):
         self.stateDict[id] = state
 
-    def yieldSearch(self,egoX,msg):
+    def yieldSearch(self,egoTmp,egoId,actId,egoState,actState):
         # clear history and initialize queue with own wait list
-        self.history = [egoX.id]
-        self.queue = list(egoX.cr.tmp.keys())
-        if egoX.state == msg.content.get("state"):
+        self.history = [egoId]
+        self.queue = list(egoTmp.keys())
+        if egoState == actState:
             # Go through the queue
             while len(self.queue) > 0:
                 id = self.queue[0]
                 # If the id in the queue is the actorX.id 
-                if id == msg.idSend:
+                if id == actId:
                     return 1 # egoX yield for actorX (in)directly
 
                 # If the id in the queue has the same state as ego => explore graph
                 try:
-                    if id != egoX.id and self.stateDict[id] == egoX.state:
+                    if id != egoId and self.stateDict[id] == egoState:
                         # Add wait list of id to queue
                         for tmp_id in self.edgeDict[id]:
                             if tmp_id not in self.history and self.edgeDict[id].get(tmp_id) != "OL":
@@ -70,12 +70,12 @@ class DCRgraph:
                     print("error")
                 self.history.append(id)
                 self.queue.remove(id)
-        elif egoX.state == "I" and msg.content.get("state") == "FIL":
+        elif egoState == "I" and actState == "FIL":
             # Go through the queue
             while len(self.queue) > 0:
                 id = self.queue[0]
                 # If the id in the queue is the actorX.id 
-                if id == msg.idSend:
+                if id == actId:
                     return 1 # egoX yield for actorX (in)directly
                 # Add wait list of id to queue
                 for tmp_id in self.edgeDict[id]:

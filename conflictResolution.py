@@ -264,54 +264,60 @@ class DCR:
         self.updateData(egoX,worldX)
         
         if egoX.state == "IL":
-            # TODO Fix to be message propagated
-            # Get TICL and traj info from front vehicle
             if egoX.info.get("idFront") != None:
                 TICL = egoX.cr.cd.TICL(worldX.actorDict.dict.get(egoX.info.get("idFront")).cr.cd.TCL)
                 traj = worldX.actorDict.dict.get(egoX.info.get("idFront")).cr.cd.traj
-            else: # error when idFront is none therefore try except
-                TICL = []
-                traj = []
-            self.wait[egoX.info.get("idFront")] = ["Queue",TICL,traj]
-            return 0
+                self.wait[egoX.info.get("idFront")] = ["Queue",TICL,traj]
         elif egoX.state == "OL":
             return 0 
 
         for msg in worldX.msg.inbox[egoX.id]:
             if msg.content.get("state") in ["NAN","IL"]:
                 continue
+            elif msg.idSend == egoX.info.get("idFront") and msg.content.get("state") == "I":
+                egoX.discreteState("FIL")
+                egoX.infoSet("idFront",None)
             elif msg.content.get("state") == "OL":
                 if msg.idSend in self.tmp:
                     del self.tmp[msg.idSend]
                 if msg.idSend in self.wait:
                     del self.wait[msg.idSend]
                 continue
-            (sptBool,tmpBool,TICL) = self.cd.detect(egoX,worldX,msg)
+            (sptBool,TICL) = self.cd.sptDetect(egoX,worldX,msg)
+            tmpBoolEgo = self.tempAdvantage(TICL,egoX.cr.cd.traj,msg.content.get("traj"),egoX.state,msg.content.get("state"))
+            tmpBoolAct = self.tempAdvantage(TICL,msg.content.get("traj"),egoX.cr.cd.traj,msg.content.get("state"),egoX.state)
             # If Ego has a spatial conflict with msg sender
-            if sptBool:
+            if sptBool == 1:
                 # If msg sender has temporal advantage over Ego
-                if tmpBool == 0:
+                if tmpBoolAct == 1:
                     self.tmp[msg.idSend] = msg.content.get("state")
                     actorX = worldX.actorDict.dict.get(msg.idSend)
                     pOrder = self.pp.order([egoX,actorX])
-                    if self.dd.yieldSearch(egoX,msg) == 0 or pOrder[1].id == egoX.id:
-                        self.wait[actorX.id] = [msg.content.get("state"),TICL,msg.content.get("traj")]
+                    # If there is no Tie(Ego,Actor) or Actor has priority over Ego
+                    if self.dd.yieldSearch(self.tmp,egoX.id,msg.idSend,egoX.state,msg.content.get("state")) == 0 or pOrder[0].id == msg.idSend:
+                        self.wait[msg.idSend] = [msg.content.get("state"),TICL,msg.content.get("traj")]
                 # If Ego has temporal advantage over msg sender
-                if tmpBool == 1:  
+                if tmpBoolEgo == 1:  
                     actorX = worldX.actorDict.dict.get(msg.idSend)
                     pOrder = self.pp.order([egoX,actorX])
-                    if self.dd.yieldSearch(egoX,msg) == 1 and pOrder[0].id == egoX.id:
+                    # If there is a Tie(Actor,Ego) and Actor has priority over Ego
+                    if self.dd.yieldSearch(msg.content.get("tmp"),msg.idSend,egoX.id,msg.content.get("state"),egoX.state) == 1 and pOrder[0].id == msg.idSend:
                         self.wait[msg.idSend] = [msg.content.get("state"),TICL,msg.content.get("traj")]
 
         for idYield in self.wait:
             for cell in self.wait.get(idYield)[1]:
                 # Prediction of time actor leaves cell + err for robustness
-                TOutAct = self.wait.get(idYield)[2].get(cell)[1] + self.err
+                
+                if self.wait.get(idYield)[0] == "Queue":
+                    # Extra self.err to avoid collision in queue
+                    tOutAct = self.wait.get(idYield)[2].get(cell)[1] + self.err * 10
+                else:
+                    tOutAct = self.wait.get(idYield)[2].get(cell)[1] + self.err/2
                 # Current time for ego to enter cell
-                TinEgo = self.cd.traj[cell][0]
+                tinEgo = self.cd.traj[cell][0]
                 # if the yielding changes the Ego vehicles times
-                if TOutAct > TinEgo:
-                    delay = TOutAct-TinEgo
+                if tOutAct > tinEgo:
+                    delay = tOutAct-tinEgo
                     # if self.cd.TCL.index(cell) < len(self.cd.TCL) - 1:
                     # Amount of cells that need to be updated with the new delay
                     cellIndex = self.cd.TCL.index(cell)
@@ -319,8 +325,37 @@ class DCR:
                     for i in range(delayedCells):
                         cell = self.cd.TCL[i+cellIndex]
                         self.cd.traj[cell] = (self.cd.traj[cell][0] + delay, self.cd.traj[cell][1] + delay)
-                        
-                # update all other sequential cells as well
+
+    def tempAdvantage(self,TICL,egoTraj,actorTraj,egoState,actState):
+        # If Ego is crossing and Actor is first in lane
+        if egoState == "I" and actState == "FIL":
+            for conCell in TICL:
+                egoT = egoTraj.get(conCell)
+                actorT = actorTraj.get(conCell)
+                # If Ego enters a conflict zone before Actor leaves => Ego >TempAdv Actor 
+                if egoT[0] < actorT[1]:
+                    return 1
+        # If Ego is first in line and Actor is in the intersection
+        elif egoState == "FIL" and actState == "I":
+            for conCell in TICL:
+                egoT = egoTraj.get(conCell)
+                actorT = actorTraj.get(conCell)
+                # If Ego leaves any conflict zone after Actor enters => Actor >TempAdv Ego 
+                if egoT[1] > actorT[0]:
+                    return 0
+            # If Ego leaves all conflict zones before Actor enters => Ego >TempAdv Actor 
+            return 1
+        # If Ego and Actor have the same state, being either FIL or I
+        elif egoState == actState and ( egoState == "FIL" or egoState == "I") :
+            for conCell in TICL:
+                egoT = egoTraj.get(conCell)
+                actorT = actorTraj.get(conCell)
+                # If Ego enters any conflict zone before Actor enters => Ego >TempAdv Actor 
+                if egoT[0] < actorT[0]:
+                    return 1
+        else:
+            return 0
+
     def updateData(self,egoX,worldX):
         #  Loop needed to process msgs in a useable format
         for msg in worldX.msg.inbox[egoX.id]:

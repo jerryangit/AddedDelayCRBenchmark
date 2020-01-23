@@ -31,7 +31,6 @@ def actorControl(arg,para=[]):
         "MPIPControl": MPIPControl,
         "AMPIPControl": AMPIPControl,
         "DCRControl": DCRControl,
-        "test": test,
     }
     fnc = cases.get(arg)
     if isinstance(para, list):
@@ -160,8 +159,6 @@ class DCRControl:
         if egoX.location == carla.Location(0,0,0):
             return "NAN"
 
-
-
         #* MPC velocity control:
         x0 = np.array([[egoX.sTraversed],[egoX.vel_norm]])
         # cell = (sInCell,TinCell)
@@ -169,12 +166,20 @@ class DCRControl:
         CellList = [] 
         for cell in egoX.cr.cd.traj:
             # For each cell in traj get its sIn and tIn
-            CellList.append((egoX.cr.cd.sTCL.get(cell)[0],egoX.cr.cd.traj.get(cell)[0]))
-        (sol,u0) = qpMPC(x0,egoX.dt,egoX.velRef,CellList)
-        # TODO return Exit times and update traj
+            # TODO add constraint at last timestep to if first cell is outside of its horizon
+            CellList.append((egoX.cr.cd.sTCL.get(cell)[0],egoX.cr.cd.traj.get(cell)[0]-worldX.tick.timestamp.elapsed_seconds))
+        # TODO move N to be an input
 
+        N = 30
+
+        if egoX.state != "OL":
+            (sol,u0) = qpMPC(x0,egoX.dt,egoX.velRef,CellList,egoX.id,N)
+            egoX.cr.cd.MPCFeedback(sol,worldX.tick.timestamp.elapsed_seconds,egoX.dt,N,2,egoX.velRef,egoX.id,egoX.sTraversed)
+            (u_v,self.vPIDStates) = velocityPID(egoX,self.vPIDStates,egoX.vel_norm+u0[0]*1.25)
+        else: 
+            (u_v,self.vPIDStates) = velocityPID(egoX,self.vPIDStates,egoX.velRef)
         #* PID Control
-        (u_v,self.vPIDStates) = velocityPID(egoX,self.vPIDStates,egoX.vel_norm+u0[0])
+
         (u_theta,self.thetaPIDStates)  = anglePID(egoX,worldX,self.thetaPIDStates)
         u_v = np.clip(u_v,-1,1)
 
@@ -183,61 +188,35 @@ class DCRControl:
         elif u_v < 0:
             ego.apply_control(carla.VehicleControl(throttle=0, steer=u_theta,brake = - u_v,manual_gear_shift=True,gear=1))
         
-        #* Emergency brake
-        # cd_obj = cd.conflictDetection("coneDetect",[4,0.155*np.pi,5]).obj
-        # for actor in worldX.actorDict.actor_list:
-        #     if ego.id != actor.id and carla.Location.distance ( ego.get_location() , actor.get_location() ) < 12 : 
-        #         if cd_obj.detect(ego,actor):
-        #             ego.apply_control(carla.VehicleControl(throttle=0.0, steer=0.0,brake = 1.0,manual_gear_shift=True,gear=1))
+        # * Emergency brake
+        cd_obj = cd.conflictDetection("coneDetect",[4,0.1*np.pi,5]).obj
+        for actor in worldX.actorDict.actor_list:
+            if ego.id != actor.id and carla.Location.distance ( ego.get_location() , actor.get_location() ) < 12 : 
+                if cd_obj.detect(ego,actor):
+                    ego.apply_control(carla.VehicleControl(throttle=0.0, steer=0.0,brake = 1.0,manual_gear_shift=True,gear=1))
 
         state = egoX.state
         if egoX.state == "NAN":
             state = "IL"
-        elif egoX.state == "IL": # and frontid something
+        elif egoX.state == "IL" and egoX.info.get("idFront") == None:
             queue = [(egoX.id,egoX.location.distance(worldX.inter_location))]
             for msg in worldX.msg.inbox[egoX.id]:
                 # If the sender is not in the intersection or leaving and on the same road_id:
                 if msg.content.get("state") not in ["I","OL"] and msg.content.get("wp") != [] and msg.content.get("wp").road_id == egoX.waypoint.road_id:
                     queue.append((msg.idSend,worldX.actorDict.dict.get(msg.idSend).location.distance(worldX.inter_location)))
-            queue.sort(key=lambda x: x[1])           
+            queue.sort(key=lambda x: x[1])
             if queue[0][0] == egoX.id:
                 state = "FIL"
             else: 
                 for pair in enumerate(queue):
                     if pair[1][0] == egoX.id:
                         egoX.infoSet("idFront",queue[pair[0] - 1][0])
-                
-                
-        elif egoX.state == "FIL" and ego.get_location().distance(worldX.inter_location) <= egoX.cr.cd.size:
+        elif egoX.state == "FIL" and egoX.sTraversed > egoX.cr.cd.sTCL[egoX.cr.cd.TCL[0]][0]:
             state = "I"
-        elif egoX.state == "I" and ego.get_location().distance(worldX.inter_location) >= egoX.cr.cd.size+1:
+        elif egoX.state == "I" and egoX.sTraversed > egoX.cr.cd.sTCL[egoX.cr.cd.TCL[-1]][1]:
             state = "OL"
         egoX.discreteState(state)
         return state
-
-class test:
-    def __init__(self):
-        self.vPIDStates = (0,0,0)
-        self.thetaPIDStates = (0,0,0)
-    def control(self,egoX,worldX):
-        # if worldX.tick.timestamp.elapsed_seconds - worldX.initialTS.elapsed_seconds < 2:
-        #     velDes = 5
-        # elif worldX.tick.timestamp.elapsed_seconds - worldX.initialTS.elapsed_seconds < 4:
-        #     velDes = 10
-        # elif worldX.tick.timestamp.elapsed_seconds - worldX.initialTS.elapsed_seconds < 6:
-        #     velDes = 3
-        # else: 
-        #     velDes = 8
-        velDes = np.sin(2*(worldX.tick.timestamp.elapsed_seconds - worldX.initialTS.elapsed_seconds)) + 7
-        (u_v,self.vPIDStates) = velocityPID(egoX,self.vPIDStates,velDes)
-        u_v = np.clip(u_v,-1,1)
-        if u_v >= 0:
-            egoX.ego.apply_control(carla.VehicleControl(throttle=u_v, steer=0,brake = 0,manual_gear_shift=True,gear=1))
-        if u_v < 0:
-            egoX.ego.apply_control(carla.VehicleControl(throttle=0, steer=0,brake = -u_v,manual_gear_shift=True,gear=1))
-
-
-
 
 
 def velocityPID(egoX,states,velDes=np.inf):
@@ -305,50 +284,3 @@ def wrap(angle):
         elif angle < -np.pi:
             angle = angle + 2 * np.pi
     return angle
-
-def modelPredictiveControl(egoX):
-    dt = egoX.dt
-    # Along path, so control is sdotdot, states are s and sdot
-    # Finite horizon
-    N = 5
-    #* State space:
-    # ss_A = [1,dt;0,1]
-    # ss_B = [0;1]
-    # x(k) = [s(k);v(k)]
-    # x(k+1) = [s(k+1);v(k+1)] = ss_A*x(k) + ss_B*u(k)
-    ss_A = matrix(np.array([[1,1],[0,0]]))
-    ss_B = matrix(np.array([[0],[1]]))
-    #* Constraints
-    u_max = 1/dt # Maximum acceleration 
-    u_min = -1/dt # Maximum deceleration
-    v_max = 10 # Maximum velocity
-    v_min = 0 # Minimum Velocity
-    # Time constraint implemented as state constraint for displacement at certain timestep
-    Tin = egoX.Tin #Ingoing time 
-    x0 = matrix(np.array([egoX.sTraversed],[egoX.vel_norm]))
-
-    #* Constraints Matrix Stacking
-    # Inequality constraints
-    A = matrix()
-    b = matrix()
-    # Equality constraints
-    x_vec = np.ones(2*N)
-    u_vec = np.ones(N)
-    xi_vec = np.concatenate((x_vec,u_vec),axis=1)
-
-    x0_eq = np.concatenate[np.eye(2,2),np,zeros((2,len(x)))]
-    Aeq = matrix()
-    beq = matrix()
-    #* Cost function matrices
-    P = matrix([[],[]])
-    q = matrix()
-    
-    #* Optimization
-    # 1/2 xT P x + qx
-    # s.t.  A * x <= b
-    #       Aeq * x = beq
-    # for k in range(optim_iter):
-    sol = solvers.qp(P,q,A,b,Aeq,beq)
-    u = None    
-    return u
-

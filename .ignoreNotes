@@ -1,0 +1,20 @@
+        # #! Remove later
+        # if 1==0:
+        #     import matplotlib.pyplot as plt
+        #     plt.figure(2)
+        #     plt.clf()
+        #     for cell in egoX.cr.cd.traj.keys():
+        #         (sIn,sOut) = egoX.cr.cd.sTCL.get(cell) 
+        #         (tIn,tOut) = egoX.cr.cd.traj.get(cell)
+        #         plt.plot(tIn,sIn,'r<')
+        #         plt.plot(tOut,sOut,'b>')
+        #         plt.plot([tIn,tOut],[sIn,sOut],'--')
+        #     plt.plot(worldX.tick.timestamp.elapsed_seconds,egoX.sTraversed,'gx')
+        #     plt.vlines(worldX.tick.timestamp.elapsed_seconds,0,60)
+        #     plt.vlines(worldX.tick.timestamp.elapsed_seconds+N*egoX.dt,0,60)
+        #     plt.xlim(left=0)
+        #     plt.xlim(right=40)
+        #     plt.title(str(egoX.id))                
+        #     plt.show(block=False)
+        #     plt.pause(0.001)
+        # #! remove later

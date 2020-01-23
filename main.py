@@ -49,9 +49,9 @@ def main():
     freqOnBoard = 10              # The frequency at which vehicle on board controller is simulated
     random.seed(23)             # Random seed
     maxVehicle = 20             # Max simultaneous vehicle
-    totalVehicle = 4            # Total vehicles for entire simulation
-    scenario = 5                # 0 is random 1/tick, 1 is 4/tick all roads (Ensure totalVehicle is a multiple of 4 if scenario is 1)
-    spwnInterval = 0            # Time between each spawn cycle
+    totalVehicle = 8            # Total vehicles for entire simulation
+    scenario = 1                # 0 is random 1/tick, 1 is 4/tick all roads (Ensure totalVehicle is a multiple of 4 if scenario is 1)
+    spwnInterval = 4            # Time between each spawn cycle
     cr_method = "DCR"           # Which conflict resolution method is used
     ctrlPolicy = "DCRControl"          # Which control policy is used
     PriorityPolicy = "PriorityScore"    # Which priorityPolicy is used
@@ -110,7 +110,7 @@ def main():
 
         # get map and establish grp
         map = world.get_map()
-        hop_resolution = 0.25
+        hop_resolution = 0.2
         dao = GlobalRoutePlannerDAO(map, hop_resolution)
         grp = GlobalRoutePlanner(dao)
         grp.setup()
@@ -265,7 +265,7 @@ def main():
                             # Set gear back to automatic 
                             # spwn.apply_control(carla.VehicleControl(manual_gear_shift=False))
                             # Print out to console
-                            print('[%d,%d] created %s at %d with dest %d, elapsed time: %d s' % (i,spwn.id,spwn.type_id,spwnRand[i],destRand[i],spwnTime[i]))
+                            print('[%d,%d] created %s at %d with dest %d, elapsed time: %d s' % (i,spwn.id,spwn.type_id,spwnRand[i],destRand[i],spwnTime[i+1]))
                             i += 1
 
                             if plot == 1:
@@ -354,10 +354,10 @@ def main():
             actor.destroy()
         print('done.')
         world.tick()
-        print("setting synchronous_mode to False")
-        settings.synchronous_mode = False
-        world.apply_settings(settings)
-        tick = world.wait_for_tick()
+        # print("setting synchronous_mode to False")
+        # settings.synchronous_mode = False
+        # world.apply_settings(settings)
+        # tick = world.wait_for_tick()
 
         if plot == 1:
             import matplotlib.pyplot as plt

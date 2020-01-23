@@ -10,9 +10,11 @@ def main():
     # From egoX T received as time from current timestep
     CellList = [ (110,2),(104,1)] 
     qpMPC(x0,dt,v_des,CellList)
-    
-def qpMPC(x0,dt,v_des,CellList,N=20,inputCosts =1,devCosts = 10):
+
+
+def qpMPC(x0,dt,v_des,CellList,id,N=20, inputCosts = 1.5, devCosts = 2):
     #TODO fix bug, always uses max input?
+    #TODO make into class and separate into setup and optimize and reuse some matrices
     # Finite horizon
     # x0 = matrix(np.array([egoX.sTraversed],[egoX.vel_norm]))
     # Along path, so control is sdotdot, states are s and sdot
@@ -38,7 +40,7 @@ def qpMPC(x0,dt,v_des,CellList,N=20,inputCosts =1,devCosts = 10):
     states = 2 # Amount of actual state in the system
     inputs = 1 # Amount of inputs in the system
     x_vec = np.zeros((states*N,1))      # states have no costs
-    u_vec = np.ones((N,1))*inputCosts   # input cost vector
+    u_vec = np.add(np.ones((N,1)),np.arange(0,1,1/N).reshape(N,1))*inputCosts   # input cost vector
     v_ref = np.zeros((1,1))             # reference velocity has no cost
     v_dev = np.ones((N,1))*devCosts     # deviation form reference velocity has a cost
     #! xi_vec also functions as the cost weights
@@ -54,21 +56,45 @@ def qpMPC(x0,dt,v_des,CellList,N=20,inputCosts =1,devCosts = 10):
     # TODO add min and max velocity constraints
     # Indicator Matrices for inputs
     Aieq_u_max = np.concatenate( ( np.zeros( (N,N_x) ) , np.eye(N_u), np.zeros( (N,N_v_ref+N_v_dev) ) ) , axis=1 )
-    Aieq_u_min = np.concatenate( ( np.zeros( (N,N_x) ) , -np.eye(N_u), np.zeros( (N,N_v_ref+N_v_dev) ) ) , axis=1 )
     bieq_u_max = np.repeat( np.array([[u_max]]) , N_u , axis=0 )
+    Aieq_u_min = np.concatenate( ( np.zeros( (N,N_x) ) , -np.eye(N_u), np.zeros( (N,N_v_ref+N_v_dev) ) ) , axis=1 )
     bieq_u_min = np.repeat( np.array([[u_min]]) , N_u , axis=0 )
+
+
+    
+    bieq_v_max = np.repeat( np.array([[v_max]]) , N_u , axis=0 )
+    bieq_v_min = np.repeat( np.array([[v_min]]) , N_u , axis=0 )
+    Aieq_v_max = np.zeros((0,N_tot))
+    Aieq_v_min = np.zeros((0,N_tot))
+    for i in range(N):
+        Aieq_v_max = np.concatenate((Aieq_v_max,np.concatenate( ( np.zeros( (1,i*states+1) ) , np.ones((1,1)), np.zeros( (1,N_tot-(i+1)*states) ) ) , axis=1 )), axis=0)
+        Aieq_v_min = np.concatenate((Aieq_v_min,np.concatenate( ( np.zeros( (1,i*states+1) ) , -np.ones((1,1)), np.zeros( (1,N_tot-(i+1)*states) ) ) , axis=1 )), axis=0)
+
     Aieq_st = np.zeros((0,N_tot))
     bieq_st = np.zeros((0,1))
+
+    tIndex = None
     for cell in CellList:
         sIn = cell[0]
         tIn = cell[1]
-        if tIn < N*dt:
+        if tIn > 0 and tIn < N*dt:
             tIndex = int(np.floor(tIn/dt))
             Aieq_st = np.concatenate((Aieq_st,np.concatenate( (np.zeros((1, states*(tIndex))), np.array([[1, 0]]), np.zeros((1,N_tot-(tIndex+1)*states)) ), axis = 1)) , axis = 0)
             bieq_st = np.concatenate( (bieq_st,np.array([[sIn]]) ), axis = 0)
-    printFormulaIeq(Aieq_st,bieq_st,statevector)
-    Aieq = np.concatenate( ( Aieq_u_max,Aieq_u_min,Aieq_st ) , axis=0 )
-    bieq = np.concatenate( ( bieq_u_max,bieq_u_min,bieq_st ) , axis=0 )
+    if tIndex == None:
+        tIndex = N-1
+        # If none of the cells are within finite horizon, add a constraint at last timestep for interpolated distance, to avoid speeding through.
+        # sIn at first (ds/t)*(N*dt), average velocity needed to reach tIn* time at end of finite horizon
+        sIn = x0[0][0]+(CellList[0][0]-x0[0][0])/(CellList[0][1])*(N*dt+0.5) # Relaxed with some seconds in order to prevent tIn increasing itself perpetually
+        Aieq_st = np.concatenate((Aieq_st,np.concatenate( (np.zeros((1, states*(tIndex))), np.array([[1, 0]]), np.zeros((1,N_tot-(tIndex+1)*states)) ), axis = 1)) , axis = 0)
+        bieq_st = np.concatenate( (bieq_st,np.array([[sIn]]) ), axis = 0)
+    
+    # printFormulaIeq(Aieq_st,bieq_st,statevector)
+    # printFormulaIeq(Aieq_v_max,bieq_v_max,statevector)
+    # printFormulaIeq(Aieq_v_min,bieq_v_min,statevector)
+
+    Aieq = np.concatenate( ( Aieq_u_max,Aieq_u_min,Aieq_v_min,Aieq_v_max,Aieq_st ) , axis=0 )
+    bieq = np.concatenate( ( bieq_u_max,bieq_u_min,bieq_v_min,bieq_v_max,bieq_st ) , axis=0 )
 
 
     
@@ -115,11 +141,14 @@ def qpMPC(x0,dt,v_des,CellList,N=20,inputCosts =1,devCosts = 10):
     b = matrix(beq, tc = 'd')
     solvers.options['show_progress'] = False
     sol = solvers.qp(P,q,G,h,A,b)
+    # if sol['status'] != 'optimal':
+    #     plotStuff(sol,N,N_x,N_u,inputCosts,devCosts,CellList,dt,id)
+    #     print("infeasible")
     u0 = sol['x'][N_x:N_x+inputs]
     # u = sol['x'][N_x:N_x+N_u]
     # print(u)
     # print(sol['x'])
-    # plotStuff(sol,N,N_x,N_u,inputCosts,devCosts)
+    # plotStuff(sol,N,N_x,N_u,inputCosts,devCosts,CellList,dt,id)
     # printFormula(Aeq_ss,statevector)
     # printFormulaEq(Aeq,beq,statevector)
     # printFormulaIeq(Aieq,bieq,statevector)
@@ -130,7 +159,8 @@ def qpMPC(x0,dt,v_des,CellList,N=20,inputCosts =1,devCosts = 10):
     # plt.show()
     return (sol,u0)
 
-def plotStuff(sol,N,N_x,N_u,inputCosts,devCosts):
+
+def plotStuff(sol,N,N_x,N_u,inputCosts,devCosts,CellList,dt,id):
     splot = []
     vplot = []
     uplot = []
@@ -143,15 +173,25 @@ def plotStuff(sol,N,N_x,N_u,inputCosts,devCosts):
         vdevplot.append(sol['x'][N_x+N_u+1+i])
         Jplot.append(inputCosts*sol['x'][N_x+i]**2+devCosts*sol['x'][N_x+N_u+1+i]**2)
     import matplotlib.pyplot as plt
-    plt.clf()
-    plt.plot(splot)
-    plt.plot(vplot)
-    plt.plot(uplot)
-    plt.plot(vdevplot)
-    plt.plot(Jplot)
-    plt.legend(('s','v','u','vdev','cost'))
-    plt.show(block=False)
-    plt.pause(0.001)
+    fig,axs = plt.subplots(2,1,num=0)
+    axs[0].cla()
+    axs[1].cla()
+    axs[1].plot(splot)
+    axs[1].plot(vplot)
+    axs[1].plot(uplot)
+    axs[1].plot(vdevplot)
+    axs[0].plot(Jplot)
+    for cell in CellList:
+        sIn = cell[0]
+        tIn = cell[1]
+        if tIn < N*dt:
+            axs[1].plot(tIn/dt,sIn,'ro')
+    axs[0].legend(('cost'))
+    axs[1].legend(('s','v','u','vdev','constraints'))
+    fig.suptitle(str(id))
+    plt.show()
+    # plt.show(block=False)
+    # plt.pause(0.001)
 
 
 

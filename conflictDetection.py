@@ -204,55 +204,18 @@ class conflictZones:
         self.error = error
         self.calcGrid()
 
-    def detect(self,egoX,worldX,msg): 
-        actState = msg.content.get("state")
+    def sptDetect(self,egoX,worldX,msg): 
         actor_TCL = msg.content.get("TCL")
-        actor_traj = msg.content.get("traj")
         TICL = caps(self.TCL,actor_TCL) # Trajectory intersecting cell list
         if len(TICL) != 0: # If the TICL is nonempty
-            sptBool = 1
-            if self.tempAdvantage(TICL,actor_traj,egoX.state,actState) == 1:
-                tmpBool = 1
-            else:
-                tmpBool = 0
+            return (1,TICL)
         else:
-            sptBool = 0
-            tmpBool = 0
-        return (sptBool,tmpBool,TICL)
+            return (0,TICL)
 
     def TICL(self,actor_TCL):
         TICL = caps(self.TCL,actor_TCL)
         return TICL
 
-    def tempAdvantage(self,TICL,actorTraj,egoState,actState):
-        # If Ego is crossing and Actor is first in lane
-        if egoState == "I" and actState == "FIL":
-            for conCell in TICL:
-                egoT = self.traj.get(conCell)
-                actorT = actorTraj.get(conCell)
-                # If Ego enters a conflict zone before Actor leaves => Ego >TempAdv Actor 
-                if egoT[0] < actorT[1]:
-                    return 1
-        # If Ego is first in line and Actor is in the intersection
-        elif egoState == "FIL" and actState == "I":
-            for conCell in TICL:
-                egoT = self.traj.get(conCell)
-                actorT = actorTraj.get(conCell)
-                # If Ego leaves any conflict zone after Actor enters => Actor >TempAdv Ego 
-                if egoT[1] > actorT[0]:
-                    return 0
-            # If Ego leaves all conflict zones before Actor enters => Ego >TempAdv Actor 
-            return 1
-        # If Ego and Actor have the same state, being either FIL or I
-        elif egoState == actState and ( egoState == "FIL" or egoState == "I") :
-            for conCell in TICL:
-                egoT = self.traj.get(conCell)
-                actorT = actorTraj.get(conCell)
-                # If Ego enters any conflict zone before Actor enters => Ego >TempAdv Actor 
-                if egoT[0] < actorT[0]:
-                    return 1
-        else:
-            return 0
 
     def calcGrid(self):
         self.x_list = []        # List of grid lines x values
@@ -281,9 +244,7 @@ class conflictZones:
             s0 = wr[0].transform.location                               # Current location
             wr_x = wr[0].transform.location.x                           # Current x value
             wr_y = wr[0].transform.location.y                           # Current y value
-            wr_x0 = wr_x - self.x_list[0]                               # Current x value - first cell x
-            wr_y0 = wr_y - self.y_list[0]                               # Current y value - first cell y
-            
+
             # Update displacement of the center of the vehicle to self.sPath
             self.sPath.append(s)
 
@@ -322,8 +283,65 @@ class conflictZones:
         # self.intersectionTime
         return self.traj
 
+    def MPCFeedback(self,sol,t0,dt,N,states,velRef,id,sTraversed):
+        s_0 = sol['x'][0]
+        s_1k = sol['x'][0]
+        for k in range(N):
+            s_k = sol['x'][states*k]
+            for cell in self.traj.keys():
+                (sIn,sOut) = self.sTCL.get(cell) 
+                # If the sIn is bigger than previous s but smaller than current, we use tIn from previous for tIn
+                if s_1k < sIn and sIn < s_k:
+                    # tIn is predicted some timesteps ahead in order to prevent it affecting the MPC as a constraint
+                    tIn = t0+(k-1)*dt - 0.5 
+                    delay = tIn - self.traj.get(cell)[0]
+                    self.traj[cell] = (tIn,self.traj.get(cell)[1]+delay)
+                # If the sIn is bigger than previous s but smaller than current, we use tIn from current for tOut
+                if s_1k < sOut and sOut < s_k:
+                    # if t0+k*dt < self.traj.get(cell)[0]:
+                    #     print("Error, out time lower than entry time")
+                    self.traj[cell] = (self.traj.get(cell)[0],t0+k*dt)
+            s_1k = s_k
+        s_max = s_1k
+        for cell in self.traj.keys():
+            (sIn,sOut) = self.sTCL.get(cell)
+            # If difference between entrance and maximum reached distance within finite horizon is larger than 1m
+            if sIn - s_max > 1:
+                # self.traj[cell] = ((sIn-s_max)/(0.5*sol['x'][N*states-1]+0.5*velRef) + t0+N*dt,(sOut-s_max)/(0.5*sol['x'][N*states-1]+0.5*velRef) + t0+N*dt)
+                tIn = (sIn-s_max)/(velRef) + t0+N*dt
+                delay = tIn - self.traj.get(cell)[0]
+                self.traj[cell] = (tIn,self.traj.get(cell)[1]+delay)
+        
+        if 1==0:
+            import matplotlib.pyplot as plt
+            plt.figure(1)
+            plt.clf()
+            for cell in self.traj.keys():
+                (sIn,sOut) = self.sTCL.get(cell) 
+                (tIn,tOut) = self.traj.get(cell)
+                plt.plot(tIn,sIn,'b>')
+                plt.plot(tOut,sOut,'r<')
+                plt.plot([tIn,tOut],[sIn,sOut],'--')
+            splot = []
+            tplot = []
+            for i in range(N):
+                splot.append(sol['x'][i*2])
+                tplot.append(t0+i*dt)
+            plt.plot(tplot,splot,'g')
+            plt.plot(t0,sTraversed,'gx')
+            plt.vlines(t0,0,60)
+            plt.vlines(t0+N*dt,0,60)
+            plt.xlim(left=0)
+            plt.xlim(right=40)
+            plt.title(str(id))                
+            plt.show(block=False)
+            plt.pause(0.01)
+
+
+
+
     def inGrid(self,cell):
-        if cell[0] >= 0 and cell[0] <= self.resolution:
+        if cell[0] >= 0 and cell[0] <= self.resolution-1:
             if cell[1] >= 0 and cell[1] <= self.resolution: 
                 return 1
         return 0
@@ -378,8 +396,8 @@ class coneDetect:
     def genSamples(self,actor):
         # TODO integrate some of these into helper functions
         # Determine lenght of bbox in x and y directions
-        xLength = actor.bounding_box.extent.x * 2
-        yLength = actor.bounding_box.extent.y * 2
+        xLength = actor.bounding_box.extent.x * 1.9
+        yLength = actor.bounding_box.extent.y * 1.9
         # Def amount of sample along x and y edges, rounded to int
         xSamples = int( round( self.actorSamples * ( xLength / ( xLength + yLength ) ) ) )
         ySamples = self.actorSamples - xSamples
