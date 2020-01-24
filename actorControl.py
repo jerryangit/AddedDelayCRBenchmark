@@ -93,22 +93,27 @@ class MPIPControl:
                         ego.apply_control(carla.VehicleControl(throttle=0.0, steer=0.0,brake = 1.0,manual_gear_shift=True,gear=1))
         if len(egoX.cr.wait) > 0:
             for idSend in egoX.cr.wait:
-                dist = ego.get_location().distance(egoX.cr.cd.TIC2Loc(egoX.cr.wait[idSend]))
-                if dist<= egoX.cr.cd.dx + 0.15 + 1 * egoX.vel_norm:
-                    u = 1/dist * egoX.vel_norm
+                #TODO use displacement based stopping
+                sIn = egoX.cr.cd.sTCL.get(egoX.cr.wait.get(idSend))[0]             
+                dist = sIn - egoX.sTraversed
+                if dist < 0:
+                    print("crossed line, adjust breaking please")
+                if dist<= 0.2 + 0.55 * egoX.vel_norm**2:
+                    u = np.clip((1/dist * egoX.vel_norm*0.1),0,1)
                     ego.apply_control(carla.VehicleControl(throttle=0.0, steer=0.0,brake = u,manual_gear_shift=True,gear=1))
         state = egoX.state
         if egoX.state == "NAN":
             state = "ENTER"
-        elif egoX.state == "ENTER" and ego.get_location().distance(worldX.inter_location) <= worldX.inter_bounds+2.5:
+        elif egoX.state == "ENTER" and egoX.sTraversed > egoX.cr.cd.sArrival:
             if egoX.cr.cd.arr[0] != 1:
                 egoX.cr.cd.arr = [1,egoX.cr.cd.arrivalTime]
             state = "CROSS"
-        elif egoX.state == "CROSS" and ego.get_location().distance(worldX.inter_location) >= worldX.inter_bounds+3:
+        elif egoX.state == "CROSS" and egoX.sTraversed > egoX.cr.cd.sExit:
             if egoX.cr.cd.ext[0] != 1:
                 egoX.cr.cd.ext = [1,egoX.cr.cd.exitTime]
             state = "EXIT"
         egoX.discreteState(state)
+        egoX.cr.cd.predictTimes(egoX,worldX)
         return state
 
 class AMPIPControl:
@@ -139,11 +144,11 @@ class AMPIPControl:
         state = egoX.state
         if egoX.state == "NAN":
             state = "ENTER"
-        elif egoX.state == "ENTER" and ego.get_location().distance(worldX.inter_location) <= worldX.inter_bounds+2.5:
+        elif egoX.state == "ENTER" and egoX.sTraversed > egoX.cr.cd.sTCL.get(egoX.cr.cd.TCL[0])[0]:
             if egoX.cr.cd.arr[0] != 1:
                 egoX.cr.cd.arr = [1,egoX.cr.cd.arrivalTime]
             state = "CROSS"
-        elif egoX.state == "CROSS" and ego.get_location().distance(worldX.inter_location) >= worldX.inter_bounds+3:
+        elif egoX.state == "CROSS" and egoX.sTraversed > egoX.cr.cd.sTCL.get(egoX.cr.cd.TCL[-1])[1]:
             if egoX.cr.cd.ext[0] != 1:
                 egoX.cr.cd.ext = [1,egoX.cr.cd.exitTime]
             state = "EXIT"
@@ -240,8 +245,8 @@ def velocityPID(egoX,states,velDes=np.inf):
 
 def anglePID(egoX,worldX,states):
     #* PID Gains
-    kp = 2
-    kd = 0
+    kp = 1.65
+    kd = 0.01
     ki = 0
     #* 
     

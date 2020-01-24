@@ -18,3 +18,38 @@
         #     plt.show(block=False)
         #     plt.pause(0.001)
         # #! remove later
+
+
+    def doubleS(self):
+        # Double integrator for x,y
+        # States:   [x,xdot,y,ydot]'  
+        # Input:    [xddot,yddot]'
+        A = np.array([[0,1,0,0],[0,0,0,0],[0,0,0,1],[0,0,0,0]])
+        B = np.array([[0,0],[1,0],[0,0],[0,1]])
+        C = np.array([[1,0,0,0],[0,1,0,0],[0,0,1,0],[0,0,0,1]])
+        D = np.array([[0,0],[0,0],[0,0],[0,0]])
+        self.ss = scipy.signal.StateSpace(A,B,C,D)
+
+    def unicycle(self):
+        # Unicycle Model
+        # States:   [x,y,theta]'  
+        # Input:    [v,thetadot]'
+        theta = 0   # !Linearized! around theta = 0, fix later
+        A = np.array([[0,0,0],[0,0,0],[0,0,0]])
+        B = np.array([[np.cos(theta),0],[np.sin(theta),0],[0,1]])
+        C = np.array([[1,0,0],[0,1,0],[0,0,1]])
+        D = np.array([[0,0],[0,0],[0,0]])
+        self.ss = scipy.signal.StateSpace(A,B,C,D)
+
+    def bicycle(self):
+        #>>>>>>>>TODO<<<<<<<<<<
+        # Double integrator for x,y
+        # States:   [x,xdot,y,ydot]'  
+        # Input:    [xddot,yddot]'
+        A = np.array([[0,1,0,0],[0,0,0,0],[0,0,0,1],[0,0,0,0]])
+        B = np.array([[0,0],[1,0],[0,0],[0,1]])
+        C = np.array([[1,0,0,0],[0,1,0,0],[0,0,1,0],[0,0,0,1]])
+        D = np.array([[0,0],[0,0],[0,0],[0,0]])
+        self.ss = scipy.signal.StateSpace(A,B,C,D)
+        
+

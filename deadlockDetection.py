@@ -41,46 +41,53 @@ class DCRgraph:
         self.stateDict = {}
         self.queue = []
         self.history = []
-    def addEdgeList(self,id,edgeList):
-        self.edgeDict[id] = edgeList
+    def addEdgeList(self,ID,edgeList):
+        # edgeList is the tmp of the ID, where tmp includes vehicles which have a temporal advantage over it
+        self.edgeDict[ID] = edgeList
     
-    def setState(self,id,state):
-        self.stateDict[id] = state
+    def setState(self,ID,state):
+        self.stateDict[ID] = state
 
-    def yieldSearch(self,egoTmp,egoId,actId,egoState,actState):
+    def yieldSearch(self,egoTmp,egoID,actID,egoState,actState):
         # clear history and initialize queue with own wait list
-        self.history = [egoId]
-        self.queue = list(egoTmp.keys())
-        if egoState == actState:
-            # Go through the queue
-            while len(self.queue) > 0:
-                id = self.queue[0]
-                # If the id in the queue is the actorX.id 
-                if id == actId:
-                    return 1 # egoX yield for actorX (in)directly
-
-                # If the id in the queue has the same state as ego => explore graph
-                try:
-                    if id != egoId and self.stateDict[id] == egoState:
-                        # Add wait list of id to queue
-                        for tmp_id in self.edgeDict[id]:
-                            if tmp_id not in self.history and self.edgeDict[id].get(tmp_id) != "OL":
-                                self.queue.append(tmp_id) 
-                except:
-                    print("error")
-                self.history.append(id)
-                self.queue.remove(id)
-        elif egoState == "I" and actState == "FIL":
-            # Go through the queue
-            while len(self.queue) > 0:
-                id = self.queue[0]
-                # If the id in the queue is the actorX.id 
-                if id == actId:
-                    return 1 # egoX yield for actorX (in)directly
-                # Add wait list of id to queue
-                for tmp_id in self.edgeDict[id]:
-                    if tmp_id not in self.history and self.edgeDict[id].get(tmp_id) != "OL":
-                        self.queue.append(tmp_id) 
-                self.history.append(id)
-                self.queue.remove(id)
+        self.history = [actID]
+        actTmp = self.edgeDict.get(actID)
+        if actTmp != None:
+            self.queue = list(actTmp.keys())
+        else:
+            # if actTmp = none, means that no vehicle holds temporal advantage over actor
+            return 0
+        # For a tie to exist actID has to have temporal advantage over egoID
+        if actID in egoTmp:
+            if egoState == actState:
+                # Go through the queue
+                while len(self.queue) > 0:
+                    ID = self.queue[0]
+                    # If the ID in the queue is the ego.ID 
+                    if ID == egoID:
+                        return 1 # egoID holds temporal advantage over actorID (in)directly
+                    # If the ID in the queue has the same state as ego => explore graph
+                    try:
+                        if ID != actID and self.stateDict[ID] == egoState:
+                            # Add tmp list of ID to queue
+                            for tmp_ID in self.edgeDict[ID]:
+                                if tmp_ID not in self.history and self.edgeDict[ID].get(tmp_ID) != "OL":
+                                    self.queue.append(tmp_ID) 
+                    except:
+                        print("error")
+                    self.history.append(ID)
+                    self.queue.remove(ID)
+            elif egoState == "I" and actState == "FIL":
+                # Go through the queue
+                while len(self.queue) > 0:
+                    ID = self.queue[0]
+                    # If the ID in the queue is the actorX.ID 
+                    if ID == egoID:
+                        return 1 # egoID holds temporal advantage over actorID (in)directly
+                    # Add tmp list of ID to queue
+                    for tmp_ID in self.edgeDict[ID]:
+                        if tmp_ID not in self.history and self.edgeDict[ID].get(tmp_ID) != "OL":
+                            self.queue.append(tmp_ID) 
+                    self.history.append(ID)
+                    self.queue.remove(ID)
         return 0

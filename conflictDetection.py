@@ -46,7 +46,7 @@ class timeSlot:
     def detect(self,egoX,worldX,msg): 
         # slot is a list with [0], being the start of the slot and [1] being the end of the slot
         actor_t = msg.content.get("timeSlot")
-        ego_t = self.predictTimes(egoX,worldX)
+        ego_t = (self.arrivalTime,self.exitTime)
         if ego_t[1] > actor_t[0] + self.error and ego_t[0] < actor_t[1] - self.error:
             return 1
         if actor_t[1] > ego_t[0] + self.error and actor_t[0] < ego_t[1] - self.error:
@@ -62,7 +62,7 @@ class timeSlot:
             self.exitTime = ( (self.sExit-egoX.sTraversed) / egoX.velRef ) + worldX.tick.timestamp.elapsed_seconds
         else: 
             self.exitTime = egoX.cr.cd.ext[1]
-        return [self.arrivalTime,self.exitTime]
+        return (self.arrivalTime,self.exitTime)
     
     def sPathCalc(self,egoX,worldX):
         self.sArrival = np.inf
@@ -138,35 +138,48 @@ class gridCell:
 
         s = 0
         s0 = egoX.route[0][0].transform.location
+        exitQueue = []
+
         for wr in egoX.route:
-            s = wr[0].transform.location.distance(s0) + s
-            s0 = wr[0].transform.location
-            wr_x = wr[0].transform.location.x
-            wr_y = wr[0].transform.location.y
-            wr_x0 = wr_x - self.x_list[0]
-            wr_y0 = wr_y - self.y_list[0]
-            if self.sArrival == np.inf:
-                if self.x_list[0] < wr_x and wr_x < self.x_list[-1] and self.y_list[0] < wr_y and wr_y < self.y_list[-1]:
-                    self.sArrival = s
-                    self.sPath.append([s,1,"enter"])
-                    row = int(np.floor(wr_y0/self.dy))
-                    col = int(np.floor(wr_x0/self.dx))
-                    self.TCL.append((row,col))
-                else:
-                    self.sPath.append([s,0,"pre"])
-            elif self.sExit == np.inf:
-                if self.x_list[0]> wr_x or wr_x > self.x_list[-1] or self.y_list[0] > wr_y or wr_y > self.y_list[-1] :
-                    self.sExit = s
-                    self.sPath.append([s,3,"exit"])
-                else:
-                    row = int(np.floor(wr_y0/self.dy))
-                    col = int(np.floor(wr_x0/self.dx))
-                    if (row,col) != self.TCL[-1]: 
-                        self.TCL.append((row,col))
-                        self.sTCL[(row,col)] = s
-                    self.sPath.append([s,2,"cross"])
-            else:
-                self.sPath.append([s,4,"post"])
+            detectList = []
+            s = wr[0].transform.location.distance(s0) + s               # Current displacement (prev disp + distance from previous waypoint)
+            s0 = wr[0].transform.location                               # Current location
+            wr_x = wr[0].transform.location.x                           # Current x value
+            wr_y = wr[0].transform.location.y                           # Current y value
+
+            # Update displacement of the center of the vehicle to self.sPath
+            self.sPath.append(s)
+
+            # Generate samples for vehicle at current waypoint
+            smpArr = generateSamples(egoX.ego,5,s0)
+            # For each sample check the area it is in
+            for smp in smpArr:
+                # x = smp[0], y = smp[1]
+                cell = self.xy2Cell(smp[0],smp[1])
+                # Save cell in detectList if sample is in the grid
+                if cell not in detectList and self.inGrid(cell):
+                    detectList.append(cell)
+                    # Add cell to TCL and save its entry s if new
+                    if cell not in self.TCL:
+                        exitQueue.append(cell)
+                        self.TCL.append(cell)
+                        self.sTCL[cell] = (s,None)
+                        if len(self.TCL) == 1:
+                            self.sArrival = s
+
+            # Go through cells in exitQueue and determine if they are still occupied or not                                        
+            for cell in exitQueue:
+                if cell not in detectList:
+                    self.sTCL[cell] = (self.sTCL.get(cell)[0],s)
+                    exitQueue.remove(cell)
+                    if len(exitQueue) == 0:
+                        self.sExit = s
+    def updateTCL(self,sTraversed):
+        for cell in self.TCL:
+            # If sTraversed is larger than the exit displacement, remove it from the TCL
+            if sTraversed > self.sTCL.get(cell)[1]:
+                self.TCL.remove(cell)
+                del self.sTCL[cell]
     
     def predictTimes(self,egoX,worldX):
         if egoX.cr.cd.arr[0] != 1:
@@ -186,6 +199,18 @@ class gridCell:
         exitTime = arrivalTime + np.sqrt(2 * a_max * self.dx)/(2 * a_max)
         return [arrivalTime,exitTime]
 
+    def inGrid(self,cell):
+        if cell[0] >= 0 and cell[0] <= self.resolution-1:
+            if cell[1] >= 0 and cell[1] <= self.resolution-1: 
+                return 1
+        return 0
+
+    def xy2Cell(self,x,y):
+        #* Returns the cell (row,col) for a Carla.Location object
+        row = int(np.floor((y - self.y_list[0]))/self.dy)
+        col = int(np.floor((x - self.x_list[0]))/self.dx)
+        cell = (row,col)
+        return cell
     def TIC2Loc(self,TIC):
         x = self.x_list[TIC[1]]+0.5*self.dx
         y = self.y_list[TIC[0]]+0.5*self.dy
@@ -337,12 +362,9 @@ class conflictZones:
             plt.show(block=False)
             plt.pause(0.01)
 
-
-
-
     def inGrid(self,cell):
         if cell[0] >= 0 and cell[0] <= self.resolution-1:
-            if cell[1] >= 0 and cell[1] <= self.resolution: 
+            if cell[1] >= 0 and cell[1] <= self.resolution-1: 
                 return 1
         return 0
 

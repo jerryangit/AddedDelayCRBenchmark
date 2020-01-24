@@ -162,14 +162,15 @@ class MPIP:
 
     def resolve(self,egoX,worldX):
         # [self.ttArrival, self.ttExit] = self.cd.predictTimes(egoX,worldX)
+        self.cd.updateTCL(egoX.sTraversed)
         if len(worldX.msg.inbox) == 0:
             return 0
         for msg in worldX.msg.inbox[egoX.id]:
             if msg.mtype == "ENTER" or msg.mtype == "CROSS":
                 actorX = worldX.actorDict.dict.get(msg.idSend)
                 TIC = self.cd.detect(egoX,worldX,msg)
-                [bool,TIC] = self.cd.detect(egoX,worldX,msg)
-                if bool:
+                [sptBool,TIC] = self.cd.detect(egoX,worldX,msg)
+                if sptBool == 1:
                     pOrder = self.pp.order([egoX,actorX])
                     if pOrder[0].id == egoX.id:
                         if msg.idSend in self.wait:
@@ -178,17 +179,19 @@ class MPIP:
                         if msg.idSend not in self.wait:
                             self.wait[msg.idSend] = TIC
                 else: 
-                    continue
+                    # If there is no conflict remove it from the wait list
+                    if msg.idSend in self.wait:
+                        del self.wait[msg.idSend]
             elif msg.mtype == "EXIT":
                 if msg.idSend in self.wait:
-                    del self.wait[msg.idSend]
+                    del self.wait[msg.idSend]        
 
     def outbox(self,actorX):
         if actorX.state == "ENTER":
-            msg_obj = msg(actorX.id,"ENTER",{"timeSlot":[self.cd.arrivalTime,self.cd.exitTime],"TCL":self.cd.TCL})
+            msg_obj = msg(actorX.id,"ENTER",{"timeSlot":(self.cd.arrivalTime,self.cd.exitTime),"TCL":self.cd.TCL})
             return msg_obj
         if actorX.state == "CROSS":
-            msg_obj = msg(actorX.id,"CROSS",{"timeSlot":[self.cd.arrivalTime,self.cd.exitTime],"TCL":self.cd.TCL})
+            msg_obj = msg(actorX.id,"CROSS",{"timeSlot":(self.cd.arrivalTime,self.cd.exitTime),"TCL":self.cd.TCL})
             return msg_obj
         elif actorX.state == "EXIT":
             msg_obj = msg(actorX.id,"EXIT")
@@ -262,7 +265,6 @@ class DCR:
         self.wait = {} # Clear yield list every time
         self.tmp = {} # Clear tmp every time?
         self.updateData(egoX,worldX)
-        
         if egoX.state == "IL":
             if egoX.info.get("idFront") != None:
                 TICL = egoX.cr.cd.TICL(worldX.actorDict.dict.get(egoX.info.get("idFront")).cr.cd.TCL)
@@ -353,8 +355,7 @@ class DCR:
                 # If Ego enters any conflict zone before Actor enters => Ego >TempAdv Actor 
                 if egoT[0] < actorT[0]:
                     return 1
-        else:
-            return 0
+        return 0
 
     def updateData(self,egoX,worldX):
         #  Loop needed to process msgs in a useable format
@@ -382,6 +383,3 @@ class DCR:
         self.cd = cd.conflictDetection("conflictZones",[worldX.inter_location,2,8,self.err]).obj
         self.cd.setup(egoX,worldX)
         self.setPriority(0)
-        
-        
-

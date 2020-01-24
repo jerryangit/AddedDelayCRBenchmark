@@ -49,12 +49,15 @@ def main():
     freqOnBoard = 10              # The frequency at which vehicle on board controller is simulated
     random.seed(23)             # Random seed
     maxVehicle = 20             # Max simultaneous vehicle
-    totalVehicle = 8            # Total vehicles for entire simulation
+    totalVehicle = 32            # Total vehicles for entire simulation
     scenario = 1                # 0 is random 1/tick, 1 is 4/tick all roads (Ensure totalVehicle is a multiple of 4 if scenario is 1)
     spwnInterval = 4            # Time between each spawn cycle
-    cr_method = "DCR"           # Which conflict resolution method is used
-    ctrlPolicy = "DCRControl"          # Which control policy is used
-    PriorityPolicy = "PriorityScore"    # Which priorityPolicy is used
+    # cr_method = "DCR"           # Which conflict resolution method is used
+    # ctrlPolicy = "DCRControl"          # Which control policy is used
+    # PriorityPolicy = "PriorityScore"    # Which priorityPolicy is used
+    cr_method = "MPIP"           # Which conflict resolution method is used
+    ctrlPolicy = "MPIPControl"          # Which control policy is used
+    PriorityPolicy = "FCFS"    # Which priorityPolicy is used
     ###############################################
     # Plotting Config
     ###############################################  
