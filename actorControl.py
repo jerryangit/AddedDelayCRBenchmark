@@ -98,8 +98,8 @@ class MPIPControl:
                 dist = sIn - egoX.sTraversed
                 if dist < 0:
                     print("crossed line, adjust breaking please")
-                if dist<= 0.2 + 0.55 * egoX.vel_norm**2:
-                    u = np.clip((1/dist * egoX.vel_norm*0.1),0,1)
+                if dist<= 0.2 + 0.65 * egoX.vel_norm**2:
+                    u = np.clip((1/dist * egoX.vel_norm*0.15),0,1)
                     ego.apply_control(carla.VehicleControl(throttle=0.0, steer=0.0,brake = u,manual_gear_shift=True,gear=1))
         state = egoX.state
         if egoX.state == "NAN":

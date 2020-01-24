@@ -66,7 +66,7 @@ class worldX:
         self.initialTS = tick.timestamp
         self.tock(tick)
         self.hopres = hopres
-        self.dict = {}
+        # self.dict = {}
     def update(self,actorDict):
         self.actorDict = actorDict
     def tock(self,tick):
@@ -120,13 +120,9 @@ class actorX:
         self.id = ego.id
         # VIN (Used for policy only)
         self.VIN = VIN
-        # State Spaces        
-        if model == 0: 
-            self.doubleS()
-        if model == 1: 
-            self.unicycle()
-        if model == 2: 
-            self.bicycle()
+        # onTickList:
+        self.onTickList = []
+        
         self.updateParameters(dt)
 
     def infoSet(self,key,value):
@@ -140,41 +136,13 @@ class actorX:
         self.location = self.ego.get_transform().location
         self.rotation = self.ego.get_transform().rotation
         # Rough Integration of distance
-        self.sTraversed += self.dt*self.vel_norm        
+        self.sTraversed += self.dt*self.vel_norm
+        for fnc in self.onTickList:
+            fnc()
+
+    def onTick(self,fnc):
+        self.onTickList.append(fnc)        
 
     def discreteState(self,state):
         self.state = state
-
-    def doubleS(self):
-        # Double integrator for x,y
-        # States:   [x,xdot,y,ydot]'  
-        # Input:    [xddot,yddot]'
-        A = np.array([[0,1,0,0],[0,0,0,0],[0,0,0,1],[0,0,0,0]])
-        B = np.array([[0,0],[1,0],[0,0],[0,1]])
-        C = np.array([[1,0,0,0],[0,1,0,0],[0,0,1,0],[0,0,0,1]])
-        D = np.array([[0,0],[0,0],[0,0],[0,0]])
-        self.ss = scipy.signal.StateSpace(A,B,C,D)
-
-    def unicycle(self):
-        # Unicycle Model
-        # States:   [x,y,theta]'  
-        # Input:    [v,thetadot]'
-        theta = 0   # !Linearized! around theta = 0, fix later
-        A = np.array([[0,0,0],[0,0,0],[0,0,0]])
-        B = np.array([[np.cos(theta),0],[np.sin(theta),0],[0,1]])
-        C = np.array([[1,0,0],[0,1,0],[0,0,1]])
-        D = np.array([[0,0],[0,0],[0,0]])
-        self.ss = scipy.signal.StateSpace(A,B,C,D)
-
-    def bicycle(self):
-        #>>>>>>>>TODO<<<<<<<<<<
-        # Double integrator for x,y
-        # States:   [x,xdot,y,ydot]'  
-        # Input:    [xddot,yddot]'
-        A = np.array([[0,1,0,0],[0,0,0,0],[0,0,0,1],[0,0,0,0]])
-        B = np.array([[0,0],[1,0],[0,0],[0,1]])
-        C = np.array([[1,0,0,0],[0,1,0,0],[0,0,1,0],[0,0,0,1]])
-        D = np.array([[0,0],[0,0],[0,0],[0,0]])
-        self.ss = scipy.signal.StateSpace(A,B,C,D)
-        
 
