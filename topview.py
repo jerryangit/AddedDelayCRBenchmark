@@ -268,7 +268,7 @@ class HUD (object):
         mono = default_font if default_font in fonts else fonts[0]
         mono = pygame.font.match_font(mono)
         self._font_mono = pygame.font.Font(mono, 14)
-        self._header_font = pygame.font.SysFont('Arial', 14, True)
+        self._header_font = pygame.font.SysFont('Arial', 20, True)
         self.help = HelpText(pygame.font.Font(mono, 24), *self.dim)
         self._notifications = FadingText(
             pygame.font.Font(pygame.font.get_default_font(), 20),
@@ -301,7 +301,8 @@ class HUD (object):
                 if hero_actor is not None:
                     angle = -hero_transform.rotation.yaw - 90
 
-                color = COLOR_SKY_BLUE_0
+                # color = COLOR_SKY_BLUE_0
+                color = pygame.Color(255, 255, 255)
                 if int(actor[0].attributes['number_of_wheels']) == 2:
                     color = COLOR_CHOCOLATE_0
                 if actor[0].attributes['role_name'] == 'hero':
