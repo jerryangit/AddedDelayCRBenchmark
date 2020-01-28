@@ -161,7 +161,6 @@ class MPIP:
         self.pp = priorityPolicy(policy)
 
     def resolve(self,egoX,worldX):
-        # [self.ttArrival, self.ttExit] = self.cd.predictTimes(egoX,worldX)
         self.cd.updateTCL(egoX.sTraversed)
         if len(worldX.msg.inbox) == 0:
             return 0
@@ -185,6 +184,7 @@ class MPIP:
             elif msg.mtype == "EXIT":
                 if msg.idSend in self.wait:
                     del self.wait[msg.idSend]        
+        egoX.cr.cd.predictTimes(egoX,worldX)
 
     def outbox(self,actorX):
         if actorX.state == "ENTER":
@@ -198,7 +198,7 @@ class MPIP:
             return msg_obj
 
     def setup(self,egoX,worldX):
-        self.cd = cd.conflictDetection("gridCell",[worldX.inter_location,4,16,self.err]).obj
+        self.cd = cd.conflictDetection("gridCell",[worldX.inter_location,4,18,self.err]).obj
         self.cd.setup(egoX,worldX)
 
 class AMPIP:

@@ -102,7 +102,7 @@ class gridCell:
         self.arr = [0,0]
         self.ext = [0,0]
 
-    def detect(self,egoX,worldX,msg): 
+    def detect(self,egoX,worldX,msg):
         actor_t = msg.content.get("timeSlot")
         actor_TCL = msg.content.get("TCL")
         ego_t = self.predictTimes(egoX,worldX)
@@ -144,8 +144,6 @@ class gridCell:
             detectList = []
             s = wr[0].transform.location.distance(s0) + s               # Current displacement (prev disp + distance from previous waypoint)
             s0 = wr[0].transform.location                               # Current location
-            wr_x = wr[0].transform.location.x                           # Current x value
-            wr_y = wr[0].transform.location.y                           # Current y value
 
             # Update displacement of the center of the vehicle to self.sPath
             self.sPath.append(s)
@@ -207,10 +205,11 @@ class gridCell:
 
     def xy2Cell(self,x,y):
         #* Returns the cell (row,col) for a Carla.Location object
-        row = int(np.floor((y - self.y_list[0]))/self.dy)
-        col = int(np.floor((x - self.x_list[0]))/self.dx)
+        row = int(np.floor((y - self.y_list[0])/self.dy))
+        col = int(np.floor((x - self.x_list[0])/self.dx))
         cell = (row,col)
         return cell
+
     def TIC2Loc(self,TIC):
         x = self.x_list[TIC[1]]+0.5*self.dx
         y = self.y_list[TIC[0]]+0.5*self.dy
@@ -267,9 +266,6 @@ class conflictZones:
             detectList = []
             s = wr[0].transform.location.distance(s0) + s               # Current displacement (prev disp + distance from previous waypoint)
             s0 = wr[0].transform.location                               # Current location
-            wr_x = wr[0].transform.location.x                           # Current x value
-            wr_y = wr[0].transform.location.y                           # Current y value
-
             # Update displacement of the center of the vehicle to self.sPath
             self.sPath.append(s)
 
@@ -309,7 +305,6 @@ class conflictZones:
         return self.traj
 
     def MPCFeedback(self,sol,t0,dt,N,states,velRef,id,sTraversed):
-        s_0 = sol['x'][0]
         s_1k = sol['x'][0]
         for k in range(N):
             s_k = sol['x'][states*k]
@@ -320,8 +315,10 @@ class conflictZones:
                     # tIn is predicted some timesteps ahead in order to prevent it affecting the MPC as a constraint
                     tIn = t0+(k-1)*dt - 0.5 
                     delay = tIn - self.traj.get(cell)[0]
-                    self.traj[cell] = (tIn,self.traj.get(cell)[1]+delay)
-                # If the sIn is bigger than previous s but smaller than current, we use tIn from current for tOut
+                    # If the vehicle can enter earlier than estimated.
+                    if delay < 0:
+                        self.traj[cell] = (tIn,self.traj.get(cell)[1]+delay)
+                # If the sOut is bigger than previous s but smaller than current, we use tOut for current displacement
                 if s_1k < sOut and sOut < s_k:
                     # if t0+k*dt < self.traj.get(cell)[0]:
                     #     print("Error, out time lower than entry time")
@@ -377,8 +374,8 @@ class conflictZones:
 
     def xy2Cell(self,x,y):
         #* Returns the cell (row,col) for a Carla.Location object
-        row = int(np.floor((y - self.y_list[0]))/self.dy)
-        col = int(np.floor((x - self.x_list[0]))/self.dx)
+        row = int(np.floor((y - self.y_list[0])/self.dy))
+        col = int(np.floor((x - self.x_list[0])/self.dx))
         cell = (row,col)
         return cell
 
@@ -454,8 +451,8 @@ class coneDetect:
 def generateSamples(actor,sampleN=5,location=None):
     # TODO integrate some of these into helper functions
     # Determine lenght of bbox in x and y directions
-    xLength = actor.bounding_box.extent.x * 2
-    yLength = actor.bounding_box.extent.y * 2
+    xLength = actor.bounding_box.extent.x * 1.8
+    yLength = actor.bounding_box.extent.y * 1.8
     # Def amount of sample along x and y edges, rounded to int
     xSamples = int( round( sampleN * ( xLength / ( xLength + yLength ) ) ) )
     ySamples = sampleN - xSamples
@@ -490,6 +487,14 @@ def generateSamples(actor,sampleN=5,location=None):
         # If location is provided use given location
     else:
         smpArr = smpArr + [ location.x , location.y ]
+
+    # import matplotlib.pyplot as plt
+    # plt.figure(5)
+    # for sample in smpArr:
+    #     plt.plot(sample[0],sample[1],'rx')
+    # plt.plot(actor.get_location().x,actor.get_location().y,'go')
+    # plt.show()
+
     return smpArr
 
 

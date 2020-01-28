@@ -40,29 +40,30 @@ import numpy as np
 if not os.path.exists('./data'):
     os.makedirs('./data')
 
-def main():
+def main(cr_method = "MPIP", ctrlPolicy = "MPIPControl", PriorityPolicy = "FCFS",totalVehicle = 64, scenario = 0, spwnInterval = 1, randomSeed = 23):
     ###############################################
     # Config
     ###############################################  
     syncmode = 1                # Whether ticks are synced
-    freqSimulation = 50          # The frequency at which the simulation is ran 
-    freqOnBoard = 10              # The frequency at which vehicle on board controller is simulated
-    random.seed(23)             # Random seed
+    freqSimulation = 50         # The frequency at which the simulation is ran 
+    freqOnBoard = 25            # The frequency at which vehicle on board controller is simulated
+    random.seed(randomSeed)     # Random seed
     maxVehicle = 20             # Max simultaneous vehicle
-    totalVehicle = 32            # Total vehicles for entire simulation
-    scenario = 1                # 0 is random 1/tick, 1 is 4/tick all roads (Ensure totalVehicle is a multiple of 4 if scenario is 1)
-    spwnInterval = 4            # Time between each spawn cycle
-    # cr_method = "DCR"           # Which conflict resolution method is used
-    # ctrlPolicy = "DCRControl"          # Which control policy is used
+    #totalVehicle = 64           # Total vehicles for entire simulation
+    # scenario = 6                # 0 is random 1/tick, 1 is 4/tick all roads (Ensure totalVehicle is a multiple of 4 if scenario is 1)
+    # spwnInterval = 4            # Time between each spawn cycle
+    # cr_method = "DCR"                   # Which conflict resolution method is used
+    # ctrlPolicy = "DCRControl"           # Which control policy is used
     # PriorityPolicy = "PriorityScore"    # Which priorityPolicy is used
-    cr_method = "MPIP"           # Which conflict resolution method is used
-    ctrlPolicy = "MPIPControl"          # Which control policy is used
-    PriorityPolicy = "FCFS"    # Which priorityPolicy is used
+    # cr_method = "MPIP"         # Which conflict resolution method is used
+    # ctrlPolicy = "MPIPControl" # Which control policy is used
+    # PriorityPolicy = "FCFS"    # Which priorityPolicy is used
     ###############################################
     # Plotting Config
     ###############################################  
-    plot = 0                    # Whether to plot figures afterwards or not
+    plot = 1                    # Whether to plot figures afterwards or not
     plotVel = 1                 # Whether to plot velocity or not
+    plotTheta = 0               # Whether to plot theta or not
     plotLoc = 0                 # Whether to plot location or not
 
 
@@ -148,7 +149,7 @@ def main():
             kmax = 4
             spwnRand = np.array([[1,2,3,4] for iter in range(int(totalVehicle/4))]).flatten()
             destRand = np.array([random.choice(np.delete(laneList,spwnRand[iter]-1)) for iter in range(totalVehicle)])
-            velRand = np.array([8+random.uniform(-1,1) for iter in range(totalVehicle)])
+            velRand = np.array([7+random.uniform(-1,1) for iter in range(totalVehicle)])
         elif scenario == 2: # Artificial AMPIP example
             totalVehicle = 2
             spwnInterval = 4.5
@@ -183,6 +184,15 @@ def main():
             destRand = [3,4,1,2]
             velRand = [8,8,8,8]
             # velRand = np.array([8+random.uniform(-1,1) for iter in range(totalVehicle)])
+        elif scenario == 6:
+            # testing for theta PID
+            kmax = 1
+            totalVehicle = 1
+            spwnInterval = 0
+            spwnRand = [3]
+            destRand = [2]
+            velRand = [7]
+
         # idRand is only used for tie breaking, used to avoid odd behavior
         idRand = np.array([random.randint(100000,999999) for iter in range(totalVehicle)])
         spwnTime = [0]
@@ -213,10 +223,13 @@ def main():
         # Random variables
         # TODO Clean up
         lastCycle = 1
-        velDict = {}
-        locDict = {}
-        aclDict = {}
-        ctrDict = {}
+
+        if plot == 1:
+            velDict = {}
+            locDict = {}
+            thetaDict = {}
+            aclDict = {}
+            ctrDict = {}
         #*  << Main Loop >>
         notComplete = 1
         while notComplete: 
@@ -280,6 +293,8 @@ def main():
                                 if plotLoc == 1:
                                     #* To Graph out location over time
                                     locDict[spwnX.id] = []
+                                if plotTheta == 1:
+                                    thetaDict[spwnX.id] = []
 
             #* Destroy Vehicles code 
             # TODO separate class or function
@@ -302,7 +317,9 @@ def main():
                         velDict.get(actorX.id).append([ts.elapsed_seconds-ts0s,actorX.vel_norm])
                         aclDict.get(actorX.id).append([ts.elapsed_seconds-ts0s,actorX.ego.get_acceleration().x,actorX.ego.get_acceleration().y])
                         ctrDict.get(actorX.id).append([ts.elapsed_seconds-ts0s,actorX.ego.get_control().throttle,actorX.ego.get_control().steer,actorX.ego.get_control().brake,actorX.ego.get_control().gear,actorX.ego.get_control().manual_gear_shift])
-
+                if plotTheta == 1:
+                    for actorX in actorDict_obj.dict.values():
+                        thetaDict.get(actorX.id).append([ts.elapsed_seconds-ts0s,actorX.rotation.yaw,actorX.ego.get_control().steer])
             #* Code to enforce a different freq for on board calculations and simulation
             tickRatio = freqSimulation/freqOnBoard
             if lastCycle < tickRatio:
@@ -364,6 +381,17 @@ def main():
 
         if plot == 1:
             import matplotlib.pyplot as plt
+            if plotTheta == 1:
+                for value in thetaDict.values():
+                    t = [value[k][0] for k in range(len(value))]
+                    theta = [value[k][1] for k in range(len(value))]
+                    u = [value[k][2] for k in range(len(value))]
+                    fig, (ax1, ax2) = plt.subplots(2,1,num=10)
+                    fig.suptitle('Theta and steer input over time')
+                    ax1.plot(t,theta)
+                    ax2.plot(t,u)
+            plt.show()
+
             if plotVel == 1:
                 plt.figure()
                 i = 0
@@ -406,8 +434,6 @@ def main():
                     ax = plt.gca()
                     ax.set_ylim([0,16])
                     plt.legend(["Acceleration", "Velocity","Throttle","Brake"])
-
-
 
                     
             if plotLoc == 1:

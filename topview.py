@@ -318,7 +318,7 @@ class HUD (object):
         grid_surface.fill(COLOR_BLACK)
         resolution = 4
         ctr = [-150.0, -35.0, 0.3]
-        r = 8
+        r = 9
         rctr = ctr.copy()
         rctr[0] = rctr[0] + r
         center = carla.Location(*ctr) 
