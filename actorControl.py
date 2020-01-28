@@ -84,7 +84,14 @@ class MPIPControl:
             return "NAN"
         (u_v,self.vPIDStates) = velocityPID(egoX,self.vPIDStates)
         (u_theta,self.thetaPIDStates)  = anglePID(egoX,worldX,self.thetaPIDStates)
-        ego.apply_control(carla.VehicleControl(throttle=u_v, steer=u_theta,brake = 0.0,manual_gear_shift=True,gear=1))
+
+        u_v = np.clip(u_v,-1,1)
+
+        if u_v >= 0:
+            ego.apply_control(carla.VehicleControl(throttle=u_v, steer=u_theta,brake = 0,manual_gear_shift=True,gear=1))
+        elif u_v < 0:
+            ego.apply_control(carla.VehicleControl(throttle=0, steer=u_theta,brake = - u_v,manual_gear_shift=True,gear=1))
+        
         cd_obj = cd.conflictDetection("coneDetect",[6.5,0.135*np.pi,5]).obj
         if egoX.state == "ENTER":
             for actor in worldX.actorDict.actor_list:
@@ -98,13 +105,13 @@ class MPIPControl:
                 dist = sIn - egoX.sTraversed
                 if dist < 0:
                     print("crossed line, adjust breaking please")
-                if dist<= 0.2 + 0.65 * egoX.vel_norm**2:
+                if dist<= 0.2 + 0.7 * egoX.vel_norm**2:
                     u = np.clip((1/dist * egoX.vel_norm*0.15),0,1)
                     ego.apply_control(carla.VehicleControl(throttle=0.0, steer=0.0,brake = u,manual_gear_shift=True,gear=1))
         state = egoX.state
         if egoX.state == "NAN":
             state = "ENTER"
-        elif egoX.state == "ENTER" and egoX.sTraversed > egoX.cr.cd.sArrival:
+        elif egoX.state == "ENTER" and egoX.sTraversed > egoX.cr.cd.sArrival-0.25:
             if egoX.cr.cd.arr[0] != 1:
                 egoX.cr.cd.arr = [1,egoX.cr.cd.arrivalTime]
             state = "CROSS"
@@ -113,7 +120,6 @@ class MPIPControl:
                 egoX.cr.cd.ext = [1,egoX.cr.cd.exitTime]
             state = "EXIT"
         egoX.discreteState(state)
-        egoX.cr.cd.predictTimes(egoX,worldX)
         return state
 
 class AMPIPControl:
@@ -175,12 +181,12 @@ class DCRControl:
             CellList.append((egoX.cr.cd.sTCL.get(cell)[0],egoX.cr.cd.traj.get(cell)[0]-worldX.tick.timestamp.elapsed_seconds))
         # TODO move N to be an input
 
-        N = 30
+        N = 35
 
         if egoX.state != "OL":
             (sol,u0) = qpMPC(x0,egoX.dt,egoX.velRef,CellList,egoX.id,N)
             egoX.cr.cd.MPCFeedback(sol,worldX.tick.timestamp.elapsed_seconds,egoX.dt,N,2,egoX.velRef,egoX.id,egoX.sTraversed)
-            (u_v,self.vPIDStates) = velocityPID(egoX,self.vPIDStates,egoX.vel_norm+u0[0]*1.25)
+            (u_v,self.vPIDStates) = velocityPID(egoX,self.vPIDStates,egoX.vel_norm+u0[0]*1.5)
         else: 
             (u_v,self.vPIDStates) = velocityPID(egoX,self.vPIDStates,egoX.velRef)
         #* PID Control
@@ -192,7 +198,7 @@ class DCRControl:
             ego.apply_control(carla.VehicleControl(throttle=u_v, steer=u_theta,brake = 0,manual_gear_shift=True,gear=1))
         elif u_v < 0:
             ego.apply_control(carla.VehicleControl(throttle=0, steer=u_theta,brake = - u_v,manual_gear_shift=True,gear=1))
-        
+
         # * Emergency brake
         cd_obj = cd.conflictDetection("coneDetect",[4,0.1*np.pi,5]).obj
         for actor in worldX.actorDict.actor_list:
@@ -224,29 +230,31 @@ class DCRControl:
         return state
 
 
-def velocityPID(egoX,states,velDes=np.inf):
+def velocityPID(egoX,states,velDes=None):
     #* PID Gains < 
-    kp = 0.575
-    kd = 0.019
-    ki = 0.44
+    kp = 0.875
+    kd = 0.1
+    ki = 0
     #* >
-    v = np.linalg.norm([egoX.velocity.x,egoX.velocity.y])
+    v = egoX.vel_norm
     #* PID states <
-    if velDes != np.inf:
+    if velDes != None:
         error = velDes - v
     else:
         error = egoX.velRef - v
     integral = states[1] + error * egoX.dt
     derivative = (error - states[0]) / egoX.dt
     #* >
-    u_v = kp*(error) + ki*(integral) + kd*(derivative)
+    u_v = kp*(error) + ki*(integral) + kd*(derivative) 
+    if v > 0:
+        u_v += 0.115+0.09365*v+-0.00345*v**2 # quadractic approximation of throttle to overcome friction
     states = (error,integral,derivative)
     return (u_v,states)
 
 def anglePID(egoX,worldX,states):
     #* PID Gains
     kp = 1.65
-    kd = 0.01
+    kd = 0.02
     ki = 0
     #* 
     
