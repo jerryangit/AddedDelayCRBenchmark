@@ -12,7 +12,7 @@ def main():
     qpMPC(x0,dt,v_des,CellList)
 
 
-def qpMPC(x0,dt,v_des,CellList,id,N=20, inputCosts = 1.5, devCosts = 2):
+def qpMPC(x0,dt,v_des,CellList,ID,N=20, inputCosts = 1.5, devCosts = 2):
     #TODO fix bug, always uses max input?
     #TODO make into class and separate into setup and optimize and reuse some matrices
     # Finite horizon
@@ -27,7 +27,7 @@ def qpMPC(x0,dt,v_des,CellList,id,N=20, inputCosts = 1.5, devCosts = 2):
     ss_A = np.array([[1,dt],[0,1]])
     ss_B = np.array([[0],[1]])
     #* Constraints
-    a_max = 3
+    a_max = 2.5
     a_min = 4
     u_max = a_max*dt # Maximum acceleration 
     u_min = a_min*dt # Maximum deceleration
@@ -40,7 +40,8 @@ def qpMPC(x0,dt,v_des,CellList,id,N=20, inputCosts = 1.5, devCosts = 2):
     states = 2 # Amount of actual state in the system
     inputs = 1 # Amount of inputs in the system
     x_vec = np.zeros((states*N,1))      # states have no costs
-    u_vec = np.add(np.ones((N,1)),np.arange(0,1,1/N).reshape(N,1))*inputCosts   # input cost vector
+    u_vec = np.add(np.ones((N,1)),np.arange(0,1,1/N).reshape(N,1)*3)  # input cost shape
+    u_vec = inputCosts*u_vec/np.linalg.norm(u_vec)*inputCosts # Apply input cost to normalized vector
     v_ref = np.zeros((1,1))             # reference velocity has no cost
     v_dev = np.ones((N,1))*devCosts     # deviation form reference velocity has a cost
     #! xi_vec also functions as the cost weights
@@ -59,8 +60,6 @@ def qpMPC(x0,dt,v_des,CellList,id,N=20, inputCosts = 1.5, devCosts = 2):
     bieq_u_max = np.repeat( np.array([[u_max]]) , N_u , axis=0 )
     Aieq_u_min = np.concatenate( ( np.zeros( (N,N_x) ) , -np.eye(N_u), np.zeros( (N,N_v_ref+N_v_dev) ) ) , axis=1 )
     bieq_u_min = np.repeat( np.array([[u_min]]) , N_u , axis=0 )
-
-
     
     bieq_v_max = np.repeat( np.array([[v_max]]) , N_u , axis=0 )
     bieq_v_min = np.repeat( np.array([[v_min]]) , N_u , axis=0 )
@@ -81,11 +80,13 @@ def qpMPC(x0,dt,v_des,CellList,id,N=20, inputCosts = 1.5, devCosts = 2):
             tIndex = int(np.floor(tIn/dt))
             Aieq_st = np.concatenate((Aieq_st,np.concatenate( (np.zeros((1, states*(tIndex))), np.array([[1, 0]]), np.zeros((1,N_tot-(tIndex+1)*states)) ), axis = 1)) , axis = 0)
             bieq_st = np.concatenate( (bieq_st,np.array([[sIn]]) ), axis = 0)
+        elif tIn < 0 and tIndex == None:
+            tIndex = 0
     if tIndex == None:
         tIndex = N-1
-        # If none of the cells are within finite horizon, add a constraint at last timestep for interpolated distance, to avoid speeding through.
+        # If none of the cells are within finite horizon, add a constraint at last timestep for interpolated distance, to avoID speeding through.
         # sIn at first (ds/t)*(N*dt), average velocity needed to reach tIn* time at end of finite horizon
-        sIn = x0[0][0]+(CellList[0][0]-x0[0][0])/(CellList[0][1])*(N*dt+0.5) # Relaxed with some seconds in order to prevent tIn increasing itself perpetually
+        sIn = x0[0][0]+(CellList[0][0]-x0[0][0])/(CellList[0][1])*(N*dt+0.5)  # Relaxed with some time in order to prevent tIn increasing itself perpetually
         Aieq_st = np.concatenate((Aieq_st,np.concatenate( (np.zeros((1, states*(tIndex))), np.array([[1, 0]]), np.zeros((1,N_tot-(tIndex+1)*states)) ), axis = 1)) , axis = 0)
         bieq_st = np.concatenate( (bieq_st,np.array([[sIn]]) ), axis = 0)
     
@@ -141,14 +142,14 @@ def qpMPC(x0,dt,v_des,CellList,id,N=20, inputCosts = 1.5, devCosts = 2):
     b = matrix(beq, tc = 'd')
     solvers.options['show_progress'] = False
     sol = solvers.qp(P,q,G,h,A,b)
-    # if sol['status'] != 'optimal':
-    #     plotStuff(sol,N,N_x,N_u,inputCosts,devCosts,CellList,dt,id)
-    #     print("infeasible")
+    if sol['status'] != 'optimal':
+        plotStuff(sol,N,N_x,N_u,inputCosts,devCosts,CellList,dt,ID,sIn)
+        print("infeasible")
     u0 = sol['x'][N_x:N_x+inputs]
     # u = sol['x'][N_x:N_x+N_u]
     # print(u)
     # print(sol['x'])
-    # plotStuff(sol,N,N_x,N_u,inputCosts,devCosts,CellList,dt,id)
+    # plotStuff(sol,N,N_x,N_u,inputCosts,devCosts,CellList,dt,ID,sIn,1)
     # printFormula(Aeq_ss,statevector)
     # printFormulaEq(Aeq,beq,statevector)
     # printFormulaIeq(Aieq,bieq,statevector)
@@ -160,7 +161,7 @@ def qpMPC(x0,dt,v_des,CellList,id,N=20, inputCosts = 1.5, devCosts = 2):
     return (sol,u0)
 
 
-def plotStuff(sol,N,N_x,N_u,inputCosts,devCosts,CellList,dt,id):
+def plotStuff(sol,N,N_x,N_u,inputCosts,devCosts,CellList,dt,ID,sInN=None,onTick=None):
     splot = []
     vplot = []
     uplot = []
@@ -181,17 +182,24 @@ def plotStuff(sol,N,N_x,N_u,inputCosts,devCosts,CellList,dt,id):
     axs[1].plot(uplot)
     axs[1].plot(vdevplot)
     axs[0].plot(Jplot)
+    tIndex = None
     for cell in CellList:
         sIn = cell[0]
         tIn = cell[1]
-        if tIn < N*dt:
+        if tIn > 0 and tIn < N*dt:
             axs[1].plot(tIn/dt,sIn,'ro')
+    if tIndex == None and sIn != None:
+        axs[1].plot(N-1,sInN,'go')
     axs[0].legend(('cost'))
     axs[1].legend(('s','v','u','vdev','constraints'))
-    fig.suptitle(str(id))
-    plt.show()
-    # plt.show(block=False)
-    # plt.pause(0.001)
+    # label = "Finite horizon (k) [N= "+str(N)+",dt = "+ str(dt)+"]"
+    # axs[1].set_xlabel(label)
+    fig.suptitle(str(ID))
+    if onTick == 1:
+        plt.show(block=False)
+        plt.pause(0.001)
+    else:
+        plt.show()
 
 
 
