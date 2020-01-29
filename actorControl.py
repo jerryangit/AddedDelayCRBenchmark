@@ -224,12 +224,12 @@ class DCRControl:
             CellList.append((egoX.cr.cd.sTCL.get(cell)[0],egoX.cr.cd.traj.get(cell)[0]-worldX.tick.timestamp.elapsed_seconds))
         # TODO move N to be an input
 
-        N = 40
+        N = 20
 
         if egoX.state != "OL":
             (sol,u0) = qpMPC(x0,egoX.dt,egoX.velRef,CellList,egoX.id,N)
             egoX.cr.cd.MPCFeedback(sol,worldX.tick.timestamp.elapsed_seconds,egoX.dt,N,2,egoX.velRef,egoX.id,egoX.sTraversed)
-            (u_v,self.vPIDStates) = velocityPID(egoX,self.vPIDStates,egoX.vel_norm+u0[0]*1.35)
+            (u_v,self.vPIDStates) = velocityPID(egoX,self.vPIDStates,egoX.vel_norm+u0[0]*1.3)
         else: 
             (u_v,self.vPIDStates) = velocityPID(egoX,self.vPIDStates,egoX.velRef)
         #* PID Control
@@ -274,7 +274,7 @@ class DCRControl:
 
 def velocityPID(egoX,states,velDes=None):
     #* PID Gains < 
-    kp = 0.925
+    kp = 0.9
     kd = 0.1
     ki = 0
     #* >
@@ -288,8 +288,11 @@ def velocityPID(egoX,states,velDes=None):
     derivative = (error - states[0]) / egoX.dt
     #* >
     u_v = kp*(error) + ki*(integral) + kd*(derivative) 
+    if u_v < 0: 
+        u_v = u_v * 1.15
     if v > 0:
-        u_v += 0.115+0.09365*v+-0.00345*v**2 # quadractic approximation of throttle to overcome friction
+        u_v += 0.115+0.0936*v+-0.00345*v**2 # quadractic approximation of throttle to overcome friction
+        
     states = (error,integral,derivative)
     return (u_v,states)
 

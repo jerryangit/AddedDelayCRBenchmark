@@ -322,8 +322,8 @@ class DCR:
                 # Current time for ego to enter cell
                 tinEgo = self.cd.traj[cell][0]
                 # if the yielding changes the Ego vehicles times
-                if tOutAct > tinEgo:
-                    delay = tOutAct-tinEgo
+                if tOutAct + self.err > tinEgo:
+                    delay = tOutAct + self.err - tinEgo
                     # if self.cd.TCL.index(cell) < len(self.cd.TCL) - 1:
                     # Amount of cells that need to be updated with the new delay
                     cellIndex = self.cd.TCL.index(cell)
@@ -331,7 +331,8 @@ class DCR:
                     for i in range(delayedCells):
                         cell = self.cd.TCL[i+cellIndex]
                         self.cd.traj[cell] = (self.cd.traj[cell][0] + delay, self.cd.traj[cell][1] + delay)
-
+                if self.cd.traj[cell][1] < self.cd.traj[cell][0]:
+                    print("tIn<tOut")
     def tempAdvantage(self,TICL,egoTraj,actorTraj,egoState,actState):
         # If Ego is crossing and Actor is first in lane
         if egoState == "I" and actState == "FIL":

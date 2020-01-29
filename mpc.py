@@ -9,7 +9,7 @@ def main():
     # cell = (sInCell,TinCell)
     # From egoX T received as time from current timestep
     CellList = [ (110,2),(104,1)] 
-    qpMPC(x0,dt,v_des,CellList)
+    qpMPC(x0,dt,v_des,CellList,1)
 
 
 def qpMPC(x0,dt,v_des,CellList,ID,N=20, inputCosts = 3.5, devCosts = 2):
@@ -27,14 +27,23 @@ def qpMPC(x0,dt,v_des,CellList,ID,N=20, inputCosts = 3.5, devCosts = 2):
     ss_A = np.array([[1,dt],[0,1]])
     ss_B = np.array([[0],[1]])
     #* Constraints
-    a_max = 2.5
-    a_min = 12
+    a_max = 2.25
+    a_min = 9
     u_max = a_max*dt # Maximum acceleration 
     u_min = a_min*dt # Maximum deceleration
     v_max = 10 # Maximum velocity
     v_min = 0 # Minimum Velocity
-    # Time constraint implemented as state constraint for displacement at certain timestep
     
+    N_slack = 0
+    for cell in CellList:
+        sIn = cell[0]
+        tIn = cell[1]
+        if tIn > 0 and tIn < N*dt:
+            N_slack += 1
+    if N_slack == 0:
+        N_slack = 1
+
+
     #* Constraints Matrix Stacking
     #! Help matrices, not actual matrices
     states = 2 # Amount of actual state in the system
@@ -44,21 +53,24 @@ def qpMPC(x0,dt,v_des,CellList,ID,N=20, inputCosts = 3.5, devCosts = 2):
     u_vec = inputCosts*u_vec/np.linalg.norm(u_vec)*inputCosts # Apply input cost to normalized vector
     v_ref = np.zeros((1,1))             # reference velocity has no cost
     v_dev = np.ones((N,1))*devCosts     # deviation form reference velocity has a cost
+    x_slack = np.ones((1,1))*100000     # Slack variable with very high cost
     #! xi_vec also functions as the cost weights
-    xi_vec = np.concatenate((x_vec,u_vec,v_ref,v_dev),axis=0)    
-    statevector = ['x[%d](%d)' % (i,j) for i in range(N) for j in range(states)] + ['u[%d]' % i for i in range(len(u_vec))] + ['v_ref']+['v_dev[%d]' % i for i in range(N)]
+    xi_vec = np.concatenate((x_vec,u_vec,v_ref,v_dev,x_slack),axis=0)    
+    statevector = ['x[%d](%d)' % (i,j) for i in range(N) for j in range(states)] + ['u[%d]' % i for i in range(len(u_vec))] + ['v_ref']+['v_dev[%d]' % i for i in range(N) ] + ['slck[%d]' % i for i in range(N_slack)]
     N_x = states*N 
     N_u = inputs*N 
     N_v_ref = 1 # states added vor v_ref 
     N_v_dev = N # state added for v_dev
-    N_tot = N_x+N_u+N_v_ref+N_v_dev# 2 for v_ref and v_dev
+    N_tot = N_x+N_u+N_v_ref+N_v_dev+N_slack# 2 for v_ref and v_dev
     
+
+
     # Inequality constraints
     # TODO add min and max velocity constraints
     # Indicator Matrices for inputs
-    Aieq_u_max = np.concatenate( ( np.zeros( (N,N_x) ) , np.eye(N_u), np.zeros( (N,N_v_ref+N_v_dev) ) ) , axis=1 )
+    Aieq_u_max = np.concatenate( ( np.zeros( (N,N_x) ) , np.eye(N_u), np.zeros( (N,N_tot-(N_x+N_u)) ) ) , axis=1 )
     bieq_u_max = np.repeat( np.array([[u_max]]) , N_u , axis=0 )
-    Aieq_u_min = np.concatenate( ( np.zeros( (N,N_x) ) , -np.eye(N_u), np.zeros( (N,N_v_ref+N_v_dev) ) ) , axis=1 )
+    Aieq_u_min = np.concatenate( ( np.zeros( (N,N_x) ) , -np.eye(N_u), np.zeros( (N,N_tot-(N_x+N_u)) ) ) , axis=1 )
     bieq_u_min = np.repeat( np.array([[u_min]]) , N_u , axis=0 )
     
     bieq_v_max = np.repeat( np.array([[v_max]]) , N_u , axis=0 )
@@ -68,18 +80,23 @@ def qpMPC(x0,dt,v_des,CellList,ID,N=20, inputCosts = 3.5, devCosts = 2):
     for i in range(N):
         Aieq_v_max = np.concatenate((Aieq_v_max,np.concatenate( ( np.zeros( (1,i*states+1) ) , np.ones((1,1)), np.zeros( (1,N_tot-(i+1)*states) ) ) , axis=1 )), axis=0)
         Aieq_v_min = np.concatenate((Aieq_v_min,np.concatenate( ( np.zeros( (1,i*states+1) ) , -np.ones((1,1)), np.zeros( (1,N_tot-(i+1)*states) ) ) , axis=1 )), axis=0)
-
+    
+    
+    # Time constraint implemented as state constraint for displacement at certain timestep
     Aieq_st = np.zeros((0,N_tot))
     bieq_st = np.zeros((0,1))
 
     tIndex = None
+    slackIndex = 0 
     for cell in CellList:
         sIn = cell[0]
         tIn = cell[1]
-        if tIn > 0 and tIn < N*dt:
+        if tIn > 0 and tIn < N*dt:           
             tIndex = int(np.floor(tIn/dt))
-            Aieq_st = np.concatenate((Aieq_st,np.concatenate( (np.zeros((1, states*(tIndex))), np.array([[1, 0]]), np.zeros((1,N_tot-(tIndex+1)*states)) ), axis = 1)) , axis = 0)
+            Aieq_st = np.concatenate( (Aieq_st,np.concatenate( (np.zeros((1, states*(tIndex))), np.array([[1, 0]]), np.zeros((1,N_tot-(tIndex+1)*states-(N_slack-slackIndex))),np.ones((1,1)),np.zeros((1,N_slack - 1 - slackIndex)) ), axis = 1)) , axis = 0)
             bieq_st = np.concatenate( (bieq_st,np.array([[sIn]]) ), axis = 0)
+            slackIndex += 1
+            
         elif tIn < 0 and tIndex == None:
             tIndex = 0
     if tIndex == None:
@@ -87,8 +104,11 @@ def qpMPC(x0,dt,v_des,CellList,ID,N=20, inputCosts = 3.5, devCosts = 2):
         # If none of the cells are within finite horizon, add a constraint at last timestep for interpolated distance, to avoID speeding through.
         # sIn at first (ds/t)*(N*dt), average velocity needed to reach tIn* time at end of finite horizon
         sIn = x0[0][0]+(CellList[0][0]-x0[0][0])/(CellList[0][1])*((N-1)*dt)  #+0.125 !REMOVED FOR NOW Relaxed with some time in order to prevent tIn increasing itself perpetually
-        Aieq_st = np.concatenate((Aieq_st,np.concatenate( (np.zeros((1, states*(tIndex))), np.array([[1, 0]]), np.zeros((1,N_tot-(tIndex+1)*states)) ), axis = 1)) , axis = 0)
+        Aieq_st = np.concatenate( (Aieq_st,np.concatenate( (np.zeros((1, states*(tIndex))), np.array([[1, 0]]), np.zeros((1,N_tot-(tIndex+1)*states-(N_slack-slackIndex))),np.ones((1,1)),np.zeros((1,N_slack - 1 - slackIndex)) ), axis = 1)) , axis = 0)
         bieq_st = np.concatenate( (bieq_st,np.array([[sIn]]) ), axis = 0)
+
+
+
     
     # printFormulaIeq(Aieq_st,bieq_st,statevector)
     # printFormulaIeq(Aieq_v_max,bieq_v_max,statevector)
@@ -100,7 +120,7 @@ def qpMPC(x0,dt,v_des,CellList,ID,N=20, inputCosts = 3.5, devCosts = 2):
 
     
     # Equality constraints
-    Aeq_v_ref = np.concatenate( (np.zeros((1,N_x+N_u)),np.array([[1]]),np.zeros((1,N_v_dev))) , axis = 1 ) 
+    Aeq_v_ref = np.concatenate( (np.zeros((1,N_x+N_u)),np.array([[1]]),np.zeros((1,N_tot-(N_x+N_u+N_v_ref)))) , axis = 1 ) 
     beq_v_ref = np.ones((1,1))*v_des
     Aeq_v_dev = np.zeros((0,N_tot))
     beq_v_dev = np.zeros((N,1))
@@ -112,14 +132,14 @@ def qpMPC(x0,dt,v_des,CellList,ID,N=20, inputCosts = 3.5, devCosts = 2):
         if i > 0:
             # -np.eye because Ax0 - Ix1 + Bu0 = 0 => x1 = Ax0 + Bu0
             ss_Ax = np.concatenate( (np.linalg.matrix_power(ss_A, i),np.zeros((states, (i-1)*states)), -np.eye(states), np.zeros((states, N_x-(i+1)*states))) ,  axis =1)
-            # ss_Bu = np.concatenate( (np.zeros((states,N_u+N_v_ref+N_v_dev)),np.zeros((states,0))),axis =1)
-            ss_Bu = np.concatenate( (np.matmul(np.linalg.matrix_power(ss_A, i-1), ss_B), ss_Bu[:,0:(i-1)*inputs], np.zeros((states, N_u+N_v_ref+N_v_dev-(i)*inputs)) ) , axis=1)
+            # ss_Bu = np.concatenate( (np.zeros((states,N_u+N_tot-(N_x+N_u))),np.zeros((states,0))),axis =1)
+            ss_Bu = np.concatenate( (np.matmul(np.linalg.matrix_power(ss_A, i-1), ss_B), ss_Bu[:,0:(i-1)*inputs], np.zeros((states, N_u+N_tot-(N_x+N_u)-(i)*inputs)) ) , axis=1)
             ss_AB = np.concatenate( (ss_Ax,ss_Bu) , axis = 1)
         else:
             ss_AB = np.concatenate( (np.eye(states),np.zeros((states,N_tot-states))),axis =1)
         # TODO finish this with v dev being one for each timestep now
         # Doesn't scale on states, as np.array([[0,1]]) is hard coded
-        Aeq_v_dev_i = np.concatenate( (np.zeros((1,states*i)),np.array([[0,1]]),np.zeros((1,(N_x+N_u)-states*(i+1))),np.array([[-1]]),np.zeros((1,i)),np.array([[-1]]),np.zeros((1,N_v_dev-(i+1)))), axis = 1 ) 
+        Aeq_v_dev_i = np.concatenate( (np.zeros((1,states*i)),np.array([[0,1]]),np.zeros((1,(N_x+N_u)-states*(i+1))),np.array([[-1]]),np.zeros((1,i)),np.array([[-1]]),np.zeros((1,N_tot-(N_x+N_u+N_v_ref+(i+1))))), axis = 1 ) 
         Aeq_ss = np.concatenate((Aeq_ss,ss_AB) , axis = 0 )
         Aeq_v_dev = np.concatenate( (Aeq_v_dev,Aeq_v_dev_i), axis = 0 ) 
     Aeq = np.concatenate( ( Aeq_ss,Aeq_v_ref,Aeq_v_dev) , axis=0 )

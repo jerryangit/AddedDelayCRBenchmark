@@ -1,9 +1,9 @@
 from main import main
 import random
 random.seed(0)
-totalVehicle = 16
+totalVehicle = 256
 scenario = 0
-spwnInterval = 1
+spwnInterval = 1.5
 logging = 0
 randomSeed = random.randint(0,1000000) # Generate randoms seed between 0 and 100000,logging0
 
@@ -29,7 +29,7 @@ main(cr_method, ctrlPolicy, PriorityPolicy,totalVehicle, scenario, spwnInterval,
 
 
 scenario = 1
-spwnInterval = 4
+spwnInterval = 6
 
 cr_method = "DCR"
 ctrlPolicy = "DCRControl"
