@@ -370,7 +370,7 @@ def main(cr_method = "DCR", ctrlPolicy = "DCRControl", PriorityPolicy = "Priorit
         # Save lists as csv
         data = []
         data = zip(spwnRand,destRand,spwnTime,destTime)
-        filename = str(cr_method) + "_" + str(ctrlPolicy) + "_" + str(totalVehicle) + "_" + str(scenario) + "_" + str(spwnInterval)+ "_" + str(randomSeed) + "_" datetime.datetime.now().strftime('%Y-%m-%d-%H-%M.csv')
+        filename = str(cr_method) + "_" + str(ctrlPolicy) + "_" + str(totalVehicle) + "_" + str(scenario) + "_" + str(spwnInterval)+ "_" + str(randomSeed) + "_" + datetime.datetime.now().strftime('%Y-%m-%d-%H-%M.csv')
         dirname = './data/'
         with open(dirname+filename, 'w') as log:
             wr = csv.writer(log, quoting=csv.QUOTE_ALL)
