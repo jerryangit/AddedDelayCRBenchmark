@@ -115,7 +115,7 @@ class TEP_fix:
     #! Fix deadlocks by changing logic, vehicles are removed from waitlist they have lower Priority 
     def __init__(self,err,policy):
         self.err = err
-        self.wait =[]
+        self.wait ={}
         self.pp = priorityPolicy(policy)
 
     def resolve(self,egoX,worldX):
@@ -130,15 +130,17 @@ class TEP_fix:
                     pOrder = self.pp.order([egoX,actorX])
                     if pOrder[0].id == egoX.id:
                         if msg.idSend in self.wait:
-                            self.wait.remove(msg.idSend)
+                            del self.wait[msg.idSend]
                     else:
                         if msg.idSend not in self.wait:
-                            self.wait.append(msg.idSend)
+                            self.wait[msg.idSend] = TIC
                 else: 
                     continue
             elif msg.mtype == "CLEAR":
                 if msg.idSend in self.wait:
-                    self.wait.remove(msg.idSend)
+                    del self.wait[msg.idSend]
+        # Updated at the end to ensure all vehicles utilize the information from the same time step
+        egoX.cr.cd.predictTimes(egoX,worldX)
 
     def outbox(self,actorX):
         if actorX.state == "ENTER" or actorX.state == "CROSS":
@@ -151,7 +153,7 @@ class TEP_fix:
     def setup(self,egoX,worldX):
         # self.cd = cd.conflictDetection("timeSlot",[self.err]).obj
         # TODO Grid TCL is more like MP-IP fix later
-        self.cd = cd.conflictDetection("gridCell",[worldX.inter_location,4,16,self.err]).obj
+        self.cd = cd.conflictDetection("gridCell",[worldX.inter_location,4,18,self.err]).obj
         self.cd.setup(egoX,worldX)
 
 class MPIP:
@@ -184,7 +186,9 @@ class MPIP:
             elif msg.mtype == "EXIT":
                 if msg.idSend in self.wait:
                     del self.wait[msg.idSend]        
+        # Updated at the end to ensure all vehicles utilize the information from the same time step
         egoX.cr.cd.predictTimes(egoX,worldX)
+        self.cd.updateTCL(egoX.sTraversed)
 
     def outbox(self,actorX):
         if actorX.state == "ENTER":
@@ -208,24 +212,21 @@ class AMPIP:
         self.pp = priorityPolicy(policy)
 
     def resolve(self,egoX,worldX):
-        # [self.ttArrival, self.ttExit] = self.cd.predictTimes(egoX,worldX)
         if len(worldX.msg.inbox) == 0:
             return 0
         for msg in worldX.msg.inbox[egoX.id]:
             if msg.mtype == "ENTER" or msg.mtype == "CROSS":
                 actorX = worldX.actorDict.dict.get(msg.idSend)
                 TIC = self.cd.detect(egoX,worldX,msg)
-                [bool,TIC] = self.cd.detect(egoX,worldX,msg)
-                if bool:
+                [sptBool,TIC] = self.cd.detect(egoX,worldX,msg)
+                if sptBool == 1:
                     pOrder = self.pp.order([egoX,actorX])
                     if pOrder[0].id == egoX.id:
                         if msg.idSend in self.wait:
                             del self.wait[msg.idSend]
                     else:
-                        [tAi,tEi] = self.cd.cellTimes(TIC,egoX)
-                        [tAj,tEj] = actorX.cr.cd.cellTimes(TIC,actorX)
                         if msg.idSend not in self.wait:
-                            if tEi > tAj:
+                            if self.cd.traj.get(TIC)[1] + 0.5 > msg.content.get("traj").get(TIC)[0]:
                                 self.wait[msg.idSend] = TIC
                             else:
                                 # print(egoX.id," Going before ", msg.idSend)
@@ -235,20 +236,24 @@ class AMPIP:
             elif msg.mtype == "EXIT":
                 if msg.idSend in self.wait:
                     del self.wait[msg.idSend]
+        # Updated at the end to ensure all vehicles utilize the information from the same time step
+        egoX.cr.cd.predictTimes(egoX,worldX)
+        self.cd.updateTCL(egoX.sTraversed)
+
 
     def outbox(self,egoX):
         if egoX.state == "ENTER":
-            msg_obj = msg(egoX.id,"ENTER",{"timeSlot":[self.cd.arrivalTime,self.cd.exitTime],"TCL":self.cd.TCL})
+            msg_obj = msg(egoX.id,"ENTER",{"timeSlot":[self.cd.arrivalTime,self.cd.exitTime],"TCL":self.cd.TCL,"traj":self.cd.traj})
             return msg_obj
         if egoX.state == "CROSS":
-            msg_obj = msg(egoX.id,"CROSS",{"timeSlot":[self.cd.arrivalTime,self.cd.exitTime],"TCL":self.cd.TCL})
+            msg_obj = msg(egoX.id,"CROSS",{"timeSlot":[self.cd.arrivalTime,self.cd.exitTime],"TCL":self.cd.TCL,"traj":self.cd.traj})
             return msg_obj
         elif egoX.state == "EXIT":
             msg_obj = msg(egoX.id,"EXIT")
             return msg_obj
 
     def setup(self,egoX,worldX):
-        self.cd = cd.conflictDetection("gridCell",[worldX.inter_location,4,16,self.err]).obj
+        self.cd = cd.conflictDetection("gridCell",[worldX.inter_location,4,18,self.err]).obj
         self.cd.setup(egoX,worldX)
 
 class DCR:
@@ -308,13 +313,12 @@ class DCR:
 
         for idYield in self.wait:
             for cell in self.wait.get(idYield)[1]:
-                # Prediction of time actor leaves cell + err for robustness
-                
+                # Prediction of time actor leaves cell + err for robustness               
                 if self.wait.get(idYield)[0] == "Queue":
                     # Extra self.err to avoid collision in queue
                     tOutAct = self.wait.get(idYield)[2].get(cell)[1] + self.err * 10
                 else:
-                    tOutAct = self.wait.get(idYield)[2].get(cell)[1] + self.err/2
+                    tOutAct = self.wait.get(idYield)[2].get(cell)[1] + self.err
                 # Current time for ego to enter cell
                 tinEgo = self.cd.traj[cell][0]
                 # if the yielding changes the Ego vehicles times

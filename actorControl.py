@@ -42,31 +42,47 @@ class TEPControl:
     def __init__(self):
         self.vPIDStates = (0,0,0)
         self.thetaPIDStates = (0,0,0)
+        self.cd_obj = cd.conflictDetection("coneDetect",[9,0.135*np.pi,5]).obj
     def control(self,egoX,worldX):
-        # TODO Fix arrival time when near intersection, shouldn't increase as it is FCFS
         ego = egoX.ego
         if egoX.location == carla.Location(0,0,0):
             return "NAN"
-        (u_v,self.vPIDStates) = velocityPID(egoX,self.vPIDStates)
+        velDes = egoX.velRef
+        if egoX.state == "ENTER":
+            for actor in worldX.actorDict.actor_list:
+                if ego.id != actor.id and carla.Location.distance ( ego.get_location() , actor.get_location() ) < 10 : 
+                    cd_bool,smpList = self.cd_obj.detect(ego,actor,1)
+                    if cd_bool == 1:
+                        if smpList[0] < 5:
+                            velDes = 0
+                        else:
+                            velDes = smpList[0]/2
+
+        (u_v,self.vPIDStates) = velocityPID(egoX,self.vPIDStates,velDes)
         (u_theta,self.thetaPIDStates)  = anglePID(egoX,worldX,self.thetaPIDStates)
-        ego.apply_control(carla.VehicleControl(throttle=u_v, steer=u_theta,brake = 0.0,manual_gear_shift=True,gear=1))
-        cd_obj = cd.conflictDetection("coneDetect",[6.5,0.135*np.pi,5]).obj
-        for actor in worldX.actorDict.actor_list:
-            if ego.id != actor.id and carla.Location.distance ( ego.get_location() , actor.get_location() ) < 12 : 
-                if cd_obj.detect(ego,actor):
-                    ego.apply_control(carla.VehicleControl(throttle=0.0, steer=0.0,brake = 1.0,manual_gear_shift=True,gear=1))
-        if len(egoX.cr.wait) > 0 and ego.get_location().distance(worldX.inter_location) <= worldX.inter_bounds + 3 :
-            if egoX.cr.cd.arr[0] != 1:
-                egoX.cr.cd.arr = [1,egoX.cr.cd.arrivalTime]
-            ego.apply_control(carla.VehicleControl(throttle=0.0, steer=0.0,brake = 1.0,manual_gear_shift=True,gear=1))        
+
+        if u_v >= 0:
+            ego.apply_control(carla.VehicleControl(throttle=u_v, steer=u_theta,brake = 0,manual_gear_shift=True,gear=1))
+        elif u_v < 0:
+            ego.apply_control(carla.VehicleControl(throttle=0, steer=u_theta,brake = - u_v,manual_gear_shift=True,gear=1))
+
+        if len(egoX.cr.wait) > 0:
+            dist = egoX.cr.cd.sArrival - egoX.sTraversed
+            if dist < 0:
+                print(egoX.id," crossed line by:", np.abs(dist),"m, adjust breaking please")
+            if dist<= 0.2 + 0.7 * egoX.vel_norm**2:
+                u = np.clip((1/dist * egoX.vel_norm*0.15),0,1)
+                ego.apply_control(carla.VehicleControl(throttle=0.0, steer=0.0,brake = u,manual_gear_shift=True,gear=1))
+
         state = egoX.state
+
         if egoX.state == "NAN":
             state = "ENTER"
-        elif egoX.state == "ENTER" and ego.get_location().distance(worldX.inter_location) <= worldX.inter_bounds:
+        elif egoX.state == "ENTER" and egoX.sTraversed > egoX.cr.cd.sArrival-0.25:
             if egoX.cr.cd.arr[0] != 1:
                 egoX.cr.cd.arr = [1,egoX.cr.cd.arrivalTime]
             state = "CROSS"
-        elif egoX.state == "CROSS" and ego.get_location().distance(worldX.inter_location) >= worldX.inter_bounds+3:
+        elif egoX.state == "CROSS" and egoX.sTraversed > egoX.cr.cd.sExit:
             if egoX.cr.cd.ext[0] != 1:
                 egoX.cr.cd.ext = [1,egoX.cr.cd.exitTime]
             state = "EXIT"
@@ -77,37 +93,47 @@ class MPIPControl:
     def __init__(self):
         self.vPIDStates = (0,0,0)
         self.thetaPIDStates = (0,0,0)
+        self.cd_obj = cd.conflictDetection("coneDetect",[6.5,0.135*np.pi,5]).obj
+
     def control(self,egoX,worldX):
-        # TODO Fix arrival time when near intersection, shouldn't increase as it is FCFS
         ego = egoX.ego
         if egoX.location == carla.Location(0,0,0):
             return "NAN"
-        (u_v,self.vPIDStates) = velocityPID(egoX,self.vPIDStates)
-        (u_theta,self.thetaPIDStates)  = anglePID(egoX,worldX,self.thetaPIDStates)
+        
+        velDes = egoX.velRef
 
-        u_v = np.clip(u_v,-1,1)
+        if len(egoX.cr.wait) > 0:
+            for idSend in egoX.cr.wait:
+                sIn = egoX.cr.cd.sTCL.get(egoX.cr.wait.get(idSend))[0]             
+                dist = sIn - egoX.sTraversed
+                if dist < 0.5 + egoX.vel_norm*egoX.dt*4:
+                    velDes = 0
+                elif dist < 4:
+                    velDes = min((dist/2,velDes))
+                if dist < 0:
+                    velDes = 0
+                    print(egoX.id," crossed line by:", np.abs(dist),"m, adjust breaking please")
+
+        if egoX.state == "ENTER":
+            for actor in worldX.actorDict.actor_list:
+                if ego.id != actor.id and carla.Location.distance ( ego.get_location() , actor.get_location() ) < 10 : 
+                    cd_bool,smpList = self.cd_obj.detect(ego,actor,1)
+                    if cd_bool == 1:
+                        if smpList[0] < 5:
+                            velDes = 0
+                        else:
+                            velDes = min((smpList[0]/2,velDes))
+
+        (u_v,self.vPIDStates) = velocityPID(egoX,self.vPIDStates,velDes)
+        (u_theta,self.thetaPIDStates)  = anglePID(egoX,worldX,self.thetaPIDStates)
 
         if u_v >= 0:
             ego.apply_control(carla.VehicleControl(throttle=u_v, steer=u_theta,brake = 0,manual_gear_shift=True,gear=1))
         elif u_v < 0:
             ego.apply_control(carla.VehicleControl(throttle=0, steer=u_theta,brake = - u_v,manual_gear_shift=True,gear=1))
-        
-        cd_obj = cd.conflictDetection("coneDetect",[6.5,0.135*np.pi,5]).obj
-        if egoX.state == "ENTER":
-            for actor in worldX.actorDict.actor_list:
-                if ego.id != actor.id and carla.Location.distance ( ego.get_location() , actor.get_location() ) < 12: 
-                    if cd_obj.detect(ego,actor):
-                        ego.apply_control(carla.VehicleControl(throttle=0.0, steer=0.0,brake = 1.0,manual_gear_shift=True,gear=1))
-        if len(egoX.cr.wait) > 0:
-            for idSend in egoX.cr.wait:
-                #TODO use displacement based stopping
-                sIn = egoX.cr.cd.sTCL.get(egoX.cr.wait.get(idSend))[0]             
-                dist = sIn - egoX.sTraversed
-                if dist < 0:
-                    print("crossed line, adjust breaking please")
-                if dist<= 0.2 + 0.7 * egoX.vel_norm**2:
-                    u = np.clip((1/dist * egoX.vel_norm*0.15),0,1)
-                    ego.apply_control(carla.VehicleControl(throttle=0.0, steer=0.0,brake = u,manual_gear_shift=True,gear=1))
+
+
+
         state = egoX.state
         if egoX.state == "NAN":
             state = "ENTER"
@@ -126,27 +152,42 @@ class AMPIPControl:
     def __init__(self):
         self.vPIDStates = (0,0,0)
         self.thetaPIDStates = (0,0,0)
+        self.cd_obj = cd.conflictDetection("coneDetect",[6.5,0.135*np.pi,5]).obj
 
     def control(self,egoX,worldX):
-        # TODO Fix arrival time when near intersection, shouldn't increase as it is FCFS
         ego = egoX.ego
         if egoX.location == carla.Location(0,0,0):
             return "NAN"
-        (u_v,self.vPIDStates) = velocityPID(egoX,self.vPIDStates)
-        (u_theta,self.thetaPIDStates)  = anglePID(egoX,worldX,self.thetaPIDStates)
-        ego.apply_control(carla.VehicleControl(throttle=u_v, steer=u_theta,brake = 0.0,manual_gear_shift=True,gear=1))
-        cd_obj = cd.conflictDetection("coneDetect",[6.5,0.135*np.pi,5]).obj
+
+        velDes = egoX.velRef
         if egoX.state == "ENTER":
             for actor in worldX.actorDict.actor_list:
-                if ego.id != actor.id and carla.Location.distance ( ego.get_location() , actor.get_location() ) < 12 : 
-                    if cd_obj.detect(ego,actor):
-                        ego.apply_control(carla.VehicleControl(throttle=0.0, steer=0.0,brake = 1.0,manual_gear_shift=True,gear=1))
+                if ego.id != actor.id and carla.Location.distance ( ego.get_location() , actor.get_location() ) < 10 : 
+                    cd_bool,smpList = self.cd_obj.detect(ego,actor,1)
+                    if cd_bool == 1:
+                        if smpList[0] < 5:
+                            velDes = 0
+                        else:
+                            velDes = smpList[0]/2
+        
+        (u_v,self.vPIDStates) = velocityPID(egoX,self.vPIDStates,velDes)
+        (u_theta,self.thetaPIDStates)  = anglePID(egoX,worldX,self.thetaPIDStates)
+
+        if u_v >= 0:
+            ego.apply_control(carla.VehicleControl(throttle=u_v, steer=u_theta,brake = 0,manual_gear_shift=True,gear=1))
+        elif u_v < 0:
+            ego.apply_control(carla.VehicleControl(throttle=0, steer=u_theta,brake = - u_v,manual_gear_shift=True,gear=1))
+       
         if len(egoX.cr.wait) > 0:
             for idSend in egoX.cr.wait:
-                dist = egoX.location.distance(egoX.cr.cd.TIC2Loc(egoX.cr.wait[idSend])) 
-                if dist<= egoX.cr.cd.dx + 0.65 + 0.25 * egoX.vel_norm  :
-                    u = 1/dist * egoX.vel_norm * 2
+                sIn = egoX.cr.cd.sTCL.get(egoX.cr.wait.get(idSend))[0]             
+                dist = sIn - egoX.sTraversed
+                if dist < 0:
+                    print(egoX.id," crossed line by:", np.abs(dist),"m, adjust breaking please")
+                if dist<= 0.25 + 0.7 * egoX.vel_norm**2:
+                    u = np.clip((1/dist * egoX.vel_norm*0.15),0,1)
                     ego.apply_control(carla.VehicleControl(throttle=0.0, steer=0.0,brake = u,manual_gear_shift=True,gear=1))
+        
         state = egoX.state
         if egoX.state == "NAN":
             state = "ENTER"
@@ -165,6 +206,8 @@ class DCRControl:
     def __init__(self):
         self.vPIDStates = (0,0,0)
         self.thetaPIDStates = (0,0,0)
+        self.cd_obj = cd.conflictDetection("coneDetect",[3.5,0.1*np.pi,5]).obj
+
     def control(self,egoX,worldX):
         ego = egoX.ego
         if egoX.location == carla.Location(0,0,0):
@@ -181,12 +224,12 @@ class DCRControl:
             CellList.append((egoX.cr.cd.sTCL.get(cell)[0],egoX.cr.cd.traj.get(cell)[0]-worldX.tick.timestamp.elapsed_seconds))
         # TODO move N to be an input
 
-        N = 35
+        N = 40
 
         if egoX.state != "OL":
             (sol,u0) = qpMPC(x0,egoX.dt,egoX.velRef,CellList,egoX.id,N)
             egoX.cr.cd.MPCFeedback(sol,worldX.tick.timestamp.elapsed_seconds,egoX.dt,N,2,egoX.velRef,egoX.id,egoX.sTraversed)
-            (u_v,self.vPIDStates) = velocityPID(egoX,self.vPIDStates,egoX.vel_norm+u0[0]*1.5)
+            (u_v,self.vPIDStates) = velocityPID(egoX,self.vPIDStates,egoX.vel_norm+u0[0]*1.35)
         else: 
             (u_v,self.vPIDStates) = velocityPID(egoX,self.vPIDStates,egoX.velRef)
         #* PID Control
@@ -197,13 +240,12 @@ class DCRControl:
         if u_v >= 0:
             ego.apply_control(carla.VehicleControl(throttle=u_v, steer=u_theta,brake = 0,manual_gear_shift=True,gear=1))
         elif u_v < 0:
-            ego.apply_control(carla.VehicleControl(throttle=0, steer=u_theta,brake = - u_v,manual_gear_shift=True,gear=1))
+            ego.apply_control(carla.VehicleControl(throttle=0, steer=u_theta,brake = - u_v*1.2,manual_gear_shift=True,gear=1))
 
         # * Emergency brake
-        cd_obj = cd.conflictDetection("coneDetect",[4,0.1*np.pi,5]).obj
         for actor in worldX.actorDict.actor_list:
             if ego.id != actor.id and carla.Location.distance ( ego.get_location() , actor.get_location() ) < 12 : 
-                if cd_obj.detect(ego,actor):
+                if self.cd_obj.detect(ego,actor):
                     ego.apply_control(carla.VehicleControl(throttle=0.0, steer=0.0,brake = 1.0,manual_gear_shift=True,gear=1))
 
         state = egoX.state
@@ -232,7 +274,7 @@ class DCRControl:
 
 def velocityPID(egoX,states,velDes=None):
     #* PID Gains < 
-    kp = 0.875
+    kp = 0.925
     kd = 0.1
     ki = 0
     #* >

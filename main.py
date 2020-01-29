@@ -40,17 +40,18 @@ import numpy as np
 if not os.path.exists('./data'):
     os.makedirs('./data')
 
-def main(cr_method = "MPIP", ctrlPolicy = "MPIPControl", PriorityPolicy = "FCFS",totalVehicle = 64, scenario = 0, spwnInterval = 1, randomSeed = 23):
+def main(cr_method = "AMPIP", ctrlPolicy = "MPIPControl", PriorityPolicy = "FCFS",totalVehicle = 16, scenario = 1, spwnInterval = 1, randomSeed = 885440,logging = 1):
     ###############################################
     # Config
     ###############################################  
     syncmode = 1                # Whether ticks are synced
-    freqSimulation = 50         # The frequency at which the simulation is ran 
-    freqOnBoard = 25            # The frequency at which vehicle on board controller is simulated
+    freqSimulation = 50         # [HZ] The frequency at which the simulation is ran 
+    freqOnBoard = 25            # [HZ] The frequency at which vehicle on board controller is simulated
     random.seed(randomSeed)     # Random seed
     maxVehicle = 20             # Max simultaneous vehicle
+    #logging = 1                 # Whether to log vehicle spawns and dest
     #totalVehicle = 64           # Total vehicles for entire simulation
-    # scenario = 6                # 0 is random 1/tick, 1 is 4/tick all roads (Ensure totalVehicle is a multiple of 4 if scenario is 1)
+    #scenario = 6                # 0 is random 1/tick, 1 is 4/tick all roads (Ensure totalVehicle is a multiple of 4 if scenario is 1)
     # spwnInterval = 4            # Time between each spawn cycle
     # cr_method = "DCR"                   # Which conflict resolution method is used
     # ctrlPolicy = "DCRControl"           # Which control policy is used
@@ -61,8 +62,8 @@ def main(cr_method = "MPIP", ctrlPolicy = "MPIPControl", PriorityPolicy = "FCFS"
     ###############################################
     # Plotting Config
     ###############################################  
-    plot = 1                    # Whether to plot figures afterwards or not
-    plotVel = 1                 # Whether to plot velocity or not
+    plot = 0                    # Whether to plot figures afterwards or not
+    plotVel = 0                 # Whether to plot velocity or not
     plotTheta = 0               # Whether to plot theta or not
     plotLoc = 0                 # Whether to plot location or not
 
@@ -230,6 +231,9 @@ def main(cr_method = "MPIP", ctrlPolicy = "MPIPControl", PriorityPolicy = "FCFS"
             thetaDict = {}
             aclDict = {}
             ctrDict = {}
+
+        print("Initialized with Method:",cr_method,", Control Policy: ", ctrlPolicy, ", Total Vehicles: ", totalVehicle, "Scenario: ",scenario, "Spawn Interval: ",spwnInterval, "Random Seed: ",randomSeed)
+
         #*  << Main Loop >>
         notComplete = 1
         while notComplete: 
@@ -281,7 +285,8 @@ def main(cr_method = "MPIP", ctrlPolicy = "MPIPControl", PriorityPolicy = "FCFS"
                             # Set gear back to automatic 
                             # spwn.apply_control(carla.VehicleControl(manual_gear_shift=False))
                             # Print out to console
-                            print('[%d,%d] created %s at %d with dest %d, elapsed time: %d s' % (i,spwn.id,spwn.type_id,spwnRand[i],destRand[i],spwnTime[i+1]))
+                            if logging == 1:
+                                print('[%d,%d] created %s at %d with dest %d, elapsed time: %d s' % (i,spwn.id,spwn.type_id,spwnRand[i],destRand[i],spwnTime[i+1]))
                             i += 1
 
                             if plot == 1:
@@ -300,7 +305,8 @@ def main(cr_method = "MPIP", ctrlPolicy = "MPIPControl", PriorityPolicy = "FCFS"
             # TODO separate class or function
             for actor in actorDict_obj.actor_list:
                 if actor.get_location().distance(carla.Location(x=-150, y=-35, z=0.3)) > 38 and actor.get_location().distance(carla.Location(x=0, y=0, z=0)) > 5:
-                    print(actor.id,' left the area at ', round(actor.get_location().x,2),round(actor.get_location().y,2),round(actor.get_location().z,2), ', elapsed time:  ', round(ts.elapsed_seconds-ts0s), "s")
+                    if logging == 1:
+                        print(actor.id,' left the area at ', round(actor.get_location().x,2),round(actor.get_location().y,2),round(actor.get_location().z,2), ', elapsed time:  ', round(ts.elapsed_seconds-ts0s), "s")
                     destTime.append(ts.elapsed_seconds-ts0s)
                     actorDict_obj.actor_list.remove(actor)
                     del actorDict_obj.dict[actor.id]
@@ -359,15 +365,25 @@ def main(cr_method = "MPIP", ctrlPolicy = "MPIPControl", PriorityPolicy = "FCFS"
             if i >= totalVehicle and len(actorDict_obj.actor_list) == 0:
                 notComplete = 0
     finally:
+        print("Ended with Method:",cr_method,", Control Policy: ", ctrlPolicy, ", Total Vehicles: ", totalVehicle, "Scenario: ",scenario, "Spawn Interval: ",spwnInterval, "Random Seed: ",randomSeed)
+
         # Save lists as csv
         data = []
         data = zip(spwnRand,destRand,spwnTime,destTime)
-        filename = datetime.datetime.now().strftime('data-%Y-%m-%d-%H-%M.csv')
-        with open('./data/'+filename, 'w') as log:
+        filename = str(cr_method) + "_" + str(ctrlPolicy) + "_" + str(totalVehicle) + "_" + str(scenario) + "_" + str(spwnInterval)+ "_" + str(randomSeed) + datetime.datetime.now().strftime('%Y-%m-%d-%H-%M.csv')
+        dirname = './data/'
+        with open(dirname+filename, 'w') as log:
             wr = csv.writer(log, quoting=csv.QUOTE_ALL)
             for row in data:
                 wr.writerow(row)
-        
+        print("Log saved in: ",dirname+filename,sep="")
+
+        timespent = []
+        for i_s in enumerate(spwnTime):
+            timespent.append(destTime[i_s[0]]-i_s[1])
+        averageTime = np.average(timespent)
+        print("Average time per vehicle: ", averageTime, "Total time:", destTime[-1])
+
         # Clean up actors
         print('destroying actors')
         for actor in actorDict_obj.actor_list:

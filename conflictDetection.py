@@ -172,14 +172,18 @@ class gridCell:
                     exitQueue.remove(cell)
                     if len(exitQueue) == 0:
                         self.sExit = s
+
     def updateTCL(self,sTraversed):
         for cell in self.TCL:
             # If sTraversed is larger than the exit displacement, remove it from the TCL
-            if sTraversed > self.sTCL.get(cell)[1]:
+            if sTraversed > self.sTCL.get(cell)[1] + 0.10:
                 self.TCL.remove(cell)
                 del self.sTCL[cell]
     
     def predictTimes(self,egoX,worldX):
+        # TODO is this the best way to do this?
+        #* Predict times for a certain traj
+        traj = {}
         if egoX.cr.cd.arr[0] != 1:
             self.arrivalTime = ( (self.sArrival-egoX.sTraversed) / egoX.velRef ) + worldX.tick.timestamp.elapsed_seconds
         else: 
@@ -188,14 +192,14 @@ class gridCell:
             self.exitTime = ( (self.sExit-egoX.sTraversed) / egoX.velRef ) + worldX.tick.timestamp.elapsed_seconds
         else: 
             self.exitTime = egoX.cr.cd.ext[1]
+        for cell in self.TCL:
+            # time in for a given cell computed by (distance remaining)/(reference velocity) + current time
+            (sIn,sOut) = self.sTCL.get(cell)
+            tIn = (sIn-egoX.sTraversed)/egoX.velRef + worldX.tick.timestamp.elapsed_seconds 
+            tOut = (sOut-egoX.sTraversed)/egoX.velRef + worldX.tick.timestamp.elapsed_seconds + self.error
+            traj[cell] = (tIn,tOut)
+        self.traj = traj
         return (self.arrivalTime,self.exitTime)
-
-    def cellTimes(self,TIC,egoX):
-        a_max = 12
-        arrDist = (self.sTCL[TIC]-self.sArrival)
-        arrivalTime = self.arrivalTime + arrDist/egoX.velRef
-        exitTime = arrivalTime + np.sqrt(2 * a_max * self.dx)/(2 * a_max)
-        return [arrivalTime,exitTime]
 
     def inGrid(self,cell):
         if cell[0] >= 0 and cell[0] <= self.resolution-1:
@@ -312,7 +316,8 @@ class conflictZones:
                 (sIn,sOut) = self.sTCL.get(cell) 
                 # If the sIn is bigger than previous s but smaller than current, we use tIn from previous for tIn
                 if s_1k < sIn and sIn < s_k:
-                    # tIn is predicted some timesteps ahead in order to prevent it affecting the MPC as a constraint
+                    # tIn is predicted some ti
+                    # mesteps ahead in order to prevent it affecting the MPC as a constraint
                     tIn = t0+(k-1)*dt - 0.5 
                     delay = tIn - self.traj.get(cell)[0]
                     # If the vehicle can enter earlier than estimated.
@@ -330,7 +335,7 @@ class conflictZones:
             # If difference between entrance and maximum reached distance within finite horizon is larger than 1m
             if sIn - s_max > 1:
                 # self.traj[cell] = ((sIn-s_max)/(0.5*sol['x'][N*states-1]+0.5*velRef) + t0+N*dt,(sOut-s_max)/(0.5*sol['x'][N*states-1]+0.5*velRef) + t0+N*dt)
-                tIn = (sIn-s_max)/(velRef) + t0+N*dt
+                tIn = (sIn-s_max)/(velRef) + t0+N*dt 
                 delay = tIn - self.traj.get(cell)[0]
                 self.traj[cell] = (tIn,self.traj.get(cell)[1]+delay)
         
@@ -400,53 +405,34 @@ class coneDetect:
         self.angle = angle
         # Sets amount of interpolating samples per 2 sides, actual amount is 2x to enforce symmetry 
         self.actorSamples = actorSamples
-    def detect(self,ego,actor):
-        smpArr = self.genSamples(actor)
-        for i in range(smpArr.shape[0]):
-            # relative vector from ego vehicle to sample
-            vec = smpArr[i]- [ ego.get_location().x , ego.get_location().y ]
-            r = np.linalg.norm( vec )
-            # Note: Coordinate frame carla has left handed coordinate frame!!
-            phi0 = (ego.get_transform().rotation.yaw * np.pi)/ 180 
-            phi = np.arctan2( vec[1] , vec[0] ) - phi0
-            if r < self.radius and np.absolute( phi ) < 0.5 * self.angle:
-                return 1           
-        return 0
-    def genSamples(self,actor):
-        # TODO integrate some of these into helper functions
-        # Determine lenght of bbox in x and y directions
-        xLength = actor.bounding_box.extent.x * 1.9
-        yLength = actor.bounding_box.extent.y * 1.9
-        # Def amount of sample along x and y edges, rounded to int
-        xSamples = int( round( self.actorSamples * ( xLength / ( xLength + yLength ) ) ) )
-        ySamples = self.actorSamples - xSamples
-        # Find actor orientation
-        actorF = actor.get_transform()
-        # Initialize array with corners, rows = samples, columns = x,y
-        smpArr = np.array([ [actor.bounding_box.extent.x , actor.bounding_box.extent.y] ,\
-            [actor.bounding_box.extent.x,-actor.bounding_box.extent.y],\
-            [-actor.bounding_box.extent.x,actor.bounding_box.extent.y],\
-            [-actor.bounding_box.extent.x,-actor.bounding_box.extent.y] ])
-        # Interpolate sample between corners
-        for i in range(xSamples):
-            # Compute relative x location for sample i from - to + 
-            xi = -actor.bounding_box.extent.x + ( i + 1 ) * ( ( 2 * actor.bounding_box.extent.x ) / ( xSamples + 1) )
-            # Append interpolated sample i on both sides 
-            smpArr = np.append(smpArr,[ [ xi, actor.bounding_box.extent.y ] , [ xi, -actor.bounding_box.extent.y ] ] , 0 )
-        for i in range(ySamples):
-            # Compute relative y location for sample i from - to + 
-            yi = -actor.bounding_box.extent.y + ( i + 1 ) * ( ( 2 * actor.bounding_box.extent.y ) / ( ySamples + 1) )
-            # Append interpolated sample i on both sides 
-            smpArr = np.append(smpArr,[ [ actor.bounding_box.extent.x , yi ] , [ -actor.bounding_box.extent.x , yi ] ] , 0 )
-        # Rotate array with vehicle orientation
-        c = np.cos(np.pi*actorF.rotation.yaw/180)
-        s = np.sin(np.pi*actorF.rotation.yaw/180)
-        # Transposed rotation matrix due to rightside matrix multiplication 
-        RT = np.array( [ [ c , s ] , [ -s, c ] ] ) 
-        smpArr = np.matmul(smpArr,RT)
-        # Move sample array to global coordinate frame
-        smpArr = smpArr + [ actor.get_location().x , actor.get_location().y ]
-        return smpArr
+
+    def detect(self,ego,actor,mode=0):
+        smpArr = generateSamples(actor,self.actorSamples)
+        if mode == 0: # return on first sample within range
+            for i in range(smpArr.shape[0]):
+                # relative vector from ego vehicle to sample
+                vec = smpArr[i]- [ ego.get_location().x , ego.get_location().y ]
+                r = np.linalg.norm( vec )
+                # Note: Coordinate frame carla has left handed coordinate frame!!
+                phi0 = (ego.get_transform().rotation.yaw * np.pi)/ 180 
+                phi = np.arctan2( vec[1] , vec[0] ) - phi0
+                if r < self.radius and np.absolute( phi ) < 0.5 * self.angle:
+                    return 1    
+            return 0       
+        elif mode == 1: # return closes sample
+            smpList = []
+            for i in range(smpArr.shape[0]):
+                # relative vector from ego vehicle to sample
+                vec = smpArr[i]- [ ego.get_location().x , ego.get_location().y ]
+                r = np.linalg.norm( vec )
+                # Note: Coordinate frame carla has left handed coordinate frame!!
+                phi0 = (ego.get_transform().rotation.yaw * np.pi)/ 180 
+                phi = np.arctan2( vec[1] , vec[0] ) - phi0
+                if r < self.radius and np.absolute( phi ) < 0.5 * self.angle:
+                    smpList.append((r,phi))
+            if len(smpList) > 0:
+                return (1,sorted(smpList,key=lambda x: x[0])[0])
+            return (0,[None])
 
 def generateSamples(actor,sampleN=5,location=None):
     # TODO integrate some of these into helper functions
