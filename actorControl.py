@@ -224,29 +224,36 @@ class DCRControl:
             CellList.append((egoX.cr.cd.sTCL.get(cell)[0],egoX.cr.cd.traj.get(cell)[0]-worldX.tick.timestamp.elapsed_seconds))
         # TODO move N to be an input
 
-        N = 20
+        N = 25
+
+        velDes = egoX.velRef
+        if egoX.state == "ENTER":
+            for actor in worldX.actorDict.actor_list:
+                if ego.id != actor.id and carla.Location.distance ( ego.get_location() , actor.get_location() ) < 10 : 
+                    cd_bool,smpList = self.cd_obj.detect(ego,actor,1)
+                    if cd_bool == 1:
+                        if smpList[0] < 3.5:
+                            velDes = 0
 
         if egoX.state != "OL":
-            (sol,u0) = qpMPC(x0,egoX.dt,egoX.velRef,CellList,egoX.id,N)
-            egoX.cr.cd.MPCFeedback(sol,worldX.tick.timestamp.elapsed_seconds,egoX.dt,N,2,egoX.velRef,egoX.id,egoX.sTraversed)
-            (u_v,self.vPIDStates) = velocityPID(egoX,self.vPIDStates,egoX.vel_norm+u0[0]*1.3)
+            (sol,u0) = qpMPC(x0,egoX.dt*4,egoX.velRef,CellList,egoX.id,N)
+            egoX.cr.cd.MPCFeedback(sol,worldX.tick.timestamp.elapsed_seconds,egoX.dt*4,N,2,egoX.velRef,egoX.id,egoX.sTraversed) # dt is multiplied in order to increase finite horizon time range
+            velDes = min(egoX.vel_norm+u0[0]*1.3,velDes)
         else: 
-            (u_v,self.vPIDStates) = velocityPID(egoX,self.vPIDStates,egoX.velRef)
+            velDes = egoX.velRef
+
+        (u_v,self.vPIDStates) = velocityPID(egoX,self.vPIDStates,velDes)
         #* PID Control
 
         (u_theta,self.thetaPIDStates)  = anglePID(egoX,worldX,self.thetaPIDStates)
         u_v = np.clip(u_v,-1,1)
+
 
         if u_v >= 0:
             ego.apply_control(carla.VehicleControl(throttle=u_v, steer=u_theta,brake = 0,manual_gear_shift=True,gear=1))
         elif u_v < 0:
             ego.apply_control(carla.VehicleControl(throttle=0, steer=u_theta,brake = - u_v*1.2,manual_gear_shift=True,gear=1))
 
-        # * Emergency brake
-        for actor in worldX.actorDict.actor_list:
-            if ego.id != actor.id and carla.Location.distance ( ego.get_location() , actor.get_location() ) < 12 : 
-                if self.cd_obj.detect(ego,actor):
-                    ego.apply_control(carla.VehicleControl(throttle=0.0, steer=0.0,brake = 1.0,manual_gear_shift=True,gear=1))
 
         state = egoX.state
         if egoX.state == "NAN":
@@ -255,7 +262,8 @@ class DCRControl:
             queue = [(egoX.id,egoX.location.distance(worldX.inter_location))]
             for msg in worldX.msg.inbox[egoX.id]:
                 # If the sender is not in the intersection or leaving and on the same road_id:
-                if msg.content.get("state") not in ["I","OL"] and msg.content.get("wp") != [] and msg.content.get("wp").road_id == egoX.waypoint.road_id:
+                # if msg.content.get("state") not in ["I","OL"] and msg.content.get("wp") != [] and msg.content.get("wp").road_id == egoX.waypoint.road_id:
+                if msg.content.get("state") not in ["I","OL"] and msg.content.get("spwnid") == egoX.spwnid:
                     queue.append((msg.idSend,worldX.actorDict.dict.get(msg.idSend).location.distance(worldX.inter_location)))
             queue.sort(key=lambda x: x[1])
             if queue[0][0] == egoX.id:
@@ -264,9 +272,9 @@ class DCRControl:
                 for pair in enumerate(queue):
                     if pair[1][0] == egoX.id:
                         egoX.infoSet("idFront",queue[pair[0] - 1][0])
-        elif egoX.state == "FIL" and egoX.sTraversed > egoX.cr.cd.sTCL[egoX.cr.cd.TCL[0]][0]:
+        elif egoX.state == "FIL" and egoX.sTraversed > egoX.cr.cd.sTCL[egoX.cr.cd.TCL[0]][0]+0.25:
             state = "I"
-        elif egoX.state == "I" and egoX.sTraversed > egoX.cr.cd.sTCL[egoX.cr.cd.TCL[-1]][1]:
+        elif egoX.state == "I" and egoX.sTraversed > egoX.cr.cd.sTCL[egoX.cr.cd.TCL[-1]][1]+0.25:
             state = "OL"
         egoX.discreteState(state)
         return state

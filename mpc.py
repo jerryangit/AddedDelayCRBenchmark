@@ -2,23 +2,22 @@ import numpy as np
 import matplotlib.pyplot as plt
 from cvxopt import matrix,solvers
 def main():
-    x0 = np.array([[100],[4]])
+    x0 = np.array([[100],[8]])
     dt = 0.1
     v_des = 7.0
     #* Distance and time constraint for a cell
     # cell = (sInCell,TinCell)
     # From egoX T received as time from current timestep
-    CellList = [ (110,2),(104,1)] 
+    CellList = [ (110,5),(104,12)] 
     qpMPC(x0,dt,v_des,CellList,1)
 
 
-def qpMPC(x0,dt,v_des,CellList,ID,N=20, inputCosts = 3.5, devCosts = 2):
+def qpMPC(x0,dt,v_des,CellList,ID,N=20, inputCosts = 3.5*5, devCosts = 2):
     #TODO fix bug, always uses max input?
     #TODO make into class and separate into setup and optimize and reuse some matrices
     # Finite horizon
     # x0 = matrix(np.array([egoX.sTraversed],[egoX.vel_norm]))
     # Along path, so control is sdotdot, states are s and sdot
-
     #* State space:
     # ss_A = [1,dt;0,1]
     # ss_B = [0;1]
@@ -53,7 +52,7 @@ def qpMPC(x0,dt,v_des,CellList,ID,N=20, inputCosts = 3.5, devCosts = 2):
     u_vec = inputCosts*u_vec/np.linalg.norm(u_vec)*inputCosts # Apply input cost to normalized vector
     v_ref = np.zeros((1,1))             # reference velocity has no cost
     v_dev = np.ones((N,1))*devCosts     # deviation form reference velocity has a cost
-    x_slack = np.ones((1,1))*100000     # Slack variable with very high cost
+    x_slack = np.ones((N_slack,1))*10000     # Slack variable with very high cost
     #! xi_vec also functions as the cost weights
     xi_vec = np.concatenate((x_vec,u_vec,v_ref,v_dev,x_slack),axis=0)    
     statevector = ['x[%d](%d)' % (i,j) for i in range(N) for j in range(states)] + ['u[%d]' % i for i in range(len(u_vec))] + ['v_ref']+['v_dev[%d]' % i for i in range(N) ] + ['slck[%d]' % i for i in range(N_slack)]
@@ -163,13 +162,14 @@ def qpMPC(x0,dt,v_des,CellList,ID,N=20, inputCosts = 3.5, devCosts = 2):
     solvers.options['show_progress'] = False
     sol = solvers.qp(P,q,G,h,A,b)
     if sol['status'] != 'optimal':
-        # plotStuff(sol,N,N_x,N_u,inputCosts,devCosts,CellList,dt,ID,sIn)
+        # plotStuff(sol,N,N_x,N_u,N_slack,N_tot,inputCosts,devCosts,CellList,dt,ID,sIn)
         print("infeasible")
     u0 = sol['x'][N_x:N_x+inputs]
     # u = sol['x'][N_x:N_x+N_u]
     # print(u)
     # print(sol['x'])
-    # plotStuff(sol,N,N_x,N_u,inputCosts,devCosts,CellList,dt,ID,sIn,1)
+    # plotStuff(sol,N,N_x,N_u,N_slack,N_tot,inputCosts,devCosts,CellList,dt,ID,sIn)
+    # plotStuff(sol,N,N_x,N_u,N_slack,N_tot,inputCosts,devCosts,CellList,dt,ID,sIn,1)
     # printFormula(Aeq_ss,statevector)
     # printFormulaEq(Aeq,beq,statevector)
     # printFormulaIeq(Aieq,bieq,statevector)
@@ -181,7 +181,7 @@ def qpMPC(x0,dt,v_des,CellList,ID,N=20, inputCosts = 3.5, devCosts = 2):
     return (sol,u0)
 
 
-def plotStuff(sol,N,N_x,N_u,inputCosts,devCosts,CellList,dt,ID,sInN=None,onTick=None):
+def plotStuff(sol,N,N_x,N_u,N_slack,N_tot,inputCosts,devCosts,CellList,dt,ID,sInN=None,onTick=None):
     splot = []
     vplot = []
     uplot = []
@@ -193,28 +193,36 @@ def plotStuff(sol,N,N_x,N_u,inputCosts,devCosts,CellList,dt,ID,sInN=None,onTick=
         uplot.append(sol['x'][N_x+i])
         vdevplot.append(sol['x'][N_x+N_u+1+i])
         Jplot.append(inputCosts*sol['x'][N_x+i]**2+devCosts*sol['x'][N_x+N_u+1+i]**2)
+    slackPlot = (sol['x'][N_tot-N_slack:N_tot])
     import matplotlib.pyplot as plt
+    plt.figure(0)
+    plt.clf()
     fig,axs = plt.subplots(2,1,num=0)
-    axs[0].cla()
-    axs[1].cla()
+    axs[0].set_ylim((0,100))
+    axs[1].set_ylim((-5,60))
     axs[1].plot(splot,'x')
     axs[1].plot(vplot,'x')
     axs[1].plot(uplot,'x')
     axs[1].plot(vdevplot,'x')
     axs[0].plot(Jplot,'x')
     tIndex = None
+    slackIndex = 0
     for cell in CellList:
         sIn = cell[0]
         tIn = cell[1]
         if tIn > 0 and tIn < N*dt:
             tIndex = np.floor(tIn/dt)
             axs[1].plot(tIndex,sIn,'ro')
+            axs[0].plot(tIndex,slackPlot[slackIndex],'go')
+            slackIndex += 1
     if tIndex == None and sIn != None:
         axs[1].plot(N-1,sInN,'go')
+        axs[0].plot(N-1,np.abs(slackPlot[slackIndex]**2*10000),'go')
+
     axs[0].legend(('cost'))
     axs[1].legend(('s','v','u','vdev','constraints'))
-    # label = "Finite horizon (k) [N= "+str(N)+",dt = "+ str(dt)+"]"
-    # axs[1].set_xlabel(label)
+    label = "Finite horizon (k) [N= "+str(N)+",dt = "+ str(dt)+"]"
+    axs[1].set_xlabel(label)
     fig.suptitle(str(ID))
     if onTick == 1:
         plt.show(block=False)

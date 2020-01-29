@@ -319,6 +319,8 @@ class DCR:
                     tOutAct = self.wait.get(idYield)[2].get(cell)[1] + self.err * 10
                 else:
                     tOutAct = self.wait.get(idYield)[2].get(cell)[1] + self.err
+                if self.cd.traj[cell][1] < self.cd.traj[cell][0]:
+                    print("tIn<tOut")
                 # Current time for ego to enter cell
                 tinEgo = self.cd.traj[cell][0]
                 # if the yielding changes the Ego vehicles times
@@ -376,6 +378,7 @@ class DCR:
         content["traj"] = self.cd.traj
         content["tmp"] = self.tmp
         content["wp"] = egoX.waypoint
+        content["spwnid"] = egoX.spwnid
         #content[wait] = self.wait
         msg_obj = msg(egoX.id,"COM",content)
         return msg_obj

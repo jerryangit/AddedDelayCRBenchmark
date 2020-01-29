@@ -328,6 +328,8 @@ class conflictZones:
                     # if t0+k*dt < self.traj.get(cell)[0]:
                     #     print("Error, out time lower than entry time")
                     self.traj[cell] = (self.traj.get(cell)[0],t0+k*dt)
+                if self.traj[cell][1] < self.traj[cell][0]:
+                    print("tIn<tOut")    
             s_1k = s_k
         s_max = s_1k
         for cell in self.traj.keys():
@@ -338,6 +340,8 @@ class conflictZones:
                 tIn = (sIn-s_max)/(velRef) + t0+N*dt 
                 delay = tIn - self.traj.get(cell)[0]
                 self.traj[cell] = (tIn,self.traj.get(cell)[1]+delay)
+            if self.traj[cell][1] < self.traj[cell][0]:
+                print("tIn<tOut")    
         
         if 1==0:
             import matplotlib.pyplot as plt

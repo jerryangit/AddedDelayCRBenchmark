@@ -40,7 +40,7 @@ import numpy as np
 if not os.path.exists('./data'):
     os.makedirs('./data')
 
-def main(cr_method = "AMPIP", ctrlPolicy = "MPIPControl", PriorityPolicy = "FCFS",totalVehicle = 16, scenario = 1, spwnInterval = 1, randomSeed = 885440,logging = 1):
+def main(cr_method = "DCR", ctrlPolicy = "DCRControl", PriorityPolicy = "PriorityScore",totalVehicle = 4, scenario = 1, spwnInterval = 0, randomSeed = 885440,logging = 1):
     ###############################################
     # Config
     ###############################################  
@@ -370,7 +370,7 @@ def main(cr_method = "AMPIP", ctrlPolicy = "MPIPControl", PriorityPolicy = "FCFS
         # Save lists as csv
         data = []
         data = zip(spwnRand,destRand,spwnTime,destTime)
-        filename = str(cr_method) + "_" + str(ctrlPolicy) + "_" + str(totalVehicle) + "_" + str(scenario) + "_" + str(spwnInterval)+ "_" + str(randomSeed) + datetime.datetime.now().strftime('%Y-%m-%d-%H-%M.csv')
+        filename = str(cr_method) + "_" + str(ctrlPolicy) + "_" + str(totalVehicle) + "_" + str(scenario) + "_" + str(spwnInterval)+ "_" + str(randomSeed) + "_" datetime.datetime.now().strftime('%Y-%m-%d-%H-%M.csv')
         dirname = './data/'
         with open(dirname+filename, 'w') as log:
             wr = csv.writer(log, quoting=csv.QUOTE_ALL)
