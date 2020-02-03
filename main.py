@@ -4,6 +4,8 @@
 #
 # This work is licensed under the terms of the MIT license.
 # For a copy, see <https://opensource.org/licenses/MIT>.
+#! Multiprocessing
+from multiprocessing import Pool
 import actorControl as ac
 import actorHelper as ah
 # import pathPlanner as pp
@@ -40,18 +42,18 @@ import numpy as np
 if not os.path.exists('./data'):
     os.makedirs('./data')
 
-def main(cr_method = "DCR", ctrlPolicy = "DCRControl", PriorityPolicy = "PriorityScore",totalVehicle = 4, scenario = 1, spwnInterval = 0, randomSeed = 885440,logging = 1):
+def main(cr_method = "AMPIP", ctrlPolicy = "MPIPControl", PriorityPolicy = "FCFS",totalVehicle = 64, scenario = 1, spwnInterval = 6, randomSeed = 851977,logging = 1):
     ###############################################
     # Config
     ###############################################  
     syncmode = 1                # Whether ticks are synced
-    freqSimulation = 50         # [HZ] The frequency at which the simulation is ran 
-    freqOnBoard = 25            # [HZ] The frequency at which vehicle on board controller is simulated
+    freqSimulation = 40         # [HZ] The frequency at which the simulation is ran 
+    freqOnBoard = 20            # [HZ] The frequency at which vehicle on board controller is simulated
     random.seed(randomSeed)     # Random seed
-    maxVehicle = 20             # Max simultaneous vehicle
-    #logging = 1                 # Whether to log vehicle spawns and dest
-    #totalVehicle = 64           # Total vehicles for entire simulation
-    #scenario = 6                # 0 is random 1/tick, 1 is 4/tick all roads (Ensure totalVehicle is a multiple of 4 if scenario is 1)
+    maxVehicle = 24             # Max simultaneous vehicle
+    # logging = 1                 # Whether to log vehicle spawns and dest
+    # totalVehicle = 64           # Total vehicles for entire simulation
+    # scenario = 6                # 0 is random 1/tick, 1 is 4/tick all roads (Ensure totalVehicle is a multiple of 4 if scenario is 1)
     # spwnInterval = 4            # Time between each spawn cycle
     # cr_method = "DCR"                   # Which conflict resolution method is used
     # ctrlPolicy = "DCRControl"           # Which control policy is used
@@ -78,9 +80,12 @@ def main(cr_method = "DCR", ctrlPolicy = "DCRControl", PriorityPolicy = "Priorit
         wind_intensity=0.0, 
         sun_azimuth_angle=70.0, 
         sun_altitude_angle=70.0)                  # Doesn't affect simulation, but does affect visuals
-
+    multiProcessTest = 0
 
     try:
+        if multiProcessTest == 1:
+            pool = Pool(os.cpu_count())
+
         # Init carla at port 2000
         client = carla.Client('localhost', 2000)
         client.set_timeout(2.0)
@@ -115,7 +120,7 @@ def main(cr_method = "DCR", ctrlPolicy = "DCRControl", PriorityPolicy = "Priorit
 
         # get map and establish grp
         map = world.get_map()
-        hop_resolution = 0.2
+        hop_resolution = 0.1
         dao = GlobalRoutePlannerDAO(map, hop_resolution)
         grp = GlobalRoutePlanner(dao)
         grp.setup()
@@ -202,8 +207,8 @@ def main(cr_method = "DCR", ctrlPolicy = "DCRControl", PriorityPolicy = "Priorit
         # Integrate into map object?
         # Map Locations, spwnLoc contains loc, 0= intersec, 1 = N, 2 = E, 3 = S, 4 = W.
         intersection = carla.Transform(carla.Location(x=-150.0, y=-35.0, z=0.3), carla.Rotation(yaw=180))
-        northSpawn = carla.Transform(carla.Location(x=-151.7, y=-70.0, z=0.272), carla.Rotation(yaw=90))
-        eastSpawn = carla.Transform(carla.Location(x=-115.0, y=-36.3, z=0.265), carla.Rotation(yaw=-180))
+        northSpawn = carla.Transform(carla.Location(x=-151.9, y=-70.0, z=0.272), carla.Rotation(yaw=90))
+        eastSpawn = carla.Transform(carla.Location(x=-115.0, y=-36.6, z=0.265), carla.Rotation(yaw=-180))
         southSpawn = carla.Transform(carla.Location(x=-148.49, y=0.0, z=0.31), carla.Rotation(yaw=-90))
         westSpawn = carla.Transform(carla.Location(x=-185.0, y=-33.3, z=0.01), carla.Rotation(yaw=0))
         spwnLoc = [intersection,northSpawn,eastSpawn,southSpawn,westSpawn]
@@ -349,11 +354,20 @@ def main(cr_method = "DCR", ctrlPolicy = "DCRControl", PriorityPolicy = "Priorit
 
             worldX_obj.msg.clearCloud()
             #* Loop to resolve conflicts 
+            if multiProcessTest == 1:
+                for actorX in actorDict_obj.dict.values():
+                    arg = (actorX,worldX_obj)
+                    pool.starmap(actorX.cr.resolve,arg)
 
-            for actorX in actorDict_obj.dict.values():
-                actorX.cr.resolve(actorX,worldX_obj)
-                msg = actorX.cr.outbox(actorX)
-                worldX_obj.msg.broadcast(actorX.id,actorX.location,msg,250)
+                for actorX in actorDict_obj.dict.values():
+                    msg = actorX.cr.outbox(actorX)
+                    worldX_obj.msg.broadcast(actorX.id,actorX.location,msg,250)
+                
+            else:
+                for actorX in actorDict_obj.dict.values():
+                    actorX.cr.resolve(actorX,worldX_obj)
+                    msg = actorX.cr.outbox(actorX)
+                    worldX_obj.msg.broadcast(actorX.id,actorX.location,msg,250)
             # >>
             #* Loop to apply vehicle control (TODO separate class or function) 
             # <<
@@ -369,6 +383,8 @@ def main(cr_method = "DCR", ctrlPolicy = "DCRControl", PriorityPolicy = "Priorit
 
         # Save lists as csv
         data = []
+        spwnTime.remove(0)
+        destTime.remove(0)
         data = zip(spwnRand,destRand,spwnTime,destTime)
         filename = str(cr_method) + "_" + str(ctrlPolicy) + "_" + str(totalVehicle) + "_" + str(scenario) + "_" + str(spwnInterval)+ "_" + str(randomSeed) + "_" + datetime.datetime.now().strftime('%Y-%m-%d-%H-%M.csv')
         dirname = './data/'
@@ -394,6 +410,7 @@ def main(cr_method = "DCR", ctrlPolicy = "DCRControl", PriorityPolicy = "Priorit
         # settings.synchronous_mode = False
         # world.apply_settings(settings)
         # tick = world.wait_for_tick()
+        
 
         if plot == 1:
             import matplotlib.pyplot as plt

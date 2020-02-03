@@ -102,19 +102,32 @@ class gridCell:
         self.arr = [0,0]
         self.ext = [0,0]
 
-    def detect(self,egoX,worldX,msg):
+    def detect(self,egoX,worldX,msg,TICL=0):
         actor_t = msg.content.get("timeSlot")
         actor_TCL = msg.content.get("TCL")
         ego_t = self.predictTimes(egoX,worldX)
         if ego_t[1] > actor_t[0] + self.error and ego_t[0] < actor_t[1] - self.error:
-            TIC = cap(self.TCL,actor_TCL)
-            if TIC != ():
-                return [1,TIC]
+            if TICL == 1:
+                TICL = caps(self.TCL,actor_TCL)
+                if len(TICL) > 0:
+                    return [1,TICL]
+            else:
+                TIC = cap(self.TCL,actor_TCL)
+                if TIC != ():
+                    return [1,TIC]
         elif actor_t[1] > ego_t[0] + self.error and actor_t[0] < ego_t[1] - self.error:
-            TIC = cap(self.TCL,actor_TCL)
-            if TIC != ():
-                return [1,TIC]
-        return [0,()]
+            if TICL == 1:
+                TICL = caps(self.TCL,actor_TCL)
+                if len(TICL) > 0:
+                    return [1,TICL]
+            else:
+                TIC = cap(self.TCL,actor_TCL)
+                if TIC != ():
+                    return [1,TIC]
+        if TICL == 1:
+            return (0,[None])
+        else:
+            return [0,()]
 
     def calcGrid(self):
         self.x_list = []

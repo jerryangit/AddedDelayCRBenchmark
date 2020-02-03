@@ -78,7 +78,7 @@ class TEPControl:
 
         if egoX.state == "NAN":
             state = "ENTER"
-        elif egoX.state == "ENTER" and egoX.sTraversed > egoX.cr.cd.sArrival-0.25:
+        elif egoX.state == "ENTER" and egoX.sTraversed > egoX.cr.cd.sArrival-0.5:
             if egoX.cr.cd.arr[0] != 1:
                 egoX.cr.cd.arr = [1,egoX.cr.cd.arrivalTime]
             state = "CROSS"
@@ -104,11 +104,11 @@ class MPIPControl:
 
         if len(egoX.cr.wait) > 0:
             for idSend in egoX.cr.wait:
-                sIn = egoX.cr.cd.sTCL.get(egoX.cr.wait.get(idSend))[0]             
+                sIn = egoX.cr.cd.sTCL.get(egoX.cr.wait.get(idSend))[0]
                 dist = sIn - egoX.sTraversed
-                if dist < 0.5 + egoX.vel_norm*egoX.dt*4:
+                if dist < 0.75 + egoX.vel_norm*egoX.dt*3:
                     velDes = 0
-                elif dist < 4:
+                elif dist < 5.75:
                     velDes = min((dist/2,velDes))
                 if dist < 0:
                     velDes = 0
@@ -137,7 +137,7 @@ class MPIPControl:
         state = egoX.state
         if egoX.state == "NAN":
             state = "ENTER"
-        elif egoX.state == "ENTER" and egoX.sTraversed > egoX.cr.cd.sArrival-0.25:
+        elif egoX.state == "ENTER" and egoX.sTraversed > egoX.cr.cd.sArrival-0.5:
             if egoX.cr.cd.arr[0] != 1:
                 egoX.cr.cd.arr = [1,egoX.cr.cd.arrivalTime]
             state = "CROSS"
@@ -224,15 +224,15 @@ class DCRControl:
             CellList.append((egoX.cr.cd.sTCL.get(cell)[0],egoX.cr.cd.traj.get(cell)[0]-worldX.tick.timestamp.elapsed_seconds))
         # TODO move N to be an input
 
-        N = 25
+        N = 30
 
         velDes = egoX.velRef
-        if egoX.state == "ENTER":
+        if egoX.state == "IL":
             for actor in worldX.actorDict.actor_list:
                 if ego.id != actor.id and carla.Location.distance ( ego.get_location() , actor.get_location() ) < 10 : 
                     cd_bool,smpList = self.cd_obj.detect(ego,actor,1)
                     if cd_bool == 1:
-                        if smpList[0] < 3.5:
+                        if smpList[0] < 4:
                             velDes = 0
 
         if egoX.state != "OL":
@@ -306,9 +306,9 @@ def velocityPID(egoX,states,velDes=None):
 
 def anglePID(egoX,worldX,states):
     #* PID Gains
-    kp = 1.65
+    kp = 1.75
     kd = 0.02
-    ki = 0
+    ki = 0.02
     #* 
     
     # Make a list of the current + next 9 waypoints and sort it

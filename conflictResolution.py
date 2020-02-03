@@ -217,8 +217,8 @@ class AMPIP:
         for msg in worldX.msg.inbox[egoX.id]:
             if msg.mtype == "ENTER" or msg.mtype == "CROSS":
                 actorX = worldX.actorDict.dict.get(msg.idSend)
-                TIC = self.cd.detect(egoX,worldX,msg)
-                [sptBool,TIC] = self.cd.detect(egoX,worldX,msg)
+                # Required modification, trajectory intersecting cell list needed in order to guarantee safe crossing
+                [sptBool,TICL] = self.cd.detect(egoX,worldX,msg,1)
                 if sptBool == 1:
                     pOrder = self.pp.order([egoX,actorX])
                     if pOrder[0].id == egoX.id:
@@ -226,13 +226,19 @@ class AMPIP:
                             del self.wait[msg.idSend]
                     else:
                         if msg.idSend not in self.wait:
-                            if self.cd.traj.get(TIC)[1] + 0.5 > msg.content.get("traj").get(TIC)[0]:
-                                self.wait[msg.idSend] = TIC
-                            else:
-                                # print(egoX.id," Going before ", msg.idSend)
-                                continue
+                            AMP_yield = 0
+                            for cell in TICL:
+                                if self.cd.traj.get(cell)[1] + 0.5 > msg.content.get("traj").get(cell)[0]:
+                                    self.wait[msg.idSend] = cell
+                                    AMP_yield = 1
+                                    break
+                            if AMP_yield == 0 :
+                                print(egoX.id," Going before ", msg.idSend)
+                                if msg.idSend in self.wait:
+                                    del self.wait[msg.idSend]
                 else: 
-                    continue
+                    if msg.idSend in self.wait:
+                        del self.wait[msg.idSend]
             elif msg.mtype == "EXIT":
                 if msg.idSend in self.wait:
                     del self.wait[msg.idSend]
@@ -283,7 +289,7 @@ class DCR:
                 continue
             elif msg.idSend == egoX.info.get("idFront") and msg.content.get("state") == "I":
                 egoX.discreteState("FIL")
-                egoX.infoSet("idFront",None)
+                # egoX.infoSet("idFront",None)
             elif msg.content.get("state") == "OL":
                 if msg.idSend in self.tmp:
                     del self.tmp[msg.idSend]
@@ -316,16 +322,20 @@ class DCR:
                 # Prediction of time actor leaves cell + err for robustness               
                 if self.wait.get(idYield)[0] == "Queue":
                     # Extra self.err to avoid collision in queue
-                    tOutAct = self.wait.get(idYield)[2].get(cell)[1] + self.err * 10
+                    tOutAct = self.wait.get(idYield)[2].get(cell)[1] + self.err * 4
                 else:
-                    tOutAct = self.wait.get(idYield)[2].get(cell)[1] + self.err
+                    tOutAct = self.wait.get(idYield)[2].get(cell)[1] + self.err * 2
                 if self.cd.traj[cell][1] < self.cd.traj[cell][0]:
                     print("tIn<tOut")
                 # Current time for ego to enter cell
                 tinEgo = self.cd.traj[cell][0]
                 # if the yielding changes the Ego vehicles times
-                if tOutAct + self.err > tinEgo:
-                    delay = tOutAct + self.err - tinEgo
+                if tOutAct > tinEgo:
+                    delay = tOutAct - tinEgo
+                    # If the vehicle is waiting for a vehicle in front of it, delay all the cells.
+                    if self.wait.get(idYield)[0] == "Queue":
+                        for cell in self.cd.traj:
+                            self.cd.traj[cell] = (self.cd.traj[cell][0] + delay, self.cd.traj[cell][1] + delay)
                     # if self.cd.TCL.index(cell) < len(self.cd.TCL) - 1:
                     # Amount of cells that need to be updated with the new delay
                     cellIndex = self.cd.TCL.index(cell)
@@ -335,6 +345,7 @@ class DCR:
                         self.cd.traj[cell] = (self.cd.traj[cell][0] + delay, self.cd.traj[cell][1] + delay)
                 if self.cd.traj[cell][1] < self.cd.traj[cell][0]:
                     print("tIn<tOut")
+
     def tempAdvantage(self,TICL,egoTraj,actorTraj,egoState,actState):
         # If Ego is crossing and Actor is first in lane
         if egoState == "I" and actState == "FIL":

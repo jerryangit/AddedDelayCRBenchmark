@@ -26,7 +26,7 @@ def qpMPC(x0,dt,v_des,CellList,ID,N=20, inputCosts = 3.5*5, devCosts = 2):
     ss_A = np.array([[1,dt],[0,1]])
     ss_B = np.array([[0],[1]])
     #* Constraints
-    a_max = 2.25
+    a_max = 2 + x0[1][0]/8 # Make maximum acceleration dependent on current velocity, if standstill acceleration is lower than if already moving fast due to RPM issues.
     a_min = 9
     u_max = a_max*dt # Maximum acceleration 
     u_min = a_min*dt # Maximum deceleration
