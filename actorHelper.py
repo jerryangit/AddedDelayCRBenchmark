@@ -85,7 +85,7 @@ class actorDict:
 class actorX:
     # TODO optimize calculations, e.g. calc location once per loop save in this class object
     # Class containing information for each vehicle, used to unify required data, can't modify cpp actor class
-    def __init__(self,ego,model,dt,spwnTime,spwn,spwnid,dest,destid,velRef,VIN):
+    def __init__(self,ego,model,dt,spwnTime,spwn,spwnid,dest,destid,velRef,VIN,spwnNr):
         # Conflict Resolution Object
         self.cr = []
         # Control Resolution Object
@@ -122,7 +122,12 @@ class actorX:
         self.VIN = VIN
         # onTickList:
         self.onTickList = []
-        
+        # amin
+        self.aMin = 9
+        # amax 
+        self.aMax = 2.5
+        # spwnNr
+        self._spwnNr = spwnNr
         self.updateParameters(dt)
 
     def infoSet(self,key,value):
@@ -132,13 +137,14 @@ class actorX:
         self.dt = dt
         self.velocity = self.ego.get_velocity()
         # TODO 3D norm?
-        self.vel_norm = np.linalg.norm([self.velocity.x,self.velocity.y])
+        self.velNorm = np.linalg.norm([self.velocity.x,self.velocity.y])
         self.location = self.ego.get_transform().location
         self.rotation = self.ego.get_transform().rotation
         # Rough Integration of distance
-        self.sTraversed += self.dt*self.vel_norm
+        self.sTraversed += self.dt*self.velNorm
         for fnc in self.onTickList:
             fnc()
+        self.aMax = 2 + (0.25 * self.velNorm -1)**2+1
 
     def onTick(self,fnc):
         self.onTickList.append(fnc)        

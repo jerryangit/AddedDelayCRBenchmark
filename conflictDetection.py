@@ -55,11 +55,11 @@ class timeSlot:
 
     def predictTimes(self,egoX,worldX):
         if egoX.cr.cd.arr[0] != 1:
-            self.arrivalTime = ( (self.sArrival-egoX.sTraversed) / egoX.velRef ) + worldX.tick.timestamp.elapsed_seconds
+            self.arrivalTime = ( (self.sArrival-egoX.sTraversed) / egoX.velRef ) + worldX.tick.elapsed_seconds
         else: 
             self.arrivalTime = egoX.cr.cd.arr[1]
         if egoX.cr.cd.ext[0] != 1:
-            self.exitTime = ( (self.sExit-egoX.sTraversed) / egoX.velRef ) + worldX.tick.timestamp.elapsed_seconds
+            self.exitTime = ( (self.sExit-egoX.sTraversed) / egoX.velRef ) + worldX.tick.elapsed_seconds
         else: 
             self.exitTime = egoX.cr.cd.ext[1]
         return (self.arrivalTime,self.exitTime)
@@ -105,20 +105,13 @@ class gridCell:
     def detect(self,egoX,worldX,msg,TICL=0):
         actor_t = msg.content.get("timeSlot")
         actor_TCL = msg.content.get("TCL")
-        ego_t = self.predictTimes(egoX,worldX)
-        if ego_t[1] > actor_t[0] + self.error and ego_t[0] < actor_t[1] - self.error:
+        ego_t = (egoX.cr.cd.arrivalTime,egoX.cr.cd.exitTime)
+        if ego_t[0] < actor_t[1] + self.error and ego_t[1] > actor_t[0] - self.error:
             if TICL == 1:
                 TICL = caps(self.TCL,actor_TCL)
                 if len(TICL) > 0:
-                    return [1,TICL]
-            else:
-                TIC = cap(self.TCL,actor_TCL)
-                if TIC != ():
-                    return [1,TIC]
-        elif actor_t[1] > ego_t[0] + self.error and actor_t[0] < ego_t[1] - self.error:
-            if TICL == 1:
-                TICL = caps(self.TCL,actor_TCL)
-                if len(TICL) > 0:
+                    if len(TICL) > 1:
+                        TICL.sort(key = lambda x: (self.sTCL.get(x)[0]))
                     return [1,TICL]
             else:
                 TIC = cap(self.TCL,actor_TCL)
@@ -189,7 +182,7 @@ class gridCell:
     def updateTCL(self,sTraversed):
         for cell in self.TCL:
             # If sTraversed is larger than the exit displacement, remove it from the TCL
-            if sTraversed > self.sTCL.get(cell)[1] + 0.10:
+            if sTraversed > self.sTCL.get(cell)[1]:
                 self.TCL.remove(cell)
                 del self.sTCL[cell]
     
@@ -198,18 +191,20 @@ class gridCell:
         #* Predict times for a certain traj
         traj = {}
         if egoX.cr.cd.arr[0] != 1:
-            self.arrivalTime = ( (self.sArrival-egoX.sTraversed) / egoX.velRef ) + worldX.tick.timestamp.elapsed_seconds
+            self.arrivalTime = worldX.tick.elapsed_seconds + dt_acc(self.sArrival - egoX.sTraversed, egoX.velNorm, egoX.velRef, egoX.aMax)
         else: 
             self.arrivalTime = egoX.cr.cd.arr[1]
+
         if egoX.cr.cd.ext[0] != 1:
-            self.exitTime = ( (self.sExit-egoX.sTraversed) / egoX.velRef ) + worldX.tick.timestamp.elapsed_seconds
+            self.exitTime = worldX.tick.elapsed_seconds + dt_acc(self.sExit - egoX.sTraversed, egoX.velNorm, egoX.velRef, egoX.aMax)
         else: 
             self.exitTime = egoX.cr.cd.ext[1]
+
         for cell in self.TCL:
             # time in for a given cell computed by (distance remaining)/(reference velocity) + current time
             (sIn,sOut) = self.sTCL.get(cell)
-            tIn = (sIn-egoX.sTraversed)/egoX.velRef + worldX.tick.timestamp.elapsed_seconds 
-            tOut = (sOut-egoX.sTraversed)/egoX.velRef + worldX.tick.timestamp.elapsed_seconds + self.error
+            tIn = worldX.tick.elapsed_seconds + dt_acc(sIn-egoX.sTraversed, egoX.velNorm, egoX.velRef, egoX.aMax)
+            tOut = worldX.tick.elapsed_seconds + dt_acc(sOut-egoX.sTraversed, egoX.velNorm, egoX.velRef, egoX.aMax)
             traj[cell] = (tIn,tOut)
         self.traj = traj
         return (self.arrivalTime,self.exitTime)
@@ -314,8 +309,8 @@ class conflictZones:
         for cell in self.TCL:
             # time in for a given cell computed by (distance remaining)/(reference velocity) + current time
             (sIn,sOut) = self.sTCL.get(cell)
-            tIn = (sIn-egoX.sTraversed)/egoX.velRef + worldX.tick.timestamp.elapsed_seconds 
-            tOut = (sOut-egoX.sTraversed)/egoX.velRef + worldX.tick.timestamp.elapsed_seconds + self.error
+            tIn = worldX.tick.elapsed_seconds + dt_acc(sIn-egoX.sTraversed, egoX.velNorm, egoX.velRef, egoX.aMax)
+            tOut = worldX.tick.elapsed_seconds + dt_acc(sOut-egoX.sTraversed, egoX.velNorm, egoX.velRef, egoX.aMax)
             traj[cell] = (tIn,tOut)
         self.traj = traj
         # self.intersectionTime
@@ -454,8 +449,8 @@ class coneDetect:
 def generateSamples(actor,sampleN=5,location=None):
     # TODO integrate some of these into helper functions
     # Determine lenght of bbox in x and y directions
-    xLength = actor.bounding_box.extent.x * 1.8
-    yLength = actor.bounding_box.extent.y * 1.8
+    xLength = actor.bounding_box.extent.x * 2*0.9
+    yLength = actor.bounding_box.extent.y * 2*0.85
     # Def amount of sample along x and y edges, rounded to int
     xSamples = int( round( sampleN * ( xLength / ( xLength + yLength ) ) ) )
     ySamples = sampleN - xSamples
@@ -519,3 +514,26 @@ def caps(A,B):
             if x == y:
                 cap.append(x)
     return cap
+
+def dt_acc(ds,v0,vRef,aMax):
+    # If distance left to travel is negative
+    if ds < 0:
+        # Shouldn't happen
+        return 0
+    # If currently slower than ref velocity
+    if v0 < vRef:
+        # Calculate time required to travel a certain distance whilst accelerating from v0 to vref
+        acc_t = (vRef - v0)/aMax                      # Time it takes to accelerate to max
+        acc_s = acc_t * ((vRef - v0)/2+v0)       # Distance travelled whilst accelerating to max            
+        # If the distance travelled when accelerating is smaller than total distance
+        if acc_s < ds:  
+            dt = ( (ds - acc_s) / vRef ) + acc_t
+        # If the distance travelled when accelerating is larger than total distance
+        else: 
+            # Formula based on s(t)= v0*t+1/2at^2, abc formula gives: t = (-v0 + sqrt(v0^2 + 2*a*s) )/a
+            dt = (-v0 + np.sqrt(v0**2 + 2 * aMax * ds))/(aMax)   
+    # If currently faster than or equal to ref velocity
+    else:
+        # Assume vehicle is travelling at reference velocity
+        dt = ds/vRef
+    return dt
