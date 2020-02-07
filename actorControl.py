@@ -29,7 +29,6 @@ def actorControl(arg,para=[]):
     cases = {
         "TEPControl": TEPControl,
         "MPIPControl": MPIPControl,
-        "AMPIPControl": AMPIPControl,
         "DCRControl": DCRControl,
     }
     fnc = cases.get(arg)
@@ -70,8 +69,8 @@ class TEPControl:
             dist = egoX.cr.cd.sArrival - egoX.sTraversed
             if dist < 0:
                 print(egoX.id," crossed line by:", np.abs(dist),"m, adjust breaking please")
-            if dist<= 0.2 + 0.7 * egoX.vel_norm**2:
-                u = np.clip((1/dist * egoX.vel_norm*0.15),0,1)
+            if dist<= 0.2 + 0.7 * egoX.velNorm**2:
+                u = np.clip((1/dist * egoX.velNorm*0.15),0,1)
                 ego.apply_control(carla.VehicleControl(throttle=0.0, steer=0.0,brake = u,manual_gear_shift=True,gear=1))
 
         state = egoX.state
@@ -106,13 +105,24 @@ class MPIPControl:
             for idSend in egoX.cr.wait:
                 sIn = egoX.cr.cd.sTCL.get(egoX.cr.wait.get(idSend))[0]
                 dist = sIn - egoX.sTraversed
-                if dist < 0.75 + egoX.vel_norm*egoX.dt*3:
-                    velDes = 0
-                elif dist < 5.75:
-                    velDes = min((dist/2,velDes))
                 if dist < 0:
                     velDes = 0
                     print(egoX.id," crossed line by:", np.abs(dist),"m, adjust breaking please")
+                elif dist < 0.275:
+                    velDes = 0
+                elif dist < 6.75:
+                    velDes = min((dist/2.15 - egoX.velNorm/(egoX.aMin)*0.15,velDes))
+                    if velDes < 0:
+                        velDes = 0
+
+        # if egoX._spwnNr == 26:
+        #     import matplotlib.pyplot as plt
+        #     plt.plot(worldX.tick.elapsed_seconds,velDes,'gx')
+        #     plt.plot(worldX.tick.elapsed_seconds,egoX.velNorm,'bx')
+        #     if len(egoX.cr.wait) > 0:
+        #         plt.plot(worldX.tick.elapsed_seconds,-0.1,'rx')
+        #     plt.show(block=False)
+        #     plt.pause(0.001)
 
         if egoX.state == "ENTER":
             for actor in worldX.actorDict.actor_list:
@@ -139,65 +149,11 @@ class MPIPControl:
             state = "ENTER"
         elif egoX.state == "ENTER" and egoX.sTraversed > egoX.cr.cd.sArrival-0.5:
             if egoX.cr.cd.arr[0] != 1:
-                egoX.cr.cd.arr = [1,egoX.cr.cd.arrivalTime]
+                egoX.cr.cd.arr = [1,worldX.tick.elapsed_seconds]
             state = "CROSS"
         elif egoX.state == "CROSS" and egoX.sTraversed > egoX.cr.cd.sExit:
             if egoX.cr.cd.ext[0] != 1:
-                egoX.cr.cd.ext = [1,egoX.cr.cd.exitTime]
-            state = "EXIT"
-        egoX.discreteState(state)
-        return state
-
-class AMPIPControl:
-    def __init__(self):
-        self.vPIDStates = (0,0,0)
-        self.thetaPIDStates = (0,0,0)
-        self.cd_obj = cd.conflictDetection("coneDetect",[6.5,0.135*np.pi,5]).obj
-
-    def control(self,egoX,worldX):
-        ego = egoX.ego
-        if egoX.location == carla.Location(0,0,0):
-            return "NAN"
-
-        velDes = egoX.velRef
-        if egoX.state == "ENTER":
-            for actor in worldX.actorDict.actor_list:
-                if ego.id != actor.id and carla.Location.distance ( ego.get_location() , actor.get_location() ) < 10 : 
-                    cd_bool,smpList = self.cd_obj.detect(ego,actor,1)
-                    if cd_bool == 1:
-                        if smpList[0] < 5:
-                            velDes = 0
-                        else:
-                            velDes = smpList[0]/2
-        
-        (u_v,self.vPIDStates) = velocityPID(egoX,self.vPIDStates,velDes)
-        (u_theta,self.thetaPIDStates)  = anglePID(egoX,worldX,self.thetaPIDStates)
-
-        if u_v >= 0:
-            ego.apply_control(carla.VehicleControl(throttle=u_v, steer=u_theta,brake = 0,manual_gear_shift=True,gear=1))
-        elif u_v < 0:
-            ego.apply_control(carla.VehicleControl(throttle=0, steer=u_theta,brake = - u_v,manual_gear_shift=True,gear=1))
-       
-        if len(egoX.cr.wait) > 0:
-            for idSend in egoX.cr.wait:
-                sIn = egoX.cr.cd.sTCL.get(egoX.cr.wait.get(idSend))[0]             
-                dist = sIn - egoX.sTraversed
-                if dist < 0:
-                    print(egoX.id," crossed line by:", np.abs(dist),"m, adjust breaking please")
-                if dist<= 0.25 + 0.7 * egoX.vel_norm**2:
-                    u = np.clip((1/dist * egoX.vel_norm*0.15),0,1)
-                    ego.apply_control(carla.VehicleControl(throttle=0.0, steer=0.0,brake = u,manual_gear_shift=True,gear=1))
-        
-        state = egoX.state
-        if egoX.state == "NAN":
-            state = "ENTER"
-        elif egoX.state == "ENTER" and egoX.sTraversed > egoX.cr.cd.sTCL.get(egoX.cr.cd.TCL[0])[0]:
-            if egoX.cr.cd.arr[0] != 1:
-                egoX.cr.cd.arr = [1,egoX.cr.cd.arrivalTime]
-            state = "CROSS"
-        elif egoX.state == "CROSS" and egoX.sTraversed > egoX.cr.cd.sTCL.get(egoX.cr.cd.TCL[-1])[1]:
-            if egoX.cr.cd.ext[0] != 1:
-                egoX.cr.cd.ext = [1,egoX.cr.cd.exitTime]
+                egoX.cr.cd.ext = [1,worldX.tick.elapsed_seconds]
             state = "EXIT"
         egoX.discreteState(state)
         return state
@@ -214,7 +170,7 @@ class DCRControl:
             return "NAN"
 
         #* MPC velocity control:
-        x0 = np.array([[egoX.sTraversed],[egoX.vel_norm]])
+        x0 = np.array([[egoX.sTraversed],[egoX.velNorm]])
         # cell = (sInCell,TinCell)
         # From egoX T received as time from current timestep
         CellList = [] 
@@ -238,7 +194,7 @@ class DCRControl:
         if egoX.state != "OL":
             (sol,u0) = qpMPC(x0,egoX.dt*4,egoX.velRef,CellList,egoX.id,N)
             egoX.cr.cd.MPCFeedback(sol,worldX.tick.timestamp.elapsed_seconds,egoX.dt*4,N,2,egoX.velRef,egoX.id,egoX.sTraversed) # dt is multiplied in order to increase finite horizon time range
-            velDes = min(egoX.vel_norm+u0[0]*1.3,velDes)
+            velDes = min(egoX.velNorm+u0[0]*1.3,velDes)
         else: 
             velDes = egoX.velRef
 
@@ -286,7 +242,7 @@ def velocityPID(egoX,states,velDes=None):
     kd = 0.1
     ki = 0
     #* >
-    v = egoX.vel_norm
+    v = egoX.velNorm
     #* PID states <
     if velDes != None:
         error = velDes - v
@@ -297,9 +253,11 @@ def velocityPID(egoX,states,velDes=None):
     #* >
     u_v = kp*(error) + ki*(integral) + kd*(derivative) 
     if u_v < 0: 
-        u_v = u_v * 1.15
-    if v > 0:
+        u_v = u_v * 1.1
+    if v > 1:
         u_v += 0.115+0.0936*v+-0.00345*v**2 # quadractic approximation of throttle to overcome friction
+    else:
+        u_v += 0.1+0.11*v # quadractic approximation of throttle to overcome friction
         
     states = (error,integral,derivative)
     return (u_v,states)

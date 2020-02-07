@@ -5,7 +5,6 @@
 # This work is licensed under the terms of the MIT license.
 # For a copy, see <https://opensource.org/licenses/MIT>.
 #! Multiprocessing
-from multiprocessing import Pool
 import actorControl as ac
 import actorHelper as ah
 # import pathPlanner as pp
@@ -42,7 +41,7 @@ import numpy as np
 if not os.path.exists('./data'):
     os.makedirs('./data')
 
-def main(cr_method = "AMPIP", ctrlPolicy = "MPIPControl", PriorityPolicy = "FCFS",totalVehicle = 64, scenario = 1, spwnInterval = 6, randomSeed = 851977,logging = 1):
+def main(cr_method = "AMPIP", ctrlPolicy = "MPIPControl", PriorityPolicy = "FCFS",totalVehicle = 32, scenario = 0, spwnInterval = 0.8, randomSeed = 325213,logging = 1):
     ###############################################
     # Config
     ###############################################  
@@ -268,7 +267,7 @@ def main(cr_method = "AMPIP", ctrlPolicy = "MPIPControl", PriorityPolicy = "FCFS
                             # Create inbox for new vehicle
                             worldX_obj.msg.inbox[spwn.id] = []
                             # Create actorX object for new vehicle
-                            spwnX = ah.actorX(spwn,0,dt,ts.elapsed_seconds-ts0s,spwnLoc[spwnRand[i]],spwnRand[i],exitLoc[destRand[i]],destRand[i],velRand[i],idRand[i])
+                            spwnX = ah.actorX(spwn,0,dt,ts.elapsed_seconds-ts0s,spwnLoc[spwnRand[i]],spwnRand[i],exitLoc[destRand[i]],destRand[i],velRand[i],idRand[i],i)
                             # Trace route using A* and set to spwnX.route
                             spwnX.route = grp.trace_route(spwnLoc[spwnRand[i]].location,spwnX.dest.location)
                             # Create conflict resolution object and save it
@@ -325,7 +324,7 @@ def main(cr_method = "AMPIP", ctrlPolicy = "MPIPControl", PriorityPolicy = "FCFS
                         locDict.get(actorX.id).append([ts.elapsed_seconds-ts0s,actorX.location.x,actorX.location.y])
                 if plotVel == 1:
                     for actorX in actorDict_obj.dict.values():
-                        velDict.get(actorX.id).append([ts.elapsed_seconds-ts0s,actorX.vel_norm])
+                        velDict.get(actorX.id).append([ts.elapsed_seconds-ts0s,actorX.velNorm])
                         aclDict.get(actorX.id).append([ts.elapsed_seconds-ts0s,actorX.ego.get_acceleration().x,actorX.ego.get_acceleration().y])
                         ctrDict.get(actorX.id).append([ts.elapsed_seconds-ts0s,actorX.ego.get_control().throttle,actorX.ego.get_control().steer,actorX.ego.get_control().brake,actorX.ego.get_control().gear,actorX.ego.get_control().manual_gear_shift])
                 if plotTheta == 1:
@@ -354,21 +353,13 @@ def main(cr_method = "AMPIP", ctrlPolicy = "MPIPControl", PriorityPolicy = "FCFS
 
             worldX_obj.msg.clearCloud()
             #* Loop to resolve conflicts 
-            if multiProcessTest == 1:
-                for actorX in actorDict_obj.dict.values():
-                    arg = (actorX,worldX_obj)
-                    pool.starmap(actorX.cr.resolve,arg)
-
-                for actorX in actorDict_obj.dict.values():
-                    msg = actorX.cr.outbox(actorX)
-                    worldX_obj.msg.broadcast(actorX.id,actorX.location,msg,250)
-                
-            else:
-                for actorX in actorDict_obj.dict.values():
-                    actorX.cr.resolve(actorX,worldX_obj)
-                    msg = actorX.cr.outbox(actorX)
-                    worldX_obj.msg.broadcast(actorX.id,actorX.location,msg,250)
+            # <<
+            for actorX in actorDict_obj.dict.values():
+                actorX.cr.resolve(actorX,worldX_obj)
+                msg = actorX.cr.outbox(actorX)
+                worldX_obj.msg.broadcast(actorX.id,actorX.location,msg,250)
             # >>
+
             #* Loop to apply vehicle control (TODO separate class or function) 
             # <<
             for actorX in actorDict_obj.dict.values():

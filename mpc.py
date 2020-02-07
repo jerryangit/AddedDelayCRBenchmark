@@ -16,7 +16,7 @@ def qpMPC(x0,dt,v_des,CellList,ID,N=20, inputCosts = 3.5*5, devCosts = 2):
     #TODO fix bug, always uses max input?
     #TODO make into class and separate into setup and optimize and reuse some matrices
     # Finite horizon
-    # x0 = matrix(np.array([egoX.sTraversed],[egoX.vel_norm]))
+    # x0 = matrix(np.array([egoX.sTraversed],[egoX.velNorm]))
     # Along path, so control is sdotdot, states are s and sdot
     #* State space:
     # ss_A = [1,dt;0,1]

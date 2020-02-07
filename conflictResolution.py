@@ -217,7 +217,7 @@ class AMPIP:
         for msg in worldX.msg.inbox[egoX.id]:
             if msg.mtype == "ENTER" or msg.mtype == "CROSS":
                 actorX = worldX.actorDict.dict.get(msg.idSend)
-                # Required modification, trajectory intersecting cell list needed in order to guarantee safe crossing
+                #!Required modification, trajectory intersecting cell list needed in order to guarantee safe crossing
                 [sptBool,TICL] = self.cd.detect(egoX,worldX,msg,1)
                 if sptBool == 1:
                     pOrder = self.pp.order([egoX,actorX])
@@ -227,13 +227,16 @@ class AMPIP:
                     else:
                         if msg.idSend not in self.wait:
                             AMP_yield = 0
-                            for cell in TICL:
-                                if self.cd.traj.get(cell)[1] + 0.5 > msg.content.get("traj").get(cell)[0]:
-                                    self.wait[msg.idSend] = cell
-                                    AMP_yield = 1
-                                    break
+                            if self.cd.traj.get(TICL[0])[1] + self.err > msg.content.get("traj").get(TICL[0])[0]:
+                                self.wait[msg.idSend] = TICL[0]
+                                AMP_yield = 1
+                            # for cell in TICL:
+                            #     if self.cd.traj.get(cell)[1] + self.err > msg.content.get("traj").get(cell)[0]:
+                            #         self.wait[msg.idSend] = cell
+                            #         AMP_yield = 1
+                            #         break
                             if AMP_yield == 0 :
-                                print(egoX.id," Going before ", msg.idSend)
+                                # print(egoX.id," Going before ", msg.idSend)
                                 if msg.idSend in self.wait:
                                     del self.wait[msg.idSend]
                 else: 
@@ -249,10 +252,10 @@ class AMPIP:
 
     def outbox(self,egoX):
         if egoX.state == "ENTER":
-            msg_obj = msg(egoX.id,"ENTER",{"timeSlot":[self.cd.arrivalTime,self.cd.exitTime],"TCL":self.cd.TCL,"traj":self.cd.traj})
+            msg_obj = msg(egoX.id,"ENTER",{"timeSlot":(self.cd.arrivalTime,self.cd.exitTime),"TCL":self.cd.TCL,"traj":self.cd.traj})
             return msg_obj
         if egoX.state == "CROSS":
-            msg_obj = msg(egoX.id,"CROSS",{"timeSlot":[self.cd.arrivalTime,self.cd.exitTime],"TCL":self.cd.TCL,"traj":self.cd.traj})
+            msg_obj = msg(egoX.id,"CROSS",{"timeSlot":(self.cd.arrivalTime,self.cd.exitTime),"TCL":self.cd.TCL,"traj":self.cd.traj})
             return msg_obj
         elif egoX.state == "EXIT":
             msg_obj = msg(egoX.id,"EXIT")
