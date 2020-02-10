@@ -93,6 +93,12 @@ def main():
             data_TDCR['avg_'+scenario+'_'+interval] = np.average(data_TDCR.get('dt_'+scenario+'_'+interval))
             data_TDCR['var_'+scenario+'_'+interval] = np.var(data_TDCR.get('dt_'+scenario+'_'+interval))
 
+    plt.figure(10)
+    # plt.plot(data_TEP['dt_0_1.2'],color = colors[0])
+    plt.plot(data_TDCR['dt_0_1.0'],color = colors[3],linestyle = '-')
+    plt.plot(data_TDCR['dt_0_1.2'],color = colors[3],linestyle = ':')
+    plt.plot(data_TDCR['dt_0_1.5'],color = colors[3],linestyle = '-.')
+    plt.show()
 
     fig , axs = plt.subplots(1,2,num=0,sharex=True)
     axs[0].plot([1.25,1,5/6,2/3,1/2,1/3],[data_TEP.get('avg_0_0.8'),data_TEP.get('avg_0_1.0'),data_TEP.get('avg_0_1.2'),data_TEP.get('avg_0_1.5'),data_TEP.get('avg_0_2.0'),data_TEP.get('avg_0_3.0')],colors[0])
@@ -106,7 +112,6 @@ def main():
     plt.legend(['TEP','MPIP','AMPIP','TDCR'])
 
     tikzplotlib.save(texFigures_dir+"travelTime_0_export.tex",axis_width = '16cm', axis_height = '8cm')
-
 
 
     conc_0_08 = (data_TEP.get('dt_0_0.8'),data_MPIP.get('dt_0_0.8'),data_AMPIP.get('dt_0_0.8'),data_TDCR.get('dt_0_0.8'))
@@ -126,9 +131,9 @@ def main():
     axs[1].hist(conc_0_10,color = colors, bins = n_bins, range = binrange, density=1,rwidth=1,zorder=1)
     axs[2].hist(conc_0_12,color = colors, bins = n_bins, range = binrange, density=1,rwidth=1,zorder=1)
     axs[0].set_xlim(0,60)
-    axs[0].legend(['TEP,mu=' + str(round(data_TEP.get('avg_0_0.8'))) + ', var=' + str(round(data_TEP.get('var_0_0.8'))),'MPIP,mu=' + str(round(data_MPIP.get('avg_0_0.8'))) + ', var=' + str(round(data_MPIP.get('var_0_0.8'))),'AMPIP,mu=' + str(round(data_AMPIP.get('avg_0_0.8'))) + ', var=' + str(round(data_AMPIP.get('var_0_0.8'))),'TDCR,mu=' + str(round(data_TDCR.get('avg_0_0.8'))) + ', var=' + str(round(data_TDCR.get('var_0_0.8')))])
-    axs[1].legend(['TEP,mu=' + str(round(data_TEP.get('avg_0_1.0'))) + ', var=' + str(round(data_TEP.get('var_0_1.0'))),'MPIP,mu=' + str(round(data_MPIP.get('avg_0_1.0'))) + ', var=' + str(round(data_MPIP.get('var_0_1.0'))),'AMPIP,mu=' + str(round(data_AMPIP.get('avg_0_1.0'))) + ', var=' + str(round(data_AMPIP.get('var_0_1.0'))),'TDCR,mu=' + str(round(data_TDCR.get('avg_0_1.0'))) + ', var=' + str(round(data_TDCR.get('var_0_1.0')))])
-    axs[2].legend(['TEP,mu=' + str(round(data_TEP.get('avg_0_1.2'))) + ', var=' + str(round(data_TEP.get('var_0_1.2'))),'MPIP,mu=' + str(round(data_MPIP.get('avg_0_1.2'))) + ', var=' + str(round(data_MPIP.get('var_0_1.2'))),'AMPIP,mu=' + str(round(data_AMPIP.get('avg_0_1.2'))) + ', var=' + str(round(data_AMPIP.get('var_0_1.2'))),'TDCR,mu=' + str(round(data_TDCR.get('avg_0_1.2'))) + ', var=' + str(round(data_TDCR.get('var_0_1.2')))])
+    axs[0].legend(['TEP,mu=' + str(round(data_TEP.get('avg_0_0.8'),2)) + ', var=' + str(round(data_TEP.get('var_0_0.8'),2)),'MPIP,mu=' + str(round(data_MPIP.get('avg_0_0.8'),2)) + ', var=' + str(round(data_MPIP.get('var_0_0.8'),2)),'AMPIP,mu=' + str(round(data_AMPIP.get('avg_0_0.8'),2)) + ', var=' + str(round(data_AMPIP.get('var_0_0.8'),2)),'TDCR,mu=' + str(round(data_TDCR.get('avg_0_0.8'),2)) + ', var=' + str(round(data_TDCR.get('var_0_0.8'),2))])
+    axs[1].legend(['TEP,mu=' + str(round(data_TEP.get('avg_0_1.0'),2)) + ', var=' + str(round(data_TEP.get('var_0_1.0'),2)),'MPIP,mu=' + str(round(data_MPIP.get('avg_0_1.0'),2)) + ', var=' + str(round(data_MPIP.get('var_0_1.0'),2)),'AMPIP,mu=' + str(round(data_AMPIP.get('avg_0_1.0'),2)) + ', var=' + str(round(data_AMPIP.get('var_0_1.0'),2)),'TDCR,mu=' + str(round(data_TDCR.get('avg_0_1.0'),2)) + ', var=' + str(round(data_TDCR.get('var_0_1.0'),2))])
+    axs[2].legend(['TEP,mu=' + str(round(data_TEP.get('avg_0_1.2'),2)) + ', var=' + str(round(data_TEP.get('var_0_1.2'),2)),'MPIP,mu=' + str(round(data_MPIP.get('avg_0_1.2'),2)) + ', var=' + str(round(data_MPIP.get('var_0_1.2'),2)),'AMPIP,mu=' + str(round(data_AMPIP.get('avg_0_1.2'),2)) + ', var=' + str(round(data_AMPIP.get('var_0_1.2'),2)),'TDCR,mu=' + str(round(data_TDCR.get('avg_0_1.2'),2)) + ', var=' + str(round(data_TDCR.get('var_0_1.2'),2))])
     [axs[0].axvline(np.average(_x[1]), color=colors[_x[0]], linestyle='dashed', linewidth=2,zorder=3.5) for _x in enumerate(conc_0_08)]
     [axs[1].axvline(np.average(_x[1]), color=colors[_x[0]], linestyle='dashed', linewidth=2,zorder=3.5) for _x in enumerate(conc_0_10)]
     [axs[2].axvline(np.average(_x[1]), color=colors[_x[0]], linestyle='dashed', linewidth=2,zorder=3.5) for _x in enumerate(conc_0_12)]
@@ -149,9 +154,9 @@ def main():
     axs[1].hist(conc_0_20,color = colors, bins = n_bins, range = binrange, density=1,rwidth=1,zorder=1)
     axs[2].hist(conc_0_30,color = colors, bins = n_bins, range = binrange, density=1,rwidth=1,zorder=1)
     axs[0].set_xlim(0,60)
-    axs[0].legend(['TEP,mu=' + str(round(data_TEP.get('avg_0_1.5'))) + ', var=' + str(round(data_TEP.get('var_0_1.5'))),'MPIP,mu=' + str(round(data_MPIP.get('avg_0_1.5'))) + ', var=' + str(round(data_MPIP.get('var_0_1.5'))),'AMPIP,mu=' + str(round(data_AMPIP.get('avg_0_1.5'))) + ', var=' + str(round(data_AMPIP.get('var_0_1.5'))),'TDCR,mu=' + str(round(data_TDCR.get('avg_0_1.5'))) + ', var=' + str(round(data_TDCR.get('var_0_1.5')))])
-    axs[1].legend(['TEP,mu=' + str(round(data_TEP.get('avg_0_2.0'))) + ', var=' + str(round(data_TEP.get('var_0_2.0'))),'MPIP,mu=' + str(round(data_MPIP.get('avg_0_2.0'))) + ', var=' + str(round(data_MPIP.get('var_0_2.0'))),'AMPIP,mu=' + str(round(data_AMPIP.get('avg_0_2.0'))) + ', var=' + str(round(data_AMPIP.get('var_0_2.0'))),'TDCR,mu=' + str(round(data_TDCR.get('avg_0_2.0'))) + ', var=' + str(round(data_TDCR.get('var_0_2.0')))])
-    axs[2].legend(['TEP,mu=' + str(round(data_TEP.get('avg_0_3.0'))) + ', var=' + str(round(data_TEP.get('var_0_3.0'))),'MPIP,mu=' + str(round(data_MPIP.get('avg_0_3.0'))) + ', var=' + str(round(data_MPIP.get('var_0_3.0'))),'AMPIP,mu=' + str(round(data_AMPIP.get('avg_0_3.0'))) + ', var=' + str(round(data_AMPIP.get('var_0_3.0'))),'TDCR,mu=' + str(round(data_TDCR.get('avg_0_3.0'))) + ', var=' + str(round(data_TDCR.get('var_0_3.0')))])
+    axs[0].legend(['TEP,mu=' + str(round(data_TEP.get('avg_0_1.5'),2)) + ', var=' + str(round(data_TEP.get('var_0_1.5'),2)),'MPIP,mu=' + str(round(data_MPIP.get('avg_0_1.5'),2)) + ', var=' + str(round(data_MPIP.get('var_0_1.5'),2)),'AMPIP,mu=' + str(round(data_AMPIP.get('avg_0_1.5'),2)) + ', var=' + str(round(data_AMPIP.get('var_0_1.5'),2)),'TDCR,mu=' + str(round(data_TDCR.get('avg_0_1.5'),2)) + ', var=' + str(round(data_TDCR.get('var_0_1.5'),2))])
+    axs[1].legend(['TEP,mu=' + str(round(data_TEP.get('avg_0_2.0'),2)) + ', var=' + str(round(data_TEP.get('var_0_2.0'),2)),'MPIP,mu=' + str(round(data_MPIP.get('avg_0_2.0'),2)) + ', var=' + str(round(data_MPIP.get('var_0_2.0'),2)),'AMPIP,mu=' + str(round(data_AMPIP.get('avg_0_2.0'),2)) + ', var=' + str(round(data_AMPIP.get('var_0_2.0'),2)),'TDCR,mu=' + str(round(data_TDCR.get('avg_0_2.0'),2)) + ', var=' + str(round(data_TDCR.get('var_0_2.0'),2))])
+    axs[2].legend(['TEP,mu=' + str(round(data_TEP.get('avg_0_3.0'),2)) + ', var=' + str(round(data_TEP.get('var_0_3.0'),2)),'MPIP,mu=' + str(round(data_MPIP.get('avg_0_3.0'),2)) + ', var=' + str(round(data_MPIP.get('var_0_3.0'),2)),'AMPIP,mu=' + str(round(data_AMPIP.get('avg_0_3.0'),2)) + ', var=' + str(round(data_AMPIP.get('var_0_3.0'),2)),'TDCR,mu=' + str(round(data_TDCR.get('avg_0_3.0'),2)) + ', var=' + str(round(data_TDCR.get('var_0_3.0'),2))])
     [axs[0].axvline(np.average(_x[1]), color=colors[_x[0]], linestyle='dashed', linewidth=2,zorder=3.5) for _x in enumerate(conc_0_15)]
     [axs[1].axvline(np.average(_x[1]), color=colors[_x[0]], linestyle='dashed', linewidth=2,zorder=3.5) for _x in enumerate(conc_0_20)]
     [axs[2].axvline(np.average(_x[1]), color=colors[_x[0]], linestyle='dashed', linewidth=2,zorder=3.5) for _x in enumerate(conc_0_30)]
@@ -198,9 +203,9 @@ def main():
     axs[1].hist(conc_1_10,color = colors, bins = n_bins, range = binrange, density=1,rwidth=1,zorder=1)
     axs[2].hist(conc_1_12,color = colors, bins = n_bins, range = binrange, density=1,rwidth=1,zorder=1)
     axs[0].set_xlim(0,80)
-    axs[0].legend(['TEP,mu=' + str(round(data_TEP.get('avg_1_3.2'))) + ', var=' + str(round(data_TEP.get('var_1_3.2'))),'MPIP,mu=' + str(round(data_MPIP.get('avg_1_3.2'))) + ', var=' + str(round(data_MPIP.get('var_1_3.2'))),'AMPIP,mu=' + str(round(data_AMPIP.get('avg_1_3.2'))) + ', var=' + str(round(data_AMPIP.get('var_1_3.2'))),'TDCR,mu=' + str(round(data_TDCR.get('avg_1_3.2'))) + ', var=' + str(round(data_TDCR.get('var_1_3.2')))])
-    axs[1].legend(['TEP,mu=' + str(round(data_TEP.get('avg_1_4.0'))) + ', var=' + str(round(data_TEP.get('var_1_4.0'))),'MPIP,mu=' + str(round(data_MPIP.get('avg_1_4.0'))) + ', var=' + str(round(data_MPIP.get('var_1_4.0'))),'AMPIP,mu=' + str(round(data_AMPIP.get('avg_1_4.0'))) + ', var=' + str(round(data_AMPIP.get('var_1_4.0'))),'TDCR,mu=' + str(round(data_TDCR.get('avg_1_4.0'))) + ', var=' + str(round(data_TDCR.get('var_1_4.0')))])
-    axs[2].legend(['TEP,mu=' + str(round(data_TEP.get('avg_1_4.8'))) + ', var=' + str(round(data_TEP.get('var_1_4.8'))),'MPIP,mu=' + str(round(data_MPIP.get('avg_1_4.8'))) + ', var=' + str(round(data_MPIP.get('var_1_4.8'))),'AMPIP,mu=' + str(round(data_AMPIP.get('avg_1_4.8'))) + ', var=' + str(round(data_AMPIP.get('var_1_4.8'))),'TDCR,mu=' + str(round(data_TDCR.get('avg_1_4.8'))) + ', var=' + str(round(data_TDCR.get('var_1_4.8')))])
+    axs[0].legend(['TEP,mu=' + str(round(data_TEP.get('avg_1_3.2'),2)) + ', var=' + str(round(data_TEP.get('var_1_3.2'),2)),'MPIP,mu=' + str(round(data_MPIP.get('avg_1_3.2'),2)) + ', var=' + str(round(data_MPIP.get('var_1_3.2'),2)),'AMPIP,mu=' + str(round(data_AMPIP.get('avg_1_3.2'),2)) + ', var=' + str(round(data_AMPIP.get('var_1_3.2'),2)),'TDCR,mu=' + str(round(data_TDCR.get('avg_1_3.2'),2)) + ', var=' + str(round(data_TDCR.get('var_1_3.2'),2))])
+    axs[1].legend(['TEP,mu=' + str(round(data_TEP.get('avg_1_4.0'),2)) + ', var=' + str(round(data_TEP.get('var_1_4.0'),2)),'MPIP,mu=' + str(round(data_MPIP.get('avg_1_4.0'),2)) + ', var=' + str(round(data_MPIP.get('var_1_4.0'),2)),'AMPIP,mu=' + str(round(data_AMPIP.get('avg_1_4.0'),2)) + ', var=' + str(round(data_AMPIP.get('var_1_4.0'),2)),'TDCR,mu=' + str(round(data_TDCR.get('avg_1_4.0'),2)) + ', var=' + str(round(data_TDCR.get('var_1_4.0'),2))])
+    axs[2].legend(['TEP,mu=' + str(round(data_TEP.get('avg_1_4.8'),2)) + ', var=' + str(round(data_TEP.get('var_1_4.8'),2)),'MPIP,mu=' + str(round(data_MPIP.get('avg_1_4.8'),2)) + ', var=' + str(round(data_MPIP.get('var_1_4.8'),2)),'AMPIP,mu=' + str(round(data_AMPIP.get('avg_1_4.8'),2)) + ', var=' + str(round(data_AMPIP.get('var_1_4.8'),2)),'TDCR,mu=' + str(round(data_TDCR.get('avg_1_4.8'),2)) + ', var=' + str(round(data_TDCR.get('var_1_4.8'),2))])
     [axs[0].axvline(np.average(_x[1]), color=colors[_x[0]], linestyle='dashed', linewidth=2,zorder=3.5) for _x in enumerate(conc_1_08)]
     [axs[1].axvline(np.average(_x[1]), color=colors[_x[0]], linestyle='dashed', linewidth=2,zorder=3.5) for _x in enumerate(conc_1_10)]
     [axs[2].axvline(np.average(_x[1]), color=colors[_x[0]], linestyle='dashed', linewidth=2,zorder=3.5) for _x in enumerate(conc_1_12)]
@@ -221,9 +226,9 @@ def main():
     axs[1].hist(conc_1_20,color = colors, bins = n_bins, range = binrange, density=1,rwidth=1,zorder=1)
     axs[2].hist(conc_1_30,color = colors, bins = n_bins, range = binrange, density=1,rwidth=1,zorder=1)
     axs[0].set_xlim(0,80)
-    axs[0].legend(['TEP,mu=' + str(round(data_TEP.get('avg_1_6.0'))) + ', var=' + str(round(data_TEP.get('var_1_6.0'))),'MPIP,mu=' + str(round(data_MPIP.get('avg_1_6.0'))) + ', var=' + str(round(data_MPIP.get('var_1_6.0'))),'AMPIP,mu=' + str(round(data_AMPIP.get('avg_1_6.0'))) + ', var=' + str(round(data_AMPIP.get('var_1_6.0'))),'TDCR,mu=' + str(round(data_TDCR.get('avg_1_6.0'))) + ', var=' + str(round(data_TDCR.get('var_1_6.0')))])
-    axs[1].legend(['TEP,mu=' + str(round(data_TEP.get('avg_1_8.0'))) + ', var=' + str(round(data_TEP.get('var_1_8.0'))),'MPIP,mu=' + str(round(data_MPIP.get('avg_1_8.0'))) + ', var=' + str(round(data_MPIP.get('var_1_8.0'))),'AMPIP,mu=' + str(round(data_AMPIP.get('avg_1_8.0'))) + ', var=' + str(round(data_AMPIP.get('var_1_8.0'))),'TDCR,mu=' + str(round(data_TDCR.get('avg_1_8.0'))) + ', var=' + str(round(data_TDCR.get('var_1_8.0')))])
-    axs[2].legend(['TEP,mu=' + str(round(data_TEP.get('avg_1_12.0'))) + ', var=' + str(round(data_TEP.get('var_1_12.0'))),'MPIP,mu=' + str(round(data_MPIP.get('avg_1_12.0'))) + ', var=' + str(round(data_MPIP.get('var_1_12.0'))),'AMPIP,mu=' + str(round(data_AMPIP.get('avg_1_12.0'))) + ', var=' + str(round(data_AMPIP.get('var_1_12.0'))),'TDCR,mu=' + str(round(data_TDCR.get('avg_1_12.0'))) + ', var=' + str(round(data_TDCR.get('var_1_12.0')))])
+    axs[0].legend(['TEP,mu=' + str(round(data_TEP.get('avg_1_6.0'),2)) + ', var=' + str(round(data_TEP.get('var_1_6.0'),2)),'MPIP,mu=' + str(round(data_MPIP.get('avg_1_6.0'),2)) + ', var=' + str(round(data_MPIP.get('var_1_6.0'),2)),'AMPIP,mu=' + str(round(data_AMPIP.get('avg_1_6.0'),2)) + ', var=' + str(round(data_AMPIP.get('var_1_6.0'),2)),'TDCR,mu=' + str(round(data_TDCR.get('avg_1_6.0'),2)) + ', var=' + str(round(data_TDCR.get('var_1_6.0'),2))])
+    axs[1].legend(['TEP,mu=' + str(round(data_TEP.get('avg_1_8.0'),2)) + ', var=' + str(round(data_TEP.get('var_1_8.0'),2)),'MPIP,mu=' + str(round(data_MPIP.get('avg_1_8.0'),2)) + ', var=' + str(round(data_MPIP.get('var_1_8.0'),2)),'AMPIP,mu=' + str(round(data_AMPIP.get('avg_1_8.0'),2)) + ', var=' + str(round(data_AMPIP.get('var_1_8.0'),2)),'TDCR,mu=' + str(round(data_TDCR.get('avg_1_8.0'),2)) + ', var=' + str(round(data_TDCR.get('var_1_8.0'),2))])
+    axs[2].legend(['TEP,mu=' + str(round(data_TEP.get('avg_1_12.0'),2)) + ', var=' + str(round(data_TEP.get('var_1_12.0'),2)),'MPIP,mu=' + str(round(data_MPIP.get('avg_1_12.0'),2)) + ', var=' + str(round(data_MPIP.get('var_1_12.0'),2)),'AMPIP,mu=' + str(round(data_AMPIP.get('avg_1_12.0'),2)) + ', var=' + str(round(data_AMPIP.get('var_1_12.0'),2)),'TDCR,mu=' + str(round(data_TDCR.get('avg_1_12.0'),2)) + ', var=' + str(round(data_TDCR.get('var_1_12.0'),2))])
     [axs[0].axvline(np.average(_x[1]), color=colors[_x[0]], linestyle='dashed', linewidth=2,zorder=3.5) for _x in enumerate(conc_1_15)]
     [axs[1].axvline(np.average(_x[1]), color=colors[_x[0]], linestyle='dashed', linewidth=2,zorder=3.5) for _x in enumerate(conc_1_20)]
     [axs[2].axvline(np.average(_x[1]), color=colors[_x[0]], linestyle='dashed', linewidth=2,zorder=3.5) for _x in enumerate(conc_1_30)]

@@ -45,7 +45,7 @@ if not os.path.exists('./data'):
 # def main(cr_method = "AMPIP", ctrlPolicy = "MPIPControl", PriorityPolicy = "FCFS",totalVehicle = 128, scenario = 0, spwnInterval = 0.8, randomSeed = 469730,logging = 1):
 # def main(cr_method = "AMPIP", ctrlPolicy = "MPIPControl", PriorityPolicy = "FCFS",totalVehicle = 128, scenario = 0, spwnInterval = 1.2, randomSeed = 960489,logging = 1):
 
-def main(cr_method = "AMPIP", ctrlPolicy = "MPIPControl", PriorityPolicy = "FCFS",totalVehicle = 128, scenario = 0, spwnInterval = 1.2, randomSeed = 960489,logging = 1):
+def main(cr_method = "DCR", ctrlPolicy = "DCRControl", PriorityPolicy = "PriorityScore",totalVehicle = 128, scenario = 0, spwnInterval = 1.2, randomSeed = 960489, preGenRoute = 0, logging = 1):
     ###############################################
     # Config
     ###############################################  
@@ -54,6 +54,7 @@ def main(cr_method = "AMPIP", ctrlPolicy = "MPIPControl", PriorityPolicy = "FCFS
     freqOnBoard = 20            # [HZ] The frequency at which vehicle on board controller is simulated
     random.seed(randomSeed)     # Random seed
     maxVehicle = 24             # Max simultaneous vehicle
+    # preGenRoute 
     # logging = 1                 # Whether to log vehicle spawns and dest
     # totalVehicle = 64           # Total vehicles for entire simulation
     # scenario = 6                # 0 is random 1/tick, 1 is 4/tick all roads (Ensure totalVehicle is a multiple of 4 if scenario is 1)
@@ -127,6 +128,7 @@ def main(cr_method = "AMPIP", ctrlPolicy = "MPIPControl", PriorityPolicy = "FCFS
         dao = GlobalRoutePlannerDAO(map, hop_resolution)
         grp = GlobalRoutePlanner(dao)
         grp.setup()
+
         # Retrive blueprints
         blueprint_library = world.get_blueprint_library()
 
@@ -222,6 +224,14 @@ def main(cr_method = "AMPIP", ctrlPolicy = "MPIPControl", PriorityPolicy = "FCFS
         westExit = carla.Transform(carla.Location(x=-185.0, y=-37.0, z=0.3), carla.Rotation(yaw=-180))
         exitLoc = [intersection,northExit,eastExit,southExit,westExit]
 
+        # Pre generate the routes for all spawn and exit combinations
+        if preGenRoute == 1:
+            routeDictionary = {}
+            for _spwnLoc in enumerate(spwnLoc):
+                for _exitLoc in enumerate(exitLoc):   
+                    if _spwnLoc[0] > 0 and _exitLoc[0] > 0:
+                        routeDictionary[(_spwnLoc[0],_exitLoc[0])] = grp.trace_route(_spwnLoc[1].location,_exitLoc[1].location)
+
         # Create Objects to use in loop
         #<<
         worldX_obj = ah.worldX(world,intersection.location,8,tick0,hop_resolution)
@@ -273,7 +283,10 @@ def main(cr_method = "AMPIP", ctrlPolicy = "MPIPControl", PriorityPolicy = "FCFS
                             # Create actorX object for new vehicle
                             spwnX = ah.actorX(spwn,0,dt,ts.elapsed_seconds-ts0s,spwnLoc[spwnRand[i]],spwnRand[i],exitLoc[destRand[i]],destRand[i],velRand[i],idRand[i],i)
                             # Trace route using A* and set to spwnX.route
-                            spwnX.route = grp.trace_route(spwnLoc[spwnRand[i]].location,spwnX.dest.location)
+                            if preGenRoute == 1:
+                                spwnX.route = routeDictionary.get((spwnRand[i],destRand[i]))
+                            else:    
+                                spwnX.route = grp.trace_route(spwnLoc[spwnRand[i]].location,spwnX.dest.location)
                             # Create conflict resolution object and save it
                             spwnX.cr = cr.conflictResolution(cr_method,[0.5,PriorityPolicy]).obj
                             # Setup conflict resolution using egoX and worldX

@@ -14,6 +14,7 @@ def main():
     repetitions = 3
     scenarioList = []
     throughputList = [1.25,1,5/6,2/3,1/2,1/3] # vehicles per seconds
+    preGenRoute = 1
     # throughputList = [1.25,1,5/6,2/3] # vehicles per seconds
     totalVehicleList = [32,64,128]
     for i in range(repetitions):
@@ -33,25 +34,27 @@ def main():
         randomSeed = randomSeedList[i] # Generate randoms seed between 0 and 100000,logging
         if i < startingIteration:
             continue
+        if spwnInterval != 1.2:
+            continue
         print("Running iteration: ", i, "Randomseed: ",randomSeed)
-        # cr_method = "DCR"
-        # ctrlPolicy = "DCRControl"
-        # PriorityPolicy ="PriorityScore"
-        # sim(cr_method, ctrlPolicy, PriorityPolicy,totalVehicle, scenario, spwnInterval, randomSeed,logging)
+        cr_method = "DCR"
+        ctrlPolicy = "DCRControl"
+        PriorityPolicy ="PriorityScore"
+        sim(cr_method, ctrlPolicy, PriorityPolicy,totalVehicle, scenario, spwnInterval, randomSeed, preGenRoute, logging)
 
         # cr_method = "TEP_fix"
         # ctrlPolicy = "TEPControl"
         # PriorityPolicy ="FCFS"
-        # sim(cr_method, ctrlPolicy, PriorityPolicy,totalVehicle, scenario, spwnInterval, randomSeed,logging)
+        # sim(cr_method, ctrlPolicy, PriorityPolicy,totalVehicle, scenario, spwnInterval, randomSeed, preGenRoute, logging)
 
-        cr_method = "MPIP"
-        ctrlPolicy = "MPIPControl"
-        PriorityPolicy ="FCFS"
-        sim(cr_method, ctrlPolicy, PriorityPolicy,totalVehicle, scenario, spwnInterval, randomSeed,logging)
+        # cr_method = "MPIP"
+        # ctrlPolicy = "MPIPControl"
+        # PriorityPolicy ="FCFS"
+        # sim(cr_method, ctrlPolicy, PriorityPolicy,totalVehicle, scenario, spwnInterval, randomSeed, preGenRoute, logging)
 
-        cr_method = "AMPIP"
-        ctrlPolicy = "MPIPControl"
-        PriorityPolicy ="FCFS"
-        sim(cr_method, ctrlPolicy, PriorityPolicy,totalVehicle, scenario, spwnInterval, randomSeed,logging)
+        # cr_method = "AMPIP"
+        # ctrlPolicy = "MPIPControl"
+        # PriorityPolicy ="FCFS"
+        # sim(cr_method, ctrlPolicy, PriorityPolicy,totalVehicle, scenario, spwnInterval, randomSeed, preGenRoute, logging)
 if __name__ == "__main__":
     main()
