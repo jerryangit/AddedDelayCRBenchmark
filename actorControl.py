@@ -25,6 +25,7 @@ import carla
 import random
 import numpy as np
 
+import matplotlib.pyplot as plt
 def actorControl(arg,para=[]):
     cases = {
         "TEPControl": TEPControl,
@@ -77,7 +78,7 @@ class TEPControl:
 
         if egoX.state == "NAN":
             state = "ENTER"
-        elif egoX.state == "ENTER" and egoX.sTraversed > egoX.cr.cd.sArrival-0.5:
+        elif egoX.state == "ENTER" and egoX.sTraversed > egoX.cr.cd.sArrival-1:
             if egoX.cr.cd.arr[0] != 1:
                 egoX.cr.cd.arr = [1,egoX.cr.cd.arrivalTime]
             state = "CROSS"
@@ -102,27 +103,42 @@ class MPIPControl:
         velDes = egoX.velRef
 
         if len(egoX.cr.wait) > 0:
-            for idSend in egoX.cr.wait:
-                sIn = egoX.cr.cd.sTCL.get(egoX.cr.wait.get(idSend))[0]
-                dist = sIn - egoX.sTraversed
-                if dist < 0:
-                    velDes = 0
-                    print(egoX.id," crossed line by:", np.abs(dist),"m, adjust breaking please")
-                elif dist < 0.275:
-                    velDes = 0
-                elif dist < 6.75:
-                    velDes = min((dist/2.15 - egoX.velNorm/(egoX.aMin)*0.15,velDes))
-                    if velDes < 0:
+            for cell in egoX.cr.wait.values():
+                if cell in egoX.cr.cd.sTCL.keys():
+                    sIn = egoX.cr.cd.sTCL.get(cell)[0]
+                    dist = sIn - egoX.sTraversed
+                    if dist < 0:
                         velDes = 0
+                        print(egoX.id," crossed line by:", np.abs(dist),"m, adjust breaking please")
+                    elif dist < 0.275:
+                        velDes = 0
+                    elif dist < 10:
+                        velDes = min((dist/1.5 - egoX.velNorm/(egoX.aMin)*0.15,velDes))
+                        if velDes < 0:
+                            velDes = 0
 
-        # if egoX._spwnNr == 26:
-        #     import matplotlib.pyplot as plt
+
+        # if egoX._spwnNr == 2:
+        #     plt.figure(12)
+        #     plt.title(str(egoX.id)+' wait:'+str(egoX.cr.wait))
         #     plt.plot(worldX.tick.elapsed_seconds,velDes,'gx')
         #     plt.plot(worldX.tick.elapsed_seconds,egoX.velNorm,'bx')
         #     if len(egoX.cr.wait) > 0:
-        #         plt.plot(worldX.tick.elapsed_seconds,-0.1,'rx')
+        #         plt.plot(worldX.tick.elapsed_seconds,0,'rx')
         #     plt.show(block=False)
         #     plt.pause(0.001)
+
+        #     plt.figure(13)
+        #     plt.plot(worldX.tick.elapsed_seconds,egoX.cr.cd.sArrival,'gx')
+        #     plt.plot(worldX.tick.elapsed_seconds,egoX.sTraversed,'bx')
+        #     plt.plot(worldX.tick.elapsed_seconds,egoX.cr.cd.arrivalTime,'cx')
+        #     plt.plot(worldX.tick.elapsed_seconds,egoX.cr.cd.exitTime,'c.')
+        #     for cell in egoX.cr.cd.traj.keys():
+        #         times = egoX.cr.cd.traj.get(cell)
+        #         clr = (cell[0]/3,cell[1]/3,0)
+        #         plt.plot((worldX.tick.elapsed_seconds,worldX.tick.elapsed_seconds),(times[0],times[1]),'--',color = clr)
+        #     plt.show(block=False)
+        #     plt.pause(0.01567)
 
         if egoX.state == "ENTER":
             for actor in worldX.actorDict.actor_list:
@@ -147,13 +163,13 @@ class MPIPControl:
         state = egoX.state
         if egoX.state == "NAN":
             state = "ENTER"
-        elif egoX.state == "ENTER" and egoX.sTraversed > egoX.cr.cd.sArrival-0.5:
+        elif egoX.state == "ENTER" and egoX.sTraversed > egoX.cr.cd.sArrival - 1:
             if egoX.cr.cd.arr[0] != 1:
-                egoX.cr.cd.arr = [1,worldX.tick.elapsed_seconds]
+                egoX.cr.cd.arr = [1,egoX.cr.cd.arrivalTime]
             state = "CROSS"
         elif egoX.state == "CROSS" and egoX.sTraversed > egoX.cr.cd.sExit:
             if egoX.cr.cd.ext[0] != 1:
-                egoX.cr.cd.ext = [1,worldX.tick.elapsed_seconds]
+                egoX.cr.cd.ext = [1,egoX.cr.cd.exitTime]
             state = "EXIT"
         egoX.discreteState(state)
         return state

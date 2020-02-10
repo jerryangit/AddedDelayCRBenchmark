@@ -8,6 +8,7 @@
 import actorControl as ac
 import actorHelper as ah
 # import pathPlanner as pp
+import copyreg, pickle,copy
 import conflictResolution as cr
 import glob
 import os
@@ -40,8 +41,11 @@ import numpy as np
 ## Create data folder
 if not os.path.exists('./data'):
     os.makedirs('./data')
+# def main(cr_method = "AMPIP", ctrlPolicy = "MPIPControl", PriorityPolicy = "FCFS",totalVehicle = 32, scenario = 0, spwnInterval = 0.8, randomSeed = 823182,logging = 1):
+# def main(cr_method = "AMPIP", ctrlPolicy = "MPIPControl", PriorityPolicy = "FCFS",totalVehicle = 128, scenario = 0, spwnInterval = 0.8, randomSeed = 469730,logging = 1):
+# def main(cr_method = "AMPIP", ctrlPolicy = "MPIPControl", PriorityPolicy = "FCFS",totalVehicle = 128, scenario = 0, spwnInterval = 1.2, randomSeed = 960489,logging = 1):
 
-def main(cr_method = "AMPIP", ctrlPolicy = "MPIPControl", PriorityPolicy = "FCFS",totalVehicle = 32, scenario = 0, spwnInterval = 0.8, randomSeed = 325213,logging = 1):
+def main(cr_method = "AMPIP", ctrlPolicy = "MPIPControl", PriorityPolicy = "FCFS",totalVehicle = 128, scenario = 0, spwnInterval = 1.2, randomSeed = 960489,logging = 1):
     ###############################################
     # Config
     ###############################################  
@@ -369,6 +373,8 @@ def main(cr_method = "AMPIP", ctrlPolicy = "MPIPControl", PriorityPolicy = "FCFS
             # TODO Integrate in while loop if useless
             if i >= totalVehicle and len(actorDict_obj.actor_list) == 0:
                 notComplete = 0
+            if logging == 1:
+                worldX_obj0 = copy.copy(worldX_obj)
     finally:
         print("Ended with Method:",cr_method,", Control Policy: ", ctrlPolicy, ", Total Vehicles: ", totalVehicle, "Scenario: ",scenario, "Spawn Interval: ",spwnInterval, "Random Seed: ",randomSeed)
 

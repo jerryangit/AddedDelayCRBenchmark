@@ -141,7 +141,7 @@ class gridCell:
         self.sPath = []
         self.TCL = []
         self.sTCL = {}
-
+        self.traj = {}
         s = 0
         s0 = egoX.route[0][0].transform.location
         exitQueue = []
@@ -203,8 +203,14 @@ class gridCell:
         for cell in self.TCL:
             # time in for a given cell computed by (distance remaining)/(reference velocity) + current time
             (sIn,sOut) = self.sTCL.get(cell)
-            tIn = worldX.tick.elapsed_seconds + dt_acc(sIn-egoX.sTraversed, egoX.velNorm, egoX.velRef, egoX.aMax)
-            tOut = worldX.tick.elapsed_seconds + dt_acc(sOut-egoX.sTraversed, egoX.velNorm, egoX.velRef, egoX.aMax)
+            if egoX.sTraversed < sIn:
+                tIn = worldX.tick.elapsed_seconds + dt_acc(sIn-egoX.sTraversed, egoX.velNorm, egoX.velRef, egoX.aMax)
+            else: 
+                tIn = self.traj.get(cell)[0]
+            if egoX.sTraversed < sOut:
+                tOut = worldX.tick.elapsed_seconds + dt_acc(sOut-egoX.sTraversed, egoX.velNorm, egoX.velRef, egoX.aMax)
+            else:
+                tOut = self.traj.get(cell)[1]
             traj[cell] = (tIn,tOut)
         self.traj = traj
         return (self.arrivalTime,self.exitTime)

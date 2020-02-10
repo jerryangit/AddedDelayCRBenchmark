@@ -227,20 +227,20 @@ class AMPIP:
                     else:
                         if msg.idSend not in self.wait:
                             AMP_yield = 0
-                            if self.cd.traj.get(TICL[0])[1] + self.err > msg.content.get("traj").get(TICL[0])[0]:
-                                self.wait[msg.idSend] = TICL[0]
-                                AMP_yield = 1
-                            # for cell in TICL:
-                            #     if self.cd.traj.get(cell)[1] + self.err > msg.content.get("traj").get(cell)[0]:
-                            #         self.wait[msg.idSend] = cell
-                            #         AMP_yield = 1
-                            #         break
+                            for cell in TICL:
+                                if self.cd.traj.get(cell)[1] + self.err > msg.content.get("traj").get(cell)[0]:
+                                    self.wait[msg.idSend] = cell
+                                    AMP_yield = 1
+                                    break
                             if AMP_yield == 0 :
-                                # print(egoX.id," Going before ", msg.idSend)
+                                # if egoX._spwnNr == 68:
+                                #     print(egoX.id," Going before ", msg.idSend)
                                 if msg.idSend in self.wait:
                                     del self.wait[msg.idSend]
                 else: 
                     if msg.idSend in self.wait:
+                        # if egoX._spwnNr == 68:
+                        #     print(egoX.id," No longer has a conflict with ", msg.idSend)
                         del self.wait[msg.idSend]
             elif msg.mtype == "EXIT":
                 if msg.idSend in self.wait:

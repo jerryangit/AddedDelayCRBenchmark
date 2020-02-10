@@ -44,10 +44,10 @@ def main():
         # PriorityPolicy ="FCFS"
         # sim(cr_method, ctrlPolicy, PriorityPolicy,totalVehicle, scenario, spwnInterval, randomSeed,logging)
 
-        # cr_method = "MPIP"
-        # ctrlPolicy = "MPIPControl"
-        # PriorityPolicy ="FCFS"
-        # sim(cr_method, ctrlPolicy, PriorityPolicy,totalVehicle, scenario, spwnInterval, randomSeed,logging)
+        cr_method = "MPIP"
+        ctrlPolicy = "MPIPControl"
+        PriorityPolicy ="FCFS"
+        sim(cr_method, ctrlPolicy, PriorityPolicy,totalVehicle, scenario, spwnInterval, randomSeed,logging)
 
         cr_method = "AMPIP"
         ctrlPolicy = "MPIPControl"

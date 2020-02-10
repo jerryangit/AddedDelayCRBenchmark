@@ -144,7 +144,7 @@ class actorX:
         self.sTraversed += self.dt*self.velNorm
         for fnc in self.onTickList:
             fnc()
-        self.aMax = 2 + (0.25 * self.velNorm -1)**2+1
+        self.aMax = 2 - (0.25 * self.velNorm - 1)**2 + 0.9
 
     def onTick(self,fnc):
         self.onTickList.append(fnc)        
