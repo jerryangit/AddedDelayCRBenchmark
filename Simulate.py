@@ -45,7 +45,7 @@ if not os.path.exists('./data'):
 # def main(cr_method = "AMPIP", ctrlPolicy = "MPIPControl", PriorityPolicy = "FCFS",totalVehicle = 128, scenario = 0, spwnInterval = 0.8, randomSeed = 469730,logging = 1):
 # def main(cr_method = "AMPIP", ctrlPolicy = "MPIPControl", PriorityPolicy = "FCFS",totalVehicle = 128, scenario = 0, spwnInterval = 1.2, randomSeed = 960489,logging = 1):
 
-def main(cr_method = "DCR", ctrlPolicy = "DCRControl", PriorityPolicy = "PriorityScore",totalVehicle = 128, scenario = 0, spwnInterval = 1.2, randomSeed = 960489, preGenRoute = 0, logging = 1):
+def main(cr_method = "TEP", ctrlPolicy = "TEPControl", PriorityPolicy = "FCFS",totalVehicle = 1, scenario = 6, spwnInterval = 0, randomSeed = 960489, preGenRoute = 1, logging = 1, errMargin = 0.5):
     ###############################################
     # Config
     ###############################################  
@@ -68,10 +68,10 @@ def main(cr_method = "DCR", ctrlPolicy = "DCRControl", PriorityPolicy = "Priorit
     ###############################################
     # Plotting Config
     ###############################################  
-    plot = 0                    # Whether to plot figures afterwards or not
-    plotVel = 0                 # Whether to plot velocity or not
+    plot = 1                    # Whether to plot figures afterwards or not
+    plotVel = 1                 # Whether to plot velocity or not
     plotTheta = 0               # Whether to plot theta or not
-    plotLoc = 0                 # Whether to plot location or not
+    plotLoc = 1                 # Whether to plot location or not
 
 
     ###############################################
@@ -201,7 +201,7 @@ def main(cr_method = "DCR", ctrlPolicy = "DCRControl", PriorityPolicy = "Priorit
             totalVehicle = 1
             spwnInterval = 0
             spwnRand = [3]
-            destRand = [2]
+            destRand = [1]
             velRand = [7]
 
         # idRand is only used for tie breaking, used to avoid odd behavior
@@ -288,7 +288,7 @@ def main(cr_method = "DCR", ctrlPolicy = "DCRControl", PriorityPolicy = "Priorit
                             else:    
                                 spwnX.route = grp.trace_route(spwnLoc[spwnRand[i]].location,spwnX.dest.location)
                             # Create conflict resolution object and save it
-                            spwnX.cr = cr.conflictResolution(cr_method,[0.5,PriorityPolicy]).obj
+                            spwnX.cr = cr.conflictResolution(cr_method,[errMargin,PriorityPolicy]).obj
                             # Setup conflict resolution using egoX and worldX
                             spwnX.cr.setup(spwnX,worldX_obj)
                             # Create control object and save it

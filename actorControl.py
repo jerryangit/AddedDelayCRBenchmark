@@ -48,6 +48,26 @@ class TEPControl:
         if egoX.location == carla.Location(0,0,0):
             return "NAN"
         velDes = egoX.velRef
+
+        if egoX.sTraversed > 20 and worldX.tick.elapsed_seconds < 10:
+            ego.apply_control(carla.VehicleControl(throttle=0, steer=0,brake = 1,manual_gear_shift=True,gear=1))
+            return "TESTING"
+
+        if len(egoX.cr.wait) > 0:
+            for cell in egoX.cr.wait.values():
+                if cell in egoX.cr.cd.sTCL.keys():
+                    sIn = egoX.cr.cd.sTCL.get(cell)[0]
+                    dist = sIn - egoX.sTraversed
+                    if dist < 0:
+                        velDes = 0
+                        print(egoX.id," crossed line by:", np.abs(dist),"m, adjust breaking please")
+                    elif dist < 0.275:
+                        velDes = 0
+                    elif dist < 10:
+                        velDes = min((dist/1.5 - egoX.velNorm/(egoX.aMin)*0.15,velDes))
+                        if velDes < 0:
+                            velDes = 0
+
         if egoX.state == "ENTER":
             for actor in worldX.actorDict.actor_list:
                 if ego.id != actor.id and carla.Location.distance ( ego.get_location() , actor.get_location() ) < 10 : 
@@ -56,7 +76,7 @@ class TEPControl:
                         if smpList[0] < 5:
                             velDes = 0
                         else:
-                            velDes = smpList[0]/2
+                            velDes = min(smpList[0]/2,velDes)
 
         (u_v,self.vPIDStates) = velocityPID(egoX,self.vPIDStates,velDes)
         (u_theta,self.thetaPIDStates)  = anglePID(egoX,worldX,self.thetaPIDStates)
@@ -65,14 +85,8 @@ class TEPControl:
             ego.apply_control(carla.VehicleControl(throttle=u_v, steer=u_theta,brake = 0,manual_gear_shift=True,gear=1))
         elif u_v < 0:
             ego.apply_control(carla.VehicleControl(throttle=0, steer=u_theta,brake = - u_v,manual_gear_shift=True,gear=1))
+        u_v = np.clip(u_v,-1,1)
 
-        if len(egoX.cr.wait) > 0:
-            dist = egoX.cr.cd.sArrival - egoX.sTraversed
-            if dist < 0:
-                print(egoX.id," crossed line by:", np.abs(dist),"m, adjust breaking please")
-            if dist<= 0.2 + 0.7 * egoX.velNorm**2:
-                u = np.clip((1/dist * egoX.velNorm*0.15),0,1)
-                ego.apply_control(carla.VehicleControl(throttle=0.0, steer=0.0,brake = u,manual_gear_shift=True,gear=1))
 
         state = egoX.state
 
@@ -152,6 +166,7 @@ class MPIPControl:
 
         (u_v,self.vPIDStates) = velocityPID(egoX,self.vPIDStates,velDes)
         (u_theta,self.thetaPIDStates)  = anglePID(egoX,worldX,self.thetaPIDStates)
+        u_v = np.clip(u_v,-1,1)
 
         if u_v >= 0:
             ego.apply_control(carla.VehicleControl(throttle=u_v, steer=u_theta,brake = 0,manual_gear_shift=True,gear=1))

@@ -20,8 +20,7 @@ scenarioList = ['0','1']
 
 def main():
     # 64 vehicles with 4 seconds between spawns, no crossing at the same time, random.seed(23)
-    dataPath = r'data/Run3/'
-    dataPath_alt = r'data/Run6/'
+    dataPath = r'data/data1/'
 
     texFigures_dir = r'/home/jerry/Documents/Thesis/5d51a7c02b5c1b4fdd770633/texFigures/'
     data_TEP = {}
@@ -52,7 +51,7 @@ def main():
             data_TEP['var_'+scenario+'_'+interval] = np.var(data_TEP.get('dt_'+scenario+'_'+interval))
             
             # Load MPIP data
-            for f in enumerate(sorted(glob.glob(os.path.join(dataPath_alt, "MPIP*_"+scenario+"_"+interval+"_*.csv")))):
+            for f in enumerate(sorted(glob.glob(os.path.join(dataPath, "MPIP*_"+scenario+"_"+interval+"_*.csv")))):
                 fRead = pd.read_csv(f[1],header = None)
                 if f[0] == 0:
                     data_MPIP['end_'+scenario+'_'+interval] = [fRead.values[len(fRead)-1][3]/len(fRead.values)]
@@ -66,7 +65,7 @@ def main():
             data_MPIP['var_'+scenario+'_'+interval] = np.var(data_MPIP.get('dt_'+scenario+'_'+interval))
 
             # Load AMPIP data
-            for f in enumerate(sorted(glob.glob(os.path.join(dataPath_alt, "AMPIP*_"+scenario+"_"+interval+"_*.csv")))):
+            for f in enumerate(sorted(glob.glob(os.path.join(dataPath, "AMPIP*_"+scenario+"_"+interval+"_*.csv")))):
                 fRead = pd.read_csv(f[1],header = None)
                 if f[0] == 0:
                     data_AMPIP['end_'+scenario+'_'+interval] = [fRead.values[len(fRead)-1][3]/len(fRead.values)]
@@ -92,13 +91,6 @@ def main():
             data_TDCR['tot_'+scenario+'_'+interval] = np.average(data_TDCR.get('end_'+scenario+'_'+interval))
             data_TDCR['avg_'+scenario+'_'+interval] = np.average(data_TDCR.get('dt_'+scenario+'_'+interval))
             data_TDCR['var_'+scenario+'_'+interval] = np.var(data_TDCR.get('dt_'+scenario+'_'+interval))
-
-    plt.figure(10)
-    # plt.plot(data_TEP['dt_0_1.2'],color = colors[0])
-    plt.plot(data_TDCR['dt_0_1.0'],color = colors[3],linestyle = '-')
-    plt.plot(data_TDCR['dt_0_1.2'],color = colors[3],linestyle = ':')
-    plt.plot(data_TDCR['dt_0_1.5'],color = colors[3],linestyle = '-.')
-    plt.show()
 
     fig , axs = plt.subplots(1,2,num=0,sharex=True)
     axs[0].plot([1.25,1,5/6,2/3,1/2,1/3],[data_TEP.get('avg_0_0.8'),data_TEP.get('avg_0_1.0'),data_TEP.get('avg_0_1.2'),data_TEP.get('avg_0_1.5'),data_TEP.get('avg_0_2.0'),data_TEP.get('avg_0_3.0')],colors[0])

@@ -63,7 +63,6 @@ class conflictResolution:
     def switchCreate(self,arg,para):
         cases = {
             "TEP": TEP,
-            "TEP_fix": TEP_fix,
             "MPIP": MPIP,
             "AMPIP": AMPIP,
             "DCR":DCR,
@@ -72,49 +71,9 @@ class conflictResolution:
         return fnc(*para)
 
 class TEP:
-    #! TEP has deadlock if arrivalTime is a changing estimate, design is flawed, cannot avoid deadlocks!!!
-    def __init__(self,err,policy):
-        self.err = err
-        self.wait =[]
-        self.pp = priorityPolicy(policy)
-
-    def resolve(self,egoX,worldX):
-        # [self.ttArrival, self.ttExit] = self.cd.predictTimes(egoX,worldX)
-        if len(worldX.msg.inbox) == 0:
-            return 0
-        for msg in worldX.msg.inbox[egoX.id]:
-            if msg.mtype == "STOP" and msg.idSend not in self.wait:
-                actorX = worldX.actorDict.dict.get(msg.idSend)
-                [bool,TIC] = self.cd.detect(egoX,worldX,msg)
-                if bool:
-                    pOrder = self.pp.order([egoX,actorX])
-                    if pOrder[0].id == egoX.id:
-                        continue
-                    else:
-                        self.wait.append(msg.idSend)
-                else: 
-                    continue
-            elif msg.mtype == "CLEAR":
-                if msg.idSend in self.wait:
-                    self.wait.remove(msg.idSend)
-
-    def outbox(self,actorX):
-        if actorX.state == "ENTER" or actorX.state == "CROSS":
-            msg_obj = msg(actorX.id,"STOP",{"timeSlot":[self.cd.arrivalTime,self.cd.exitTime],"TCL":self.cd.TCL})
-            return msg_obj
-        elif actorX.state == "EXIT":
-            msg_obj = msg(actorX.id,"CLEAR")
-            return msg_obj
-
-    def setup(self,egoX,worldX):
-        # self.cd = cd.conflictDetection("timeSlot",[self.err]).obj
-        self.cd = cd.conflictDetection("gridCell",[worldX.inter_location,4,16,self.err]).obj
-        self.cd.setup(egoX,worldX)
-
-class TEP_fix:
     #! Fix deadlocks by changing logic, vehicles are removed from waitlist they have lower Priority 
-    def __init__(self,err,policy):
-        self.err = err
+    def __init__(self,errMargin,policy):
+        self.errMargin = errMargin
         self.wait ={}
         self.pp = priorityPolicy(policy)
 
@@ -151,14 +110,14 @@ class TEP_fix:
             return msg_obj
 
     def setup(self,egoX,worldX):
-        # self.cd = cd.conflictDetection("timeSlot",[self.err]).obj
+        # self.cd = cd.conflictDetection("timeSlot",[self.errMargin]).obj
         # TODO Grid TCL is more like MP-IP fix later
-        self.cd = cd.conflictDetection("gridCell",[worldX.inter_location,4,18,self.err]).obj
+        self.cd = cd.conflictDetection("gridCell",[worldX.inter_location,4,18,self.errMargin]).obj
         self.cd.setup(egoX,worldX)
 
 class MPIP:
-    def __init__(self,err,policy):
-        self.err = err
+    def __init__(self,errMargin,policy):
+        self.errMargin = errMargin
         self.wait ={}
         self.pp = priorityPolicy(policy)
 
@@ -202,12 +161,12 @@ class MPIP:
             return msg_obj
 
     def setup(self,egoX,worldX):
-        self.cd = cd.conflictDetection("gridCell",[worldX.inter_location,4,18,self.err]).obj
+        self.cd = cd.conflictDetection("gridCell",[worldX.inter_location,4,18,self.errMargin]).obj
         self.cd.setup(egoX,worldX)
 
 class AMPIP:
-    def __init__(self,err,policy):
-        self.err = err
+    def __init__(self,errMargin,policy):
+        self.errMargin = errMargin
         self.wait ={}
         self.pp = priorityPolicy(policy)
 
@@ -228,15 +187,15 @@ class AMPIP:
                         if msg.idSend not in self.wait:
                             AMP_yield = 0
                             for cell in TICL:
-                                if self.cd.traj.get(cell)[1] + self.err > msg.content.get("traj").get(cell)[0]:
+                                if self.cd.traj.get(cell)[1] + self.errMargin > msg.content.get("traj").get(cell)[0]:
                                     self.wait[msg.idSend] = cell
                                     AMP_yield = 1
                                     break
                             if AMP_yield == 0 :
-                                # if egoX._spwnNr == 68:
-                                #     print(egoX.id," Going before ", msg.idSend)
-                                if msg.idSend in self.wait:
-                                    del self.wait[msg.idSend]
+                                #! Added to avoid multi vehicle AMP deadlocks.
+                                if len(self.wait) <= 1:
+                                    if msg.idSend in self.wait:
+                                        del self.wait[msg.idSend]
                 else: 
                     if msg.idSend in self.wait:
                         # if egoX._spwnNr == 68:
@@ -262,12 +221,12 @@ class AMPIP:
             return msg_obj
 
     def setup(self,egoX,worldX):
-        self.cd = cd.conflictDetection("gridCell",[worldX.inter_location,4,18,self.err]).obj
+        self.cd = cd.conflictDetection("gridCell",[worldX.inter_location,4,18,self.errMargin]).obj
         self.cd.setup(egoX,worldX)
 
 class DCR:
-    def __init__(self,err,policy):
-        self.err = err
+    def __init__(self,errMargin,policy):
+        self.errMargin = errMargin
         self.wait ={} # Wait dictionary
         self.tmp = {} # Temporal advantage
         self.pp = priorityPolicy(policy)
@@ -322,12 +281,12 @@ class DCR:
 
         for idYield in self.wait:
             for cell in self.wait.get(idYield)[1]:
-                # Prediction of time actor leaves cell + err for robustness               
+                # Prediction of time actor leaves cell + errMargin for robustness               
                 if self.wait.get(idYield)[0] == "Queue":
-                    # Extra self.err to avoid collision in queue
-                    tOutAct = self.wait.get(idYield)[2].get(cell)[1] + self.err * 4
+                    # Extra self.errMargin to avoid collision in queue
+                    tOutAct = self.wait.get(idYield)[2].get(cell)[1] + self.errMargin * 4
                 else:
-                    tOutAct = self.wait.get(idYield)[2].get(cell)[1] + self.err * 2
+                    tOutAct = self.wait.get(idYield)[2].get(cell)[1] + self.errMargin * 2
                 if self.cd.traj[cell][1] < self.cd.traj[cell][0]:
                     print("tIn<tOut")
                 # Current time for ego to enter cell
@@ -402,6 +361,6 @@ class DCR:
 
 
     def setup(self,egoX,worldX):
-        self.cd = cd.conflictDetection("conflictZones",[worldX.inter_location,2,8,self.err]).obj
+        self.cd = cd.conflictDetection("conflictZones",[worldX.inter_location,2,8,self.errMargin]).obj
         self.cd.setup(egoX,worldX)
         self.setPriority(0)

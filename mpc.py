@@ -37,7 +37,7 @@ def qpMPC(x0,dt,v_des,CellList,ID,N=20, inputCosts = 3.5*5, devCosts = 2):
     for cell in CellList:
         sIn = cell[0]
         tIn = cell[1]
-        if tIn > 0 and tIn < N*dt:
+        if tIn >= 0 and tIn < N*dt:
             N_slack += 1
     if N_slack == 0:
         N_slack = 1
@@ -89,18 +89,23 @@ def qpMPC(x0,dt,v_des,CellList,ID,N=20, inputCosts = 3.5*5, devCosts = 2):
     slackIndex = 0 
     for cell in CellList:
         sIn = cell[0]
-        tIn = cell[1]
+        tIn = cell[1] 
+        # If the entry has been violated already, extend it to avoid further acceleration without causing script to crash.
+        if tIn == 0 and x0[0] > sIn:
+            tIn = 1 
+            sIn = x0[0][0] + x0[1][0] * dt * 1.05 
+        # If tIn is in the future, and within finite horizon add it as a constraint
         if tIn > 0 and tIn < N*dt:           
             tIndex = int(np.floor(tIn/dt))
             Aieq_st = np.concatenate( (Aieq_st,np.concatenate( (np.zeros((1, states*(tIndex))), np.array([[1, 0]]), np.zeros((1,N_tot-(tIndex+1)*states-(N_slack-slackIndex))),np.ones((1,1)),np.zeros((1,N_slack - 1 - slackIndex)) ), axis = 1)) , axis = 0)
             bieq_st = np.concatenate( (bieq_st,np.array([[sIn]]) ), axis = 0)
             slackIndex += 1
-            
-        elif tIn < 0 and tIndex == None:
+        # If no displacement constraints have been added
+        elif tIn <= 0 and tIndex == None:
             tIndex = 0
     if tIndex == None:
         tIndex = N-1
-        # If none of the cells are within finite horizon, add a constraint at last timestep for interpolated distance, to avoID speeding through.
+        # If none of the cells are within finite horizon, add a constraint at last timestep for interpolated distance, to avoid speeding through.
         # sIn at first (ds/t)*(N*dt), average velocity needed to reach tIn* time at end of finite horizon
         sIn = x0[0][0]+(CellList[0][0]-x0[0][0])/(CellList[0][1])*((N-1)*dt)  #+0.125 !REMOVED FOR NOW Relaxed with some time in order to prevent tIn increasing itself perpetually
         Aieq_st = np.concatenate( (Aieq_st,np.concatenate( (np.zeros((1, states*(tIndex))), np.array([[1, 0]]), np.zeros((1,N_tot-(tIndex+1)*states-(N_slack-slackIndex))),np.ones((1,1)),np.zeros((1,N_slack - 1 - slackIndex)) ), axis = 1)) , axis = 0)
