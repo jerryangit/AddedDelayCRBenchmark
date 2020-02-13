@@ -68,10 +68,10 @@ def main(cr_method = "TEP", ctrlPolicy = "TEPControl", PriorityPolicy = "FCFS",t
     ###############################################
     # Plotting Config
     ###############################################  
-    plot = 1                    # Whether to plot figures afterwards or not
-    plotVel = 1                 # Whether to plot velocity or not
+    plot = 0                    # Whether to plot figures afterwards or not
+    plotVel = 0                 # Whether to plot velocity or not
     plotTheta = 0               # Whether to plot theta or not
-    plotLoc = 1                 # Whether to plot location or not
+    plotLoc = 0                 # Whether to plot location or not
 
 
     ###############################################
@@ -87,9 +87,6 @@ def main(cr_method = "TEP", ctrlPolicy = "TEPControl", PriorityPolicy = "FCFS",t
     multiProcessTest = 0
 
     try:
-        if multiProcessTest == 1:
-            pool = Pool(os.cpu_count())
-
         # Init carla at port 2000
         client = carla.Client('localhost', 2000)
         client.set_timeout(2.0)
@@ -123,9 +120,9 @@ def main(cr_method = "TEP", ctrlPolicy = "TEPControl", PriorityPolicy = "FCFS",t
             actor.destroy()
 
         # get map and establish grp
-        map = world.get_map()
+        carlaMap = world.get_map()
         hop_resolution = 0.1
-        dao = GlobalRoutePlannerDAO(map, hop_resolution)
+        dao = GlobalRoutePlannerDAO(carlaMap, hop_resolution)
         grp = GlobalRoutePlanner(dao)
         grp.setup()
 
@@ -138,12 +135,12 @@ def main(cr_method = "TEP", ctrlPolicy = "TEPControl", PriorityPolicy = "FCFS",t
         else:
             bp = blueprint_library.find('vehicle.audi.a2')
 
-        # A blueprint contains the list of attributes that define a vehicle's
-        # instance, we can read them and modify some of them. For instance,
-        # let's randomize its color.
-        if bp.has_attribute('color'):
-            color = random.choice(bp.get_attribute('color').recommended_values)
-            bp.set_attribute('color', color)
+        # # A blueprint contains the list of attributes that define a vehicle's
+        # # instance, we can read them and modify some of them. For instance,
+        # # let's randomize its color.
+        # if bp.has_attribute('color'):
+        #     color = random.choice(bp.get_attribute('color').recommended_values)
+        #     bp.set_attribute('color', color)
         #* Generate spawn
         i = 0
         # spwnRand = random.randint(1,4)
@@ -229,7 +226,7 @@ def main(cr_method = "TEP", ctrlPolicy = "TEPControl", PriorityPolicy = "FCFS",t
             routeDictionary = {}
             for _spwnLoc in enumerate(spwnLoc):
                 for _exitLoc in enumerate(exitLoc):   
-                    if _spwnLoc[0] > 0 and _exitLoc[0] > 0:
+                    if _spwnLoc[0] > 0 and _exitLoc[0] > 0 and _spwnLoc[0] != _exitLoc[0]:
                         routeDictionary[(_spwnLoc[0],_exitLoc[0])] = grp.trace_route(_spwnLoc[1].location,_exitLoc[1].location)
 
         # Create Objects to use in loop
@@ -396,7 +393,7 @@ def main(cr_method = "TEP", ctrlPolicy = "TEPControl", PriorityPolicy = "FCFS",t
         spwnTime.remove(0)
         destTime.remove(0)
         data = zip(spwnRand,destRand,spwnTime,destTime)
-        filename = str(cr_method) + "_" + str(ctrlPolicy) + "_" + str(totalVehicle) + "_" + str(scenario) + "_" + str(spwnInterval)+ "_" + str(randomSeed) + "_" + datetime.datetime.now().strftime('%Y-%m-%d-%H-%M.csv')
+        filename = str(cr_method) + "_" + str(ctrlPolicy) + "_" + str(totalVehicle).zfill(3) + "_" + str(scenario) + "_" + str(spwnInterval)+ "_" + str(randomSeed).zfill(6) + "_" + f'{errMargin:.1f}'.zfill(2) + "_" + datetime.datetime.now().strftime('%Y-%m-%d-%H-%M.csv')
         dirname = './data/'
         with open(dirname+filename, 'w') as log:
             wr = csv.writer(log, quoting=csv.QUOTE_ALL)

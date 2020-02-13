@@ -93,17 +93,21 @@ def main():
             data_TDCR['var_'+scenario+'_'+interval] = np.var(data_TDCR.get('dt_'+scenario+'_'+interval))
 
     fig , axs = plt.subplots(1,2,num=0,sharex=True)
-    axs[0].plot([1.25,1,5/6,2/3,1/2,1/3],[data_TEP.get('avg_0_0.8'),data_TEP.get('avg_0_1.0'),data_TEP.get('avg_0_1.2'),data_TEP.get('avg_0_1.5'),data_TEP.get('avg_0_2.0'),data_TEP.get('avg_0_3.0')],colors[0])
-    axs[0].plot([1.25,1,5/6,2/3,1/2,1/3],[data_MPIP.get('avg_0_0.8'),data_MPIP.get('avg_0_1.0'),data_MPIP.get('avg_0_1.2'),data_MPIP.get('avg_0_1.5'),data_MPIP.get('avg_0_2.0'),data_MPIP.get('avg_0_3.0')],colors[1])
-    axs[0].plot([1.25,1,5/6,2/3,1/2,1/3],[data_AMPIP.get('avg_0_0.8'),data_AMPIP.get('avg_0_1.0'),data_AMPIP.get('avg_0_1.2'),data_AMPIP.get('avg_0_1.5'),data_AMPIP.get('avg_0_2.0'),data_AMPIP.get('avg_0_3.0')],colors[2])
-    axs[0].plot([1.25,1,5/6,2/3,1/2,1/3],[data_TDCR.get('avg_0_0.8'),data_TDCR.get('avg_0_1.0'),data_TDCR.get('avg_0_1.2'),data_TDCR.get('avg_0_1.5'),data_TDCR.get('avg_0_2.0'),data_TDCR.get('avg_0_3.0')],colors[3])
-    axs[1].plot([1.25,1,5/6,2/3,1/2,1/3],[data_TEP.get('tot_0_0.8'),data_TEP.get('tot_0_1.0'),data_TEP.get('tot_0_1.2'),data_TEP.get('tot_0_1.5'),data_TEP.get('tot_0_2.0'),data_TEP.get('tot_0_3.0')],colors[0])
-    axs[1].plot([1.25,1,5/6,2/3,1/2,1/3],[data_MPIP.get('tot_0_0.8'),data_MPIP.get('tot_0_1.0'),data_MPIP.get('tot_0_1.2'),data_MPIP.get('tot_0_1.5'),data_MPIP.get('tot_0_2.0'),data_MPIP.get('tot_0_3.0')],colors[1])
-    axs[1].plot([1.25,1,5/6,2/3,1/2,1/3],[data_AMPIP.get('tot_0_0.8'),data_AMPIP.get('tot_0_1.0'),data_AMPIP.get('tot_0_1.2'),data_AMPIP.get('tot_0_1.5'),data_AMPIP.get('tot_0_2.0'),data_AMPIP.get('tot_0_3.0')],colors[2])
-    axs[1].plot([1.25,1,5/6,2/3,1/2,1/3],[data_TDCR.get('tot_0_0.8'),data_TDCR.get('tot_0_1.0'),data_TDCR.get('tot_0_1.2'),data_TDCR.get('tot_0_1.5'),data_TDCR.get('tot_0_2.0'),data_TDCR.get('tot_0_3.0')],colors[3])
+    throughputList = [1.25,1,5/6,2/3,1/2,1/3]
+    marginalDelayList = [1/throughputList[i] for i in range(len(throughputList))]
+    axs[0].plot(throughputList,[data_TEP.get('avg_0_0.8'),data_TEP.get('avg_0_1.0'),data_TEP.get('avg_0_1.2'),data_TEP.get('avg_0_1.5'),data_TEP.get('avg_0_2.0'),data_TEP.get('avg_0_3.0')],colors[0])
+    axs[0].plot(throughputList,[data_MPIP.get('avg_0_0.8'),data_MPIP.get('avg_0_1.0'),data_MPIP.get('avg_0_1.2'),data_MPIP.get('avg_0_1.5'),data_MPIP.get('avg_0_2.0'),data_MPIP.get('avg_0_3.0')],colors[1])
+    axs[0].plot(throughputList,[data_AMPIP.get('avg_0_0.8'),data_AMPIP.get('avg_0_1.0'),data_AMPIP.get('avg_0_1.2'),data_AMPIP.get('avg_0_1.5'),data_AMPIP.get('avg_0_2.0'),data_AMPIP.get('avg_0_3.0')],colors[2])
+    axs[0].plot(throughputList,[data_TDCR.get('avg_0_0.8'),data_TDCR.get('avg_0_1.0'),data_TDCR.get('avg_0_1.2'),data_TDCR.get('avg_0_1.5'),data_TDCR.get('avg_0_2.0'),data_TDCR.get('avg_0_3.0')],colors[3])
+    axs[1].plot(throughputList,[data_TEP.get('tot_0_0.8'),data_TEP.get('tot_0_1.0'),data_TEP.get('tot_0_1.2'),data_TEP.get('tot_0_1.5'),data_TEP.get('tot_0_2.0'),data_TEP.get('tot_0_3.0')],colors[0])
+    axs[1].plot(throughputList,[data_MPIP.get('tot_0_0.8'),data_MPIP.get('tot_0_1.0'),data_MPIP.get('tot_0_1.2'),data_MPIP.get('tot_0_1.5'),data_MPIP.get('tot_0_2.0'),data_MPIP.get('tot_0_3.0')],colors[1])
+    axs[1].plot(throughputList,[data_AMPIP.get('tot_0_0.8'),data_AMPIP.get('tot_0_1.0'),data_AMPIP.get('tot_0_1.2'),data_AMPIP.get('tot_0_1.5'),data_AMPIP.get('tot_0_2.0'),data_AMPIP.get('tot_0_3.0')],colors[2])
+    axs[1].plot(throughputList,[data_TDCR.get('tot_0_0.8'),data_TDCR.get('tot_0_1.0'),data_TDCR.get('tot_0_1.2'),data_TDCR.get('tot_0_1.5'),data_TDCR.get('tot_0_2.0'),data_TDCR.get('tot_0_3.0')],colors[3])
+    axs[1].plot(throughputList,marginalDelayList)
+    axs[1].plot(throughputList,marginalDelayList)
     plt.legend(['TEP','MPIP','AMPIP','TDCR'])
-
-    tikzplotlib.save(texFigures_dir+"travelTime_0_export.tex",axis_width = '16cm', axis_height = '8cm')
+    plt.show()
+    tikzplotlib.save(texFigures_dir+"travelTime_0_export.tex",axis_width = '8cm', axis_height = '8cm')
 
 
     conc_0_08 = (data_TEP.get('dt_0_0.8'),data_MPIP.get('dt_0_0.8'),data_AMPIP.get('dt_0_0.8'),data_TDCR.get('dt_0_0.8'))
@@ -174,7 +178,7 @@ def main():
     axs[1].plot([1.25,1,5/6,2/3,1/2,1/3],[data_TDCR.get('tot_1_3.2'),data_TDCR.get('tot_1_4.0'),data_TDCR.get('tot_1_4.8'),data_TDCR.get('tot_1_6.0'),data_TDCR.get('tot_1_8.0'),data_TDCR.get('tot_1_12.0')],colors[3])
     plt.legend(['TEP','MPIP','AMPIP','TDCR'])
 
-    tikzplotlib.save(texFigures_dir+"travelTime_1_export.tex",axis_width = '16cm', axis_height = '8cm')
+    tikzplotlib.save(texFigures_dir+"travelTime_1_export.tex",axis_width = '8cm', axis_height = '8cm')
 
 
 

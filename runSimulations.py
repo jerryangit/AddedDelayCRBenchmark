@@ -35,7 +35,7 @@ def paraGen(benchmark):
                 for throughput in throughputList:
                     for scenario in scenarioList:
                         # Generate a random seed which is used for all para in this iteration
-                        randomSeed = random.randint(0,1000000)
+                        randomSeed = random.randint(1,999999)
                         # Set spwnInterval depending on scenario
                         if scenario == 0:
                             spwnInterval = 1/throughput
@@ -64,20 +64,20 @@ def paraGen(benchmark):
 
 
     if benchmark == "errMarginAMPIP":
-        random.seed(1)
+        random.seed(2)
         errMarginList = [0, 0.1, 0.2, 0.3, 0.4 ,0.5 ,0.6, 0.7, 0.8, 0.9, 1]
         logging = 0
-        repetitions = 3
+        repetitions = 5
         scenarioList = [1]
-        throughputList = [1/2] # vehicles per seconds
-        totalVehicleList = [32]
+        throughputList = [2/5] # vehicles per seconds
+        totalVehicleList = [64]
         preGenRoute = 1        
         for rep in range(repetitions):
             for totalVehicle in totalVehicleList:
                 for throughput in throughputList:
                     for scenario in scenarioList:
                         # Generate a random seed which is used for all para in this iteration
-                        randomSeed = random.randint(0,1000000)
+                        randomSeed = random.randint(1,999999)
                         # Set spwnInterval depending on scenario
                         if scenario == 0:
                             spwnInterval = 1/throughput

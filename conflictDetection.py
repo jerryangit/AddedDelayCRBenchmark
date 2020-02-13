@@ -143,13 +143,13 @@ class gridCell:
         self.sTCL = {}
         self.traj = {}
         s = 0
-        s0 = egoX.route[0][0].transform.location
+        s0 = egoX.route[0][0].transform
         exitQueue = []
 
         for wr in egoX.route:
             detectList = []
-            s = wr[0].transform.location.distance(s0) + s               # Current displacement (prev disp + distance from previous waypoint)
-            s0 = wr[0].transform.location                               # Current location
+            s = wr[0].transform.location.distance(s0.location) + s               # Current displacement (prev disp + distance from previous waypoint)
+            s0 = wr[0].transform                                        # Current transform
 
             # Update displacement of the center of the vehicle to self.sPath
             self.sPath.append(s)
@@ -278,12 +278,12 @@ class conflictZones:
         self.sTCL = {} # sTCL.get(cell)[0] = sIn, sTCL.get(cell)[1] = sOut
         exitQueue = []
         s = 0
-        s0 = egoX.route[0][0].transform.location
+        s0 = egoX.route[0][0].transform
         # Loop through the waypoints of the entire route
         for wr in egoX.route:
             detectList = []
-            s = wr[0].transform.location.distance(s0) + s               # Current displacement (prev disp + distance from previous waypoint)
-            s0 = wr[0].transform.location                               # Current location
+            s = wr[0].transform.location.distance(s0.location) + s              # Current displacement (prev disp + distance from previous waypoint)
+            s0 = wr[0].transform                                                # Current transform
             # Update displacement of the center of the vehicle to self.sPath
             self.sPath.append(s)
 
@@ -452,21 +452,25 @@ class coneDetect:
                 return (1,sorted(smpList,key=lambda x: x[0])[0])
             return (0,[None])
 
-def generateSamples(actor,sampleN=5,location=None):
+# Function generates samples along the sides of an Carla.actor object, if sampleN = 0 then only corners are returned.
+def generateSamples(actor,sampleN=5,transform=None):
     # TODO integrate some of these into helper functions
     # Determine lenght of bbox in x and y directions
-    xLength = actor.bounding_box.extent.x * 2*0.9
-    yLength = actor.bounding_box.extent.y * 2*0.85
+    xLength = actor.bounding_box.extent.x * 2*0.95
+    yLength = actor.bounding_box.extent.y * 2*0.9
     # Def amount of sample along x and y edges, rounded to int
     xSamples = int( round( sampleN * ( xLength / ( xLength + yLength ) ) ) )
     ySamples = sampleN - xSamples
     # Find actor orientation
-    actorF = actor.get_transform()
+    if transform == None:
+        actorF = actor.get_transform()
+    else:
+        actorF = transform
     # Initialize array with corners, rows = samples, columns = x,y
     smpArr = np.array([ [actor.bounding_box.extent.x , actor.bounding_box.extent.y] ,\
         [actor.bounding_box.extent.x,-actor.bounding_box.extent.y],\
-        [-actor.bounding_box.extent.x,actor.bounding_box.extent.y],\
-        [-actor.bounding_box.extent.x,-actor.bounding_box.extent.y] ])
+        [-actor.bounding_box.extent.x,-actor.bounding_box.extent.y],\
+        [-actor.bounding_box.extent.x,actor.bounding_box.extent.y] ])
     # Interpolate sample between corners
     for i in range(xSamples):
         # Compute relative x location for sample i from - to + 
@@ -486,12 +490,9 @@ def generateSamples(actor,sampleN=5,location=None):
     smpArr = np.matmul(smpArr,RT)
     # Move sample array to global coordinate frame
         # If no location is provided use actor location
-    if location == None:
-        smpArr = smpArr + [ actor.get_location().x , actor.get_location().y ]
-        # If location is provided use given location
-    else:
-        smpArr = smpArr + [ location.x , location.y ]
-
+    smpArr = smpArr + [ actorF.location.x , actorF.location.y ]
+    
+    #! remove this when finalizing
     # import matplotlib.pyplot as plt
     # plt.figure(5)
     # for sample in smpArr:
@@ -501,9 +502,37 @@ def generateSamples(actor,sampleN=5,location=None):
 
     return smpArr
 
+# Function detects if two rectangles have intersecting sides.
+def detectCollision(smpListA,smpListB):
+    for sideA in range(4):
+        (aA,bA) = affinePara(*smpListA[sideA],*smpListA[sideA-1])
+        (xA0,yA0) = smpListA[sideA]
+        (xA1,yA1) = smpListA[sideA-1]
+        xMin = min(xA0,xA1)
+        xMax = max(xA0,xA1)
+        yMin = min(yA0,yA1)
+        yMax = max(yA0,yA1)
+        for sideB in range(4):
+            (aB,bB) = affinePara(*smpListB[sideA],*smpListB[sideA-1])
+            # Intersecting point
+            if aA-aB <= 0.00001:
+                # If parallel t
+                continue
+            else:
+                xI = (bB-bA)/(aA-aB)
+                yI = aA*xI+bA
+                if xI >= xMin and xI <= xMax and yI >= yMin and yI <+ yMax:
+                    return 1
+    return 0
 
+# Function returns the a,b parameters for two given points as affine function of the form of y=ax+b
+def affinePara(xA,yA,xB,yB):
+    a = (yA-yB)/(xA-xB)
+    b = yA-a*xA
+    return (a,b)
+
+# Returns first common element search depth first through x with y
 def cap(A,B):
-    # Returns first common element search depth first through x with y
     cap = ()
     for x in A:
         for y in B:
@@ -511,9 +540,8 @@ def cap(A,B):
                 return x
     return cap
 
-
+# Returns all common element search depth first through x with y
 def caps(A,B):
-    # Returns all common element search depth first through x with y
     cap = []
     for x in A:
         for y in B:
