@@ -157,7 +157,7 @@ def main(cr_method = "TEP", ctrlPolicy = "TEPControl", PriorityPolicy = "FCFS",t
             kmax = 4
             spwnRand = np.array([[1,2,3,4] for iter in range(int(totalVehicle/4))]).flatten()
             destRand = np.array([random.choice(np.delete(laneList,spwnRand[iter]-1)) for iter in range(totalVehicle)])
-            velRand = np.array([7+random.uniform(-1,1) for iter in range(totalVehicle)])
+            velRand = np.array([8+random.uniform(-1,1) for iter in range(totalVehicle)])
         elif scenario == 2: # Artificial AMPIP example
             totalVehicle = 2
             spwnInterval = 4.5

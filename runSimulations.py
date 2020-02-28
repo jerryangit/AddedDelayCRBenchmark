@@ -96,16 +96,17 @@ def paraGen(benchmark):
                             # PriorityPolicy ="FCFS"
                             # paraList.append((cr_method, ctrlPolicy, PriorityPolicy,totalVehicle, scenario, spwnInterval, randomSeed, preGenRoute, logging, errMargin))
 
-                            # cr_method = "MPIP"
-                            # ctrlPolicy = "MPIPControl"
-                            # PriorityPolicy ="FCFS"
-                            # paraList.append((cr_method, ctrlPolicy, PriorityPolicy,totalVehicle, scenario, spwnInterval, randomSeed, preGenRoute, logging, errMargin))
-
-                            cr_method = "AMPIP"
+                            cr_method = "MPIP"
                             ctrlPolicy = "MPIPControl"
                             PriorityPolicy ="FCFS"
                             paraList.append((cr_method, ctrlPolicy, PriorityPolicy,totalVehicle, scenario, spwnInterval, randomSeed, preGenRoute, logging, errMargin))
+
+                            # cr_method = "AMPIP"
+                            # ctrlPolicy = "MPIPControl"
+                            # PriorityPolicy ="FCFS"
+                            # paraList.append((cr_method, ctrlPolicy, PriorityPolicy,totalVehicle, scenario, spwnInterval, randomSeed, preGenRoute, logging, errMargin))
     return paraList
+
     
 if __name__ == "__main__":
     main()

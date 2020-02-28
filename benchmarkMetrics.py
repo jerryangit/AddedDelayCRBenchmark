@@ -76,14 +76,34 @@ def main():
     finally:
         pass
 
+def noConflictAvgDelayMulti(throughput,scenario,sAvg=84.99022541881853):
+    totalVehicleList = [32,64,128]
+    # s = 84.99022541881853
+    if scenario == 0:
+        vRef = 8
+    elif scenario ==1:
+        vRef = 7
+    avgDelay = []
+    for N in totalVehicleList:
+        avgDelay.append(noConflictAvgDelay(throughput,N,sAvg,vRef))
+    return np.average(avgDelay)
+
+def noConflictAvgDelay(throughput,N,s,vRef):
+    avgDelay = (1/throughput*(N+1) + s/vRef)/N
+    return avgDelay
+
+
 def marginalDelay(maneuverList,sYieldDict,angDict, delayDict={}, vRef = 7,throughput = 1):
-    tmax = 0
     for maneuver in maneuverList:
+        delay = 0
         if maneuver in sYieldDict:
             for smp in enumerate(sYieldDict.get(maneuver)):
-                tmax = tmax + smp[1] / ( vRef * np.cos( np.abs( 1/2 * np.pi - angDict.get( maneuver )[smp[0]] ) ) )
-            delayDict[maneuver] = tmax/len(sYieldDict.get(maneuver))
-    delayAvg = np.average(delayDict.values())
+                delay += smp[1] / ( vRef * np.cos( np.abs( 1/2 * np.pi - angDict.get( maneuver )[smp[0]] ) ) )
+                if np.isnan(delay):
+                    pass
+                    # print('nan')
+            delayDict[maneuver] = delay
+    delayAvg = np.average(list(delayDict.values()))
     return delayDict,delayAvg
 
 def maneuverListGen():
@@ -104,7 +124,7 @@ def noConflictListRemoval(maneuverList,maneuverDistribution,delayDict={}):
     for maneuver in noConflictList :
         if maneuver in maneuverList:
             maneuverList.remove(maneuver)
-            delayDict[maneuver] = (0)
+            delayDict[maneuver] = (0.0)
     return maneuverList,delayDict
 
 def maneuverDistributionGen(maneuverList):
@@ -177,17 +197,35 @@ def sDictGen(maneuverList,pathsDict,actor,sYieldDict={},angDict={}):
                 wp_i1 = pathsDict.get(maneuver)[0][wp_i[0]+1][0]
                 smpList_i = generateSamples(actor,0,wp_i[1][0].transform)
                 vec_i = np.array((wp_i1.transform.location.x-wp_i[1][0].transform.location.x,wp_i1.transform.location.y-wp_i[1][0].transform.location.y))
+                if np.linalg.norm(vec_i) ==0.0:
+                    continue
                 isColl = 0
+            
+            lastIndex = -1
             for wp_j in enumerate(pathsDict.get(maneuver)[1]):
+                if wp_j[0] == lastIndex:
+                    continue
                 if wp_j[0]<len(pathsDict.get(maneuver)[1])-2 and wp_i[1][0].transform.location.distance(wp_j[1][0].transform.location) < 2.5:
                     wp_j1 = pathsDict.get(maneuver)[1][wp_j[0]+1][0]
                     smpList_j = generateSamples(actor,0,wp_j[1][0].transform)
                     vec_j = np.array((wp_j1.transform.location.x-wp_j[1][0].transform.location.x,wp_j1.transform.location.y-wp_j[1][0].transform.location.y))
+                    if np.linalg.norm(vec_j) ==0.0:
+                        continue
+
                     isColl = detectCollision(smpList_i,smpList_j)
                     if isColl == 1:
                         rej = vec_j - ( np.dot(vec_j,vec_i) )/( np.dot(vec_i,vec_i) )*vec_i
+                        if np.isnan(rej).any():
+                            print('nan')
                         ang = np.arccos( np.dot(vec_j,vec_i)/(np.linalg.norm(vec_j)*np.linalg.norm(vec_i))  )
+                        if np.isnan(ang).any():
+                            print('nan')
+
                         sDict[maneuver,wp_i[0],wp_j[0]] = (rej,ang)
+
+                        if np.isnan(np.linalg.norm(rej)):
+                            print('nan')
+
                         if maneuver in sYieldDict.keys():
                             sYieldDict.get(maneuver).append(np.linalg.norm(rej))
                         else:   
@@ -196,6 +234,7 @@ def sDictGen(maneuverList,pathsDict,actor,sYieldDict={},angDict={}):
                             angDict.get(maneuver).append(ang)
                         else:   
                             angDict[maneuver] = [ang]
+                        lastIndex = wp_j[0]
                         break
     return sDict,sYieldDict,angDict
 
