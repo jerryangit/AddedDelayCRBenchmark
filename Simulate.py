@@ -78,7 +78,7 @@ def main(cr_method = "TEP", ctrlPolicy = "TEPControl", PriorityPolicy = "FCFS",t
     # Other variables
     ###############################################  
     weather = carla.WeatherParameters(
-        cloudyness=0.0,
+        cloudiness=0.0,
         precipitation=0.0,
         precipitation_deposits=0.0, 
         wind_intensity=0.0, 
