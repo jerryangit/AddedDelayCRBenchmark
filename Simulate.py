@@ -45,7 +45,7 @@ if not os.path.exists('./data'):
 # def main(cr_method = "AMPIP", ctrlPolicy = "MPIPControl", PriorityPolicy = "FCFS",totalVehicle = 128, scenario = 0, spwnInterval = 0.8, randomSeed = 469730,logging = 1):
 # def main(cr_method = "AMPIP", ctrlPolicy = "MPIPControl", PriorityPolicy = "FCFS",totalVehicle = 128, scenario = 0, spwnInterval = 1.2, randomSeed = 960489,logging = 1):
 
-def main(cr_method = "TEP", ctrlPolicy = "TEPControl", PriorityPolicy = "FCFS",totalVehicle = 1, scenario = 6, spwnInterval = 0, randomSeed = 960489, preGenRoute = 1, logging = 1, errMargin = 0.5):
+def main(cr_method = "OAADMM", ctrlPolicy = "OAMPC", PriorityPolicy = "PriorityScore",totalVehicle = 4, scenario = 0, spwnInterval = 0, randomSeed = 960489, preGenRoute = 1, logging = 1, errMargin = 0.5):
     ###############################################
     # Config
     ###############################################  
@@ -274,7 +274,6 @@ def main(cr_method = "TEP", ctrlPolicy = "TEPControl", PriorityPolicy = "FCFS",t
                         if spwn is not None:
                             # Add new spwn to actor_list
                             actorDict_obj.actor_list.append(spwn)
-                            #// spwn.set_autopilot()
                             # Create inbox for new vehicle
                             worldX_obj.msg.inbox[spwn.id] = []
                             # Create actorX object for new vehicle
@@ -368,13 +367,30 @@ def main(cr_method = "TEP", ctrlPolicy = "TEPControl", PriorityPolicy = "FCFS",t
             worldX_obj.msg.clearCloud()
             #* Loop to resolve conflicts 
             # <<
-            for actorX in actorDict_obj.dict.values():
-                actorX.cr.resolve(actorX,worldX_obj)
-                msg = actorX.cr.outbox(actorX)
-                worldX_obj.msg.broadcast(actorX.id,actorX.location,msg,250)
+            # If OA-ADMM use multiple communication rounds
+            if cr_method == "OAADMM":
+                # X-update, Send X-traj
+                for actorX in actorDict_obj.dict.values():
+                    actorX.cr.xUpdate(actorX,worldX_obj)
+                    msg = actorX.cr.outbox(actorX,"xUpdate")
+                    worldX_obj.msg.broadcast(actorX.id,actorX.location,msg,250)
+                # Receive X-Traj
+                for actorX in actorDict_obj.dict.values():
+                    worldX_obj.msg.receive(actorX)
+                worldX_obj.msg.clearCloud()
+                # Z-update, Lambda-update, Rho-update, and Send Z,Lambda,Rho
+                for actorX in actorDict_obj.dict.values():                    
+                    actorX.cr.zUpdate(actorX,worldX_obj)
+                    msg = actorX.cr.outbox(actorX,"zUpdate")
+                    worldX_obj.msg.broadcast(actorX.id,actorX.location,msg,250)
+            else:
+                for actorX in actorDict_obj.dict.values():
+                    actorX.cr.resolve(actorX,worldX_obj)            
+                    msg = actorX.cr.outbox(actorX)
+                    worldX_obj.msg.broadcast(actorX.id,actorX.location,msg,250)
             # >>
 
-            #* Loop to apply vehicle control (TODO separate class or function) 
+            #* Loop to apply vehicle control
             # <<
             for actorX in actorDict_obj.dict.values():
                 actorX.co.control(actorX,worldX_obj)

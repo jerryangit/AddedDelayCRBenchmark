@@ -10,14 +10,17 @@ import glob
 import os
 import sys
 import datetime
+import osqp
+import scipy as sp
+from scipy import sparse
 
-try:
-    sys.path.append(glob.glob('../carla/dist/carla-*%d.5-%s.egg' % (
-        sys.version_info.major,
-        # sys.version_info.minor,
-        'win-amd64' if os.name == 'nt' else 'linux-x86_64'))[0])
-except IndexError:
-    pass
+# try:
+#     sys.path.append(glob.glob('../carla/dist/carla-*%d.5-%s.egg' % (
+#         sys.version_info.major,
+#         # sys.version_info.minor,
+#         'win-amd64' if os.name == 'nt' else 'linux-x86_64'))[0])
+# except IndexError:
+#     pass
 
 import carla
 import numpy as np
@@ -66,6 +69,7 @@ class conflictResolution:
             "MPIP": MPIP,
             "AMPIP": AMPIP,
             "DCR":DCR,
+            "OAADMM":OAADMM,
         }
         fnc = cases.get(arg)
         return fnc(*para)
@@ -364,3 +368,168 @@ class DCR:
         self.cd = cd.conflictDetection("conflictZones",[worldX.inter_location,2,8,self.errMargin]).obj
         self.cd.setup(egoX,worldX)
         self.setPriority(0)
+
+class OAADMM:
+    def __init__(self,errMargin,policy):
+        self.errMargin = errMargin
+        self.pp = priorityPolicy(policy)
+        self.dd = dd.deadlockDetection("DCRgraph").obj
+        self.mcN = set([])
+        self.mcN_Dist = 25 # Distance at vehicle is added to mcN
+        self.x_i = np.array([])
+        self.z_IJ = {}
+        self.z_JI = {}
+        self.lambda_JI = {}
+        self.lambda_IJ = {}
+        self.linModel(np.array([0,0,0]),0)
+        self.dt = 0.1
+        ## OA-ADMM Parameter
+        self.d_mult = 1.75
+        self.rho_base = 1
+        self.phi_a = 6
+        self.v_ref = 6
+        self.mu_0 = 0.25        
+        self.N = 10 # Prediction horizon
+        self.nx = 3
+        self.nu = 2
+
+
+    def linModel(self,x0,beta0):
+        # Linearized discrete time model of a unicycle model in local coordinate frame
+        # x(k+1) = Ad x(k) + Bd u(k)
+        # x = [X,Y,v], u = [throttle (a), steering angle (delta)]
+        # Model parameters
+        # Define continuous-time linear model from Jacobian of the nonlinear model.
+        Ad = sparse.csc_matrix([
+            [1., 0., self.dt*np.cos(beta0)],
+            [0., 1., self.dt*np.sin(beta0)],
+            [0., 0., 1.]
+        ])
+        Bd = sparse.csc_matrix([
+            [0., -self.dt*x0[3]/4.],
+            [0., self.dt*x0[3]/2.],
+            [self.dt, 0.]
+        ])
+        # - linear dynamics
+        Ax = sparse.kron(sparse.eye(self.N+1),-sparse.eye(self.nx)) + sparse.kron(sparse.eye(self.N+1, k=-1), Ad)
+        Bu = sparse.kron(sparse.vstack([sparse.csc_matrix((1, self.N)), sparse.eye(self.N)]), Bd)
+        self.Aeq = sparse.hstack([Ax, Bu])
+        self.leq = np.hstack([-x0, np.zeros(self.N*self.nx)])
+        self.ueq = self.leq
+
+    def constraints(self):
+        umin = np.array([-9, -np.pi/4])
+        umax = np.array([2.5, np.pi/4])
+        # Ineq constraints, collision avoidance
+        xmin = np.array([-np.inf,-np.inf,-3])
+        xmax = np.array([np.inf,np.inf,10])
+        self.Aineq = sparse.eye((self.N+1)*self.nx + self.N*self.nu)
+        self.lineq = np.hstack([np.kron(np.ones(self.N+1), xmin), np.kron(np.ones(self.N), umin)])
+        self.uineq = np.hstack([np.kron(np.ones(self.N+1), xmax), np.kron(np.ones(self.N), umax)])
+
+    def costFunction(self):
+        Q = sparse.diags([1., 10., 10.])
+        QN = Q
+        R = sparse.diags([1., 10.])
+        xN = np.array([self.N+1*self.dt,0,self.v_ref])
+        x_ref = np.array([np.array(range(self.N))*self.dt, np.zeros(self.N), np.ones(self.N)*self.v_ref]).flatten('F')
+
+
+        # Cast MPC problem to a QP: x = (x(0),x(1),...,x(N),u(0),...,u(N-1))
+        # - quadratic objective
+        P = sparse.block_diag([sparse.kron(sparse.eye(self.N), Q), QN,
+                            sparse.kron(sparse.eye(self.N), R)], format='csc')
+        # - linear objective
+        q = np.hstack([np.multiply(np.kron(np.ones(self.N), -Q.diagonal()),x_ref), -QN.dot(xN),
+               np.zeros(self.N*self.nu)])
+        return P,q
+
+    def setupProb(self):
+        # - input and state constraints
+        # - OSQP constraints
+        A = sparse.vstack([self.Aeq, self.Aineq], format='csc')
+        l = np.hstack([self.leq, self.lineq])
+        u = np.hstack([self.ueq, self.uineq])
+        P,q = self.costFunction()
+        # Create an OSQP object
+        self.prob = osqp.OSQP()
+        # Setup workspace
+        self.prob.setup(P, q, A, l, u, warm_start=True)
+    def updatex0(self):
+        self.x0 = np.array([0,0,egoX.velNorm])
+    def xUpdate(self,egoX,worldX):
+        # Construct and update Neighbor set
+        for msg in worldX.msg.inbox[egoX.id]:
+            if egoX.id == msg.idSend:
+                continue
+            elif msg.idSend in self.mcN:
+                if egoX.location.distance(msg.content.get("loc")) > self.mcN_Dist:
+                    self.mcN.remove(msg.idSend)
+                else:
+                    continue
+            elif 0 < egoX.location.distance(msg.content.get("loc")) <= self.mcN_Dist:
+                self.mcN.add(msg.idSend)
+
+        # Receive z_JI, lambda_JI from neighbor set
+        for msg in worldX.msg.inbox[egoX.id]:
+            if msg.idSend in self.mcN:
+                self.z_JI[msg.idSend] = msg.content.get("z_IJ").get(egoX.id)
+                self.lambda_JI[msg.idSend] = msg.content.get("lambda_IJ").get(egoX.id)
+
+        # x-Update optimization
+
+        # Objective function
+
+
+        self.prob.update(l=self.l, u=self.u)
+
+        # Solve problem
+        res = self.prob.solve()
+
+        # Check solver status
+        if res.info.status != 'solved':
+            raise ValueError('OSQP did not solve the problem!')
+
+        # Apply first control input to the plant
+        ctrl = res.x[-self.N*self.nu:-(self.N-1)*self.nu]
+
+
+
+        # Send x trajectory
+        pass
+
+    def zUpdate(self,egoX,worldX):
+        # Receive z_JI, lambda_JI from neighbor set
+
+        # x-Update optimization
+
+        # Send x trajectory
+        pass
+
+    def updateData(self,egoX,worldX):
+        #  Loop needed to process msgs in a useable format
+        # for msg in worldX.msg.inbox[egoX.id]:
+        self.x0 = np.zeros(0,0,egoX.velNorm)
+        pass
+
+    def outbox(self,egoX,var):
+        content = {} 
+        # OA-ADMM Specific
+        content["loc"] = egoX.location
+        if var == "xUpdate":
+            content["x_i"] = self.x_i
+        elif var == "zUpdate":
+            content["z_IJ"] = self.z_IJ
+            content["lambda_IJ"] = self.lambda_IJ
+        # Common
+        # content["wp"] = egoX.waypoint
+        # content["spwnid"] = egoX.spwnid
+        msg_obj = msg(egoX.id,"COM",content)
+        return msg_obj
+
+    def setPriority(self,score):
+        self.priorityScore = score
+
+    def setup(self,egoX,worldX):
+        self.x0 = np.zeros(0,0,egoX.velNorm)
+        self.setPriority(0)        

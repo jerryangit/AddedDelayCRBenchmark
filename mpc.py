@@ -55,7 +55,7 @@ def qpMPC(x0,dt,v_des,CellList,ID,N=20, inputCosts = 3.5*5, devCosts = 2):
     x_slack = np.ones((N_slack,1))*10000     # Slack variable with very high cost
     #! xi_vec also functions as the cost weights
     xi_vec = np.concatenate((x_vec,u_vec,v_ref,v_dev,x_slack),axis=0)    
-    statevector = ['x[%d](%d)' % (i,j) for i in range(N) for j in range(states)] + ['u[%d]' % i for i in range(len(u_vec))] + ['v_ref']+['v_dev[%d]' % i for i in range(N) ] + ['slck[%d]' % i for i in range(N_slack)]
+    # statevector = ['x[%d](%d)' % (i,j) for i in range(N) for j in range(states)] + ['u[%d]' % i for i in range(len(u_vec))] + ['v_ref']+['v_dev[%d]' % i for i in range(N) ] + ['slck[%d]' % i for i in range(N_slack)]
     N_x = states*N 
     N_u = inputs*N 
     N_v_ref = 1 # states added vor v_ref 

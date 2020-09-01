@@ -13,13 +13,13 @@ import os
 import sys
 import csv
 import datetime
-try:
-    sys.path.append(glob.glob('../carla/dist/carla-*%d.%d-%s.egg' % (
-        sys.version_info.major,
-        sys.version_info.minor,
-        'win-amd64' if os.name == 'nt' else 'linux-x86_64'))[0])
-except IndexError:
-    pass
+# try:
+#     sys.path.append(glob.glob('../carla/dist/carla-*%d.%d-%s.egg' % (
+#         sys.version_info.major,
+#         sys.version_info.minor,
+#         'win-amd64' if os.name == 'nt' else 'linux-x86_64'))[0])
+# except IndexError:
+#     pass
 
 import carla
 import random
@@ -31,6 +31,7 @@ def actorControl(arg,para=[]):
         "TEPControl": TEPControl,
         "MPIPControl": MPIPControl,
         "DCRControl": DCRControl,
+        "OAMPC": OAMPC,
     }
     fnc = cases.get(arg)
     if isinstance(para, list):
@@ -265,6 +266,85 @@ class DCRControl:
             state = "OL"
         egoX.discreteState(state)
         return state
+
+class OAMPC:
+    def __init__(self):
+        self.vPIDStates = (0,0,0)
+        self.thetaPIDStates = (0,0,0)
+
+    def control(self,egoX,worldX):
+        egoX.ego.apply_control(carla.VehicleControl(throttle=0.5, steer=0,brake = 0,manual_gear_shift=True,gear=1))
+
+        pass 
+        # ego = egoX.ego
+        # if egoX.location == carla.Location(0,0,0):
+        #     return "NAN"
+
+        # #* MPC velocity control:
+        # x0 = np.array([[egoX.sTraversed],[egoX.velNorm]])
+        # # cell = (sInCell,TinCell)
+        # # From egoX T received as time from current timestep
+        # CellList = [] 
+        # for cell in egoX.cr.cd.traj:
+        #     # For each cell in traj get its sIn and tIn
+        #     # TODO add constraint at last timestep to if first cell is outside of its horizon
+        #     CellList.append((egoX.cr.cd.sTCL.get(cell)[0],egoX.cr.cd.traj.get(cell)[0]-worldX.tick.timestamp.elapsed_seconds))
+        # # TODO move N to be an input
+
+        # N = 30
+
+        # velDes = egoX.velRef
+        # if egoX.state == "IL":
+        #     for actor in worldX.actorDict.actor_list:
+        #         if ego.id != actor.id and carla.Location.distance ( ego.get_location() , actor.get_location() ) < 10 : 
+        #             cd_bool,smpList = self.cd_obj.detect(ego,actor,1)
+        #             if cd_bool == 1:
+        #                 if smpList[0] < 4:
+        #                     velDes = 0
+
+        # if egoX.state != "OL":
+        #     (sol,u0) = qpMPC(x0,egoX.dt*4,egoX.velRef,CellList,egoX.id,N)
+        #     egoX.cr.cd.MPCFeedback(sol,worldX.tick.timestamp.elapsed_seconds,egoX.dt*4,N,2,egoX.velRef,egoX.id,egoX.sTraversed) # dt is multiplied in order to increase finite horizon time range
+        #     velDes = min(egoX.velNorm+u0[0]*1.3,velDes)
+        # else: 
+        #     velDes = egoX.velRef
+
+        # (u_v,self.vPIDStates) = velocityPID(egoX,self.vPIDStates,velDes)
+        # #* PID Control
+
+        # (u_theta,self.thetaPIDStates)  = anglePID(egoX,worldX,self.thetaPIDStates)
+        # u_v = np.clip(u_v,-1,1)
+
+
+        # if u_v >= 0:
+        #     ego.apply_control(carla.VehicleControl(throttle=u_v, steer=u_theta,brake = 0,manual_gear_shift=True,gear=1))
+        # elif u_v < 0:
+        #     ego.apply_control(carla.VehicleControl(throttle=0, steer=u_theta,brake = - u_v*1.2,manual_gear_shift=True,gear=1))
+
+
+        # state = egoX.state
+        # if egoX.state == "NAN":
+        #     state = "IL"
+        # elif egoX.state == "IL" and egoX.info.get("idFront") == None:
+        #     queue = [(egoX.id,egoX.location.distance(worldX.inter_location))]
+        #     for msg in worldX.msg.inbox[egoX.id]:
+        #         # If the sender is not in the intersection or leaving and on the same road_id:
+        #         # if msg.content.get("state") not in ["I","OL"] and msg.content.get("wp") != [] and msg.content.get("wp").road_id == egoX.waypoint.road_id:
+        #         if msg.content.get("state") not in ["I","OL"] and msg.content.get("spwnid") == egoX.spwnid:
+        #             queue.append((msg.idSend,worldX.actorDict.dict.get(msg.idSend).location.distance(worldX.inter_location)))
+        #     queue.sort(key=lambda x: x[1])
+        #     if queue[0][0] == egoX.id:
+        #         state = "FIL"
+        #     else: 
+        #         for pair in enumerate(queue):
+        #             if pair[1][0] == egoX.id:
+        #                 egoX.infoSet("idFront",queue[pair[0] - 1][0])
+        # elif egoX.state == "FIL" and egoX.sTraversed > egoX.cr.cd.sTCL[egoX.cr.cd.TCL[0]][0]+0.25:
+        #     state = "I"
+        # elif egoX.state == "I" and egoX.sTraversed > egoX.cr.cd.sTCL[egoX.cr.cd.TCL[-1]][1]+0.25:
+        #     state = "OL"
+        # egoX.discreteState(state)
+        # return state
 
 
 def velocityPID(egoX,states,velDes=None):

@@ -8,13 +8,13 @@ import glob
 import os
 import sys
 import datetime
-try:
-    sys.path.append(glob.glob('../carla/dist/carla-*%d.5-%s.egg' % (
-        sys.version_info.major,
-        # sys.version_info.minor,
-        'win-amd64' if os.name == 'nt' else 'linux-x86_64'))[0])
-except IndexError:
-    pass
+# try:
+#     sys.path.append(glob.glob('../carla/dist/carla-*%d.5-%s.egg' % (
+#         sys.version_info.major,
+#         # sys.version_info.minor,
+#         'win-amd64' if os.name == 'nt' else 'linux-x86_64'))[0])
+# except IndexError:
+#     pass
 
 import carla
 import numpy as np
