@@ -3,8 +3,6 @@ import numpy as np
 import scipy as sp
 import copy
 import sys
-for path in sys.path:
-  print(path)
 from matplotlib import pyplot as plt
 from scipy import sparse
 # Discrete time model of a quadcopter
@@ -13,6 +11,8 @@ beta0 = 0.01
 v_ref = 8.33
 phi = 0.01
 beta = beta0
+rho_j = 1.5
+
 # Initial and reference states
 x0 = np.array([0., 0., 5])
 x0_act = x0
@@ -33,6 +33,8 @@ N = 15    # Prediction horizon
 nxc = nx*(N+1)
 nuc = nu*N
 xDestGlob = np.array([15,5,0])
+zDestGlob = np.array([10,2,0])
+
 I_xy = sparse.kron(np.eye(N+1),sparse.diags([1.,1.,0.]))
 
 nsim = 150 # N simulate loops
@@ -59,8 +61,8 @@ R = sparse.diags([0.5, 2.15])
 
 # Cast MPC problem to a QP: x = (x(0),x(1),...,x(N),u(0),...,u(N-1))
 # - quadratic objective
-P_0 = sparse.block_diag([sparse.kron(sparse.eye(N), Q), QN, sparse.kron(sparse.eye(N), R)], format='csc') 
-P = P_0
+P_Q = sparse.block_diag([sparse.kron(sparse.eye(N), Q), QN, sparse.kron(sparse.eye(N), R,format='csc')], format='csc') 
+P = P_Q
 # - linear objective
 # q = np.hstack([np.kron(np.ones(N), -Q.dot(xr)), -QN.dot(xr),
 #                np.zeros(N*nu)])
@@ -91,8 +93,8 @@ u = np.hstack([ueq, uineq])
 prob = osqp.OSQP()
 
 # Setup workspace
-prob.setup(P, q, A, l, u, warm_start=True, polish = 1)
-rho_j = 0.0
+prob.setup(P, q, A, l, u, warm_start=False, polish = 1)
+rho_j_vec = np.ones(nxc)*rho_j
 lambda_j = I_xy.dot(np.zeros(nxc))
 for i in range(nsim):
     # Solve
@@ -128,17 +130,23 @@ for i in range(nsim):
     theta = np.arctan2(vecV2D[1],vecV2D[0])
     vec = np.minimum(((xDestGlob[0] - x0_act[0])**2 + (xDestGlob[1] - x0_act[1])**2)**0.5, dt*v_ref*N)
     xDestLoc = np.array([np.cos(theta-phi) * vec , np.sin(theta-phi) * vec , xDestGlob[2]])
+    # Add some code for z reference to act as placeholder for copy
+    vecV2D_z = np.array([zDestGlob[0] - x0_act[0], zDestGlob[1] - x0_act[1]])
+    theta_z = np.arctan2(vecV2D_z[1],vecV2D_z[0])
+    vec_z = np.minimum(((zDestGlob[0] - x0_act[0])**2 + (zDestGlob[1] - x0_act[1])**2)**0.5, dt*v_ref*N)
+    zDestLoc = np.array([np.cos(theta_z-phi) * vec_z , np.sin(theta_z-phi) * vec_z , zDestGlob[2]])
+
     x_ref = np.linspace([0,0,x0_act[-1]],xDestLoc,N+1).flatten()
-    x_ref_j = np.linspace([0,-0.5,x0_act[-1]],xDestLoc+np.array([0,0.5,0]),N+1).flatten()
-    lambda_j = 0.8*lambda_j + rho_j*(res.x[:nxc]-x_ref_j)
+    z_ref = np.linspace([0,0,x0_act[-1]],zDestLoc,N+1).flatten()
+    lambda_j = 0.8*lambda_j + rho_j*(res.x[:nxc]-z_ref)
 
     # Update Q and q based on OA-ADMM rules
     q_ref = np.hstack([np.multiply(np.hstack([np.kron(np.ones(N), Q.diagonal()),QN.diagonal()]),-x_ref), np.zeros(N*nu)]) 
-    q_z = np.hstack([np.multiply(lambda_j,-x_ref_j), np.zeros(N*nu)]) 
-    q = q_ref + q_z 
-    P_lambda = sparse.diags(np.hstack((lambda_j,np.zeros(nuc))), format='csc')
-    P =  P_0 + P_lambda
-
+    q_z = np.hstack([np.multiply(rho_j_vec,-z_ref), np.zeros(N*nu)]) 
+    q_lambda = np.hstack((1/2*lambda_j,np.zeros(nuc)))
+    q = q_ref + q_z + q_lambda
+    P_R = sparse.diags(np.hstack((rho_j_vec,np.zeros(nuc))), format='csc')
+    P =  P_Q + P_R
     
     # Update dynamics
     Ad = sparse.csc_matrix([
