@@ -1,19 +1,23 @@
 import osqp
 import numpy as np
 import scipy as sp
+import copy
+import sys
+for path in sys.path:
+  print(path)
 from matplotlib import pyplot as plt
 from scipy import sparse
-
 # Discrete time model of a quadcopter
 dt = 0.1
-beta0 = 0
+beta0 = 0.01
 v_ref = 8.33
-phi = 0
-beta = 0
+phi = 0.01
+beta = beta0
 # Initial and reference states
 x0 = np.array([0., 0., 5])
 x0_act = x0
 xr = np.array([0., 0., v_ref])
+# Make sure that none of the non sparse values are zero for initialization. OSQP does not change the shape of A or P
 Ad = sparse.csc_matrix([
   [1., 0., dt*np.cos(beta0)],
   [0., 1., dt*np.sin(beta0)],
@@ -24,9 +28,13 @@ Bd = sparse.csc_matrix([
   [0., dt*x0[2]/2.],
   [dt, 0.]])
 [nx, nu] = Bd.shape
-xDestGlob = np.array([15,1,0])
-
 N = 15    # Prediction horizon
+
+nxc = nx*(N+1)
+nuc = nu*N
+xDestGlob = np.array([15,5,0])
+I_xy = sparse.kron(np.eye(N+1),sparse.diags([1.,1.,0.]))
+
 nsim = 150 # N simulate loops
 
 # Initialize for plotting
@@ -38,8 +46,8 @@ uData = np.empty((nu,nsim))
 
 # Constraints
 delta_0 = 0 
-umin = np.array([-10, np.maximum(-np.pi/4,delta_0-np.pi/16)])
-umax = np.array([2.5, np.minimum(np.pi/4,delta_0+np.pi/16)])
+umin = np.array([-10, np.maximum(-np.pi/4,delta_0-np.pi/32)])
+umax = np.array([2.5, np.minimum(np.pi/4,delta_0+np.pi/32)])
 xmin = np.array([-np.inf,-np.inf,-5])
 xmax = np.array([np.inf,np.inf,12])
 
@@ -51,8 +59,8 @@ R = sparse.diags([0.5, 2.15])
 
 # Cast MPC problem to a QP: x = (x(0),x(1),...,x(N),u(0),...,u(N-1))
 # - quadratic objective
-P = sparse.block_diag([sparse.kron(sparse.eye(N), Q), QN,
-                       sparse.kron(sparse.eye(N), R)], format='csc')
+P_0 = sparse.block_diag([sparse.kron(sparse.eye(N), Q), QN, sparse.kron(sparse.eye(N), R)], format='csc') 
+P = P_0
 # - linear objective
 # q = np.hstack([np.kron(np.ones(N), -Q.dot(xr)), -QN.dot(xr),
 #                np.zeros(N*nu)])
@@ -83,12 +91,20 @@ u = np.hstack([ueq, uineq])
 prob = osqp.OSQP()
 
 # Setup workspace
-prob.setup(P, q, A, l, u, warm_start=True)
-
+prob.setup(P, q, A, l, u, warm_start=True, polish = 1)
+rho_j = 0.0
+lambda_j = I_xy.dot(np.zeros(nxc))
 for i in range(nsim):
     # Solve
 
     res = prob.solve()
+    
+    # for j in range(res.x.shape[0]):
+    #   if A[j,:]*res.x > u[j]:
+    #       print('u['+str(j) +']: ' +str(j)+'  Res:' + str(A[j,:]*res.x - u[j]))
+    #   if A[j,:]*res.x  < l[j]:
+    #       print('l['+str(j) +']: ' +str(j)+'  Res:' + str(-A[j,:]*res.x + l[j]))  
+    # print(np.linalg.norm(A[0:nx*(N+1)]*res.x-l[0:nx*(N+1)]) )
 
     # Check solver status
     if res.info.status != 'solved':
@@ -113,9 +129,15 @@ for i in range(nsim):
     vec = np.minimum(((xDestGlob[0] - x0_act[0])**2 + (xDestGlob[1] - x0_act[1])**2)**0.5, dt*v_ref*N)
     xDestLoc = np.array([np.cos(theta-phi) * vec , np.sin(theta-phi) * vec , xDestGlob[2]])
     x_ref = np.linspace([0,0,x0_act[-1]],xDestLoc,N+1).flatten()
-    q = np.hstack([np.multiply(np.hstack([np.kron(np.ones(N), Q.diagonal()),QN.diagonal()]),-x_ref),
-               np.zeros(N*nu)])
+    x_ref_j = np.linspace([0,-0.5,x0_act[-1]],xDestLoc+np.array([0,0.5,0]),N+1).flatten()
+    lambda_j = 0.8*lambda_j + rho_j*(res.x[:nxc]-x_ref_j)
 
+    # Update Q and q based on OA-ADMM rules
+    q_ref = np.hstack([np.multiply(np.hstack([np.kron(np.ones(N), Q.diagonal()),QN.diagonal()]),-x_ref), np.zeros(N*nu)]) 
+    q_z = np.hstack([np.multiply(lambda_j,-x_ref_j), np.zeros(N*nu)]) 
+    q = q_ref + q_z 
+    P_lambda = sparse.diags(np.hstack((lambda_j,np.zeros(nuc))), format='csc')
+    P =  P_0 + P_lambda
 
     
     # Update dynamics
@@ -132,10 +154,12 @@ for i in range(nsim):
     Bu = sparse.kron(sparse.vstack([sparse.csc_matrix((1, N)), sparse.eye(N)]), Bd)
     Aeq = sparse.hstack([Ax, Bu])
     A = sparse.vstack([Aeq, Aineq], format='csc')
+
+
     # Update input constraints
     delta_0 = ctrl[1]
-    umin = np.array([-10, np.maximum(-np.pi/4,delta_0-np.pi/16)])
-    umax = np.array([2.5, np.minimum(np.pi/4,delta_0+np.pi/16)])
+    umin = np.array([-10, np.maximum(-np.pi/4,delta_0-np.pi/32)])
+    umax = np.array([2.5, np.minimum(np.pi/4,delta_0+np.pi/32)])
     lineq = np.hstack([np.kron(np.ones(N+1), xmin), np.kron(np.ones(N), umin)])
     uineq = np.hstack([np.kron(np.ones(N+1), xmax), np.kron(np.ones(N), umax)])
     l = np.hstack([leq, lineq])
@@ -146,7 +170,7 @@ for i in range(nsim):
     l[:nx] = np.array([0,0,-x0_act[-1]])
     u[:nx] = np.array([0,0,-x0_act[-1]])
     
-    prob.update(Ax=A.data, q=q, l=l, u=u)
+    prob.update(Px = sparse.triu(P).data, Ax=A.data,q=q, l=l, u=u)
 
 plt.rc('text', usetex=True)
 # xPlot, = plt.plot(xData[0,:])
