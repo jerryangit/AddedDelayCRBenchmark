@@ -19,17 +19,20 @@ def main():
     egoX = egoXDummy()
     xDestLoc = np.array([10,1,egoX.velRef])
     x_ref =  np.linspace([0,0,egoX.velRef],xDestLoc,N+1).flatten()
-    mcN = set([1,2])
+    mcN = set([1,2,3])
     z_JI = {}
     x_J = {}
     lambda_JI = {}
     rho_JI = {}
     lambda_JI[1] = np.ones(3*N+3)
     lambda_JI[2] = np.ones(3*N+3)
+    lambda_JI[3] = np.ones(3*N+3)    
     rho_JI[1] = np.ones(3*N+3)
     rho_JI[2] = np.ones(3*N+3)
+    rho_JI[3] = np.ones(3*N+3)    
     z_JI[1] = np.linspace([0,0,0],xDestLoc + np.array((-4,1,0)),N+1).flatten()
     z_JI[2] = np.linspace([0,0,0],xDestLoc + np.array((-4,1,0)),N+1).flatten()
+    z_JI[3] = np.linspace([0,0,0],xDestLoc + np.array((-4,1,0)),N+1).flatten()    
     mpc.setupMPC_x(egoX)    
     mpc.updateMPC_x(egoX,x_ref,z_JI,lambda_JI,rho_JI,mcN)
     (res,ctrl,xTraj) = mpc.solveMPC_x()
@@ -38,11 +41,12 @@ def main():
     # plt.plot(res.x[2:33:3])    
     # plt.legend(('x','y','v'))
     # plt.show()
-    x_J[1] = np.linspace([0,0,0],xDestLoc, N+1).flatten()
-    x_J[2] = np.linspace([0,0,0],xDestLoc, N+1).flatten()    
+    x_J[1] = xTraj
+    x_J[2] = xTraj  + np.linspace([10,-2], [1,-2],N).flatten()
+    x_J[3] = xTraj   + np.linspace([-10,0], [2,0],N).flatten()
     mpc.setupMPC_z(egoX,mcN,lambda_JI, rho_JI, x_J)    
-    mpc.updateMPC_z(egoX,x_ref,z_JI,lambda_JI,rho_JI,mcN)
-    (res,ctrl,xTraj) = mpc.solveMPC_z()
+    # mpc.updateMPC_z(egoX,x_ref,z_JI,lambda_JI,rho_JI,mcN)
+    (res) = mpc.solveMPC_z()
 
 
 class egoXDummy:
@@ -71,7 +75,9 @@ class oa_mpc:
         self.delta = 1e-5                  # Initialize delta
         self.beta = 1e-5                   # Initialize beta
         self.ddeltaMax = np.pi/4*self.dt   # Maximum steering angle change per step
-        self.I_xy = sparse.kron(np.eye(self.N+1),np.array(([1., 0., 0.], [0., 1.,0.]))) # Indicator matrix to get a vector with only XY coordinates shape of 2*(N+1)
+        self.I_xy0 = sparse.kron(np.eye(self.N+1),np.array(([1., 0., 0.], [0., 1.,0.]))) # Indicator matrix to get a vector with only XY coordinates shape of 2*(N+1)
+        self.I_xy = sparse.kron(np.hstack((np.zeros((self.N,1)),np.eye(self.N))),np.array(([1., 0., 0.], [0., 1.,0.]))) # Indicator matrix to get a vector with only XY coordinates shape of 2*N        
+        # self.I_xyv = sparse.kron(np.vstack([np.zeros((1,self.N)),np.eye(self.N)]),np.array(([1., 0.], [0., 1.],[0.,0.]))) # Indicator matrix to get a vector with only XY coordinates shape of 2*N        
         self.ctrl = (1e-5,1e-5)
 
     def setupMPC_x(self,egoX):
@@ -193,106 +199,108 @@ class oa_mpc:
         if res.info.status != 'solved':
             raise ValueError('OSQP did not solve the problem!')
         self.ctrl = res.x[-self.N*self.nu:-(self.N-1)*self.nu]
-        xTraj = self.I_xy*res.x[:self.nxc]
+        xTraj = self.I_xy @ res.x[:self.nxc]
         return (res,self.ctrl,xTraj)
 
 
 
     def setupMPC_z(self,egoX,mcN,lambda_JI,rho_JI,x_J):
-        P = sparse.csc_matrix([])
+        # Intialize matrix variables
+        self.mcN = mcN
+        P = sparse.eye(0,format='csc')
         q = np.array([])
-        for vin in mcN:
+        A = sparse.eye(0,format='csc')
+        A_data = np.array([],dtype='int')
+        self.A_rowi = np.array([],dtype='int')
+        self.A_coli = np.array([],dtype='int')
+        A_rw = 0       
+        K = np.zeros(int((len(mcN)*(len(mcN)-1))/2)*self.N)
+        for cnt_i, vin_i in enumerate(mcN):
             # Cost function
-            P_Rho = sparse.diags(np.hstack((rho_JI.get(vin))), format='csc')
+            P_Rho = sparse.diags(np.hstack((self.I_xy @ rho_JI.get(vin_i))), format='csc')
             P = sparse.block_diag([P , P_Rho],format='csc')
-            q_rho = np.multiply(rho_JI.get(vin),-x_J.get(vin))
-            q_lambda = 1/2*lambda_JI.get(vin)
+            q_rho = np.multiply(self.I_xy @ rho_JI.get(vin_i),-x_J.get(vin_i))
+            q_lambda = 1/2*self.I_xy @ lambda_JI.get(vin_i)
             q = np.hstack((q, q_rho + q_lambda))
-
-            # lower bound is minimum distance, size depends on mcN len every comb * nxc
-            l = np.ones(len(mcN))*self.d_min*self.d_mult
-            # upper bound is inf
-            u = np.ones(len(mcN))*np.inf
+            # A = sparse.vstack(( A , sparse.hstack(( np.zeros((len(mcN)-(1+cnt_i),cnt_i)) , np.ones((len(mcN)-(1+cnt_i),1)) , sparse.eye(len(mcN)-(1+cnt_i)))  ) ))
             # Add linearized collision avoidance between vehicles
-            for vin in mcN:
-                A = sparse.diags(np.ones(1))
-
-           
+            for cnt_j, vin_j in enumerate(mcN):
+                if cnt_j <= cnt_i:
+                    # Skip values of j which are smaller or equal than i, since i will have had those already
+                    continue
+                # A_it = [zeros, x_i - x_j, y_i-y_j, zeros, x_j - x_i, y_j-y_i]
+                # A_it = sparse.hstack([ np.zeros((self.N , cnt_i*self.N*2)), sparse.csc_matrix(x_J.get(vin_i)[::2]).T , sparse.csc_matrix(x_J.get(vin_i)[::2]).T ],format='csc')
+                #TODO Correctly assign the data and its rows and column indices
+                for i_x in range(self.N):
+                    # x vector at linearization point
+                    x_bar = np.array([x_J.get(vin_i)[i_x*2],
+                    x_J.get(vin_i)[i_x*2+1],
+                    x_J.get(vin_j)[i_x*2],
+                    x_J.get(vin_j)[i_x*2+1]])
+                    # xTA vector at current timestep
+                    Ax_i = 2*np.array([x_J.get(vin_i)[i_x*2] - x_J.get(vin_j)[i_x*2],
+                    x_J.get(vin_i)[i_x*2+1] - x_J.get(vin_j)[i_x*2+1],
+                    x_J.get(vin_j)[i_x*2] - x_J.get(vin_i)[i_x*2],
+                    x_J.get(vin_j)[i_x*2+1] - x_J.get(vin_i)[i_x*2+1]])
+                    A_data = np.hstack([A_data,Ax_i])
+                    K[A_rw] = Ax_i @ x_bar
+                    self.A_rowi = np.hstack([self.A_rowi, A_rw, A_rw, A_rw, A_rw]) 
+                    A_rw += 1
+                    self.A_coli = np.hstack([self.A_coli, cnt_i*self.N*2+i_x*2,cnt_i*self.N*2+i_x*2+1,cnt_j*self.N*2+i_x*2,cnt_j*self.N*2+i_x*2+1]) 
+                    # A_it = sparse.hstack( [ np.zeros((1 , cnt_i*self.N*2 + i_x*2)),
+                    # x_J.get(vin_i)[i_x*2] - x_J.get(vin_j)[i_x*2],
+                    # x_J.get(vin_i)[i_x*2+1] - x_J.get(vin_j)[i_x*2+1], np.zeros((1,self.N*2*len(mcN) - ))]) + sparse.hstack([np.zeros((1, cnt_j*self.N*2 + i_x * 2)) ,
+                    # x_J.get(vin_j)[i_x*2] - x_J.get(vin_i)[i_x*2],
+                    # x_J.get(vin_j)[i_x*2+1] - x_J.get(vin_i)[i_x*2+1],
+                    # np.zeros((1,(len(mcN)-cnt_j)*self.N*2)) ],format='csc')                
+            A = sparse.csc_matrix((A_data,(self.A_rowi,self.A_coli)))
+        # lower bound is minimum distance, size depends on mcN len every comb * nxc
+        l = np.ones(int((len(mcN)*(len(mcN)-1))/2)*self.N)*self.d_min*self.d_mult - K
+        # upper bound is inf
+        u = np.ones(int((len(mcN)*(len(mcN)-1))/2)*self.N)*np.inf
 
         # Create an OSQP object
-        tic()
         self.prob_z = osqp.OSQP()
-        toc()
         # Setup workspace
-        tic()
         self.prob_z.setup(P, q, A, l, u, warm_start=True, polish = 1)
-        toc()
-
-        res = self.prob_z.solve()
-        # Check solver status
-        if res.info.status != 'solved':
-            raise ValueError('OSQP did not solve the problem!')
-
-        for vin in mcN:
-            self.z_IJ[vin] = res.x[1:20]
 
 
 
-    def updateMPC_z(self,egoX,x_ref,z_JI,lambda_JI,rho_JI,mcN):
-        # Update Q and q based on OA-ADMM rules # q = lambda.*(-reference)
-        q = np.hstack([np.multiply(self.lambda_ref,-x_ref), self.nucZ])
-        P = self.P_Q  
-        for vin in mcN:
-            q_rho = np.hstack([np.multiply(rho_JI.get(vin),-z_JI.get(vin)), self.nucZ])
-            q_lambda = np.hstack((1/2*lambda_JI.get(vin),self.nucZ))
-            q = q + q_rho + q_lambda
-            P_Rho = sparse.diags(np.hstack((rho_JI.get(vin),np.zeros(self.nuc))), format='csc')
-            P = P + P_Rho
-
-        Ad = sparse.csc_matrix([
-        [1., 0., self.dt*np.cos(self.beta)],
-        [0., 1., self.dt*np.sin(self.beta)],
-        [0., 0., 1.]
-        ])
-        Bd = sparse.csc_matrix([
-        [0., 0.],
-        [0., self.dt*self.x0[2]/2.],
-        [self.dt, 0.]])
-        Ax = sparse.kron(sparse.eye(self.N+1),-sparse.eye(self.nx)) + sparse.kron(sparse.eye(self.N+1, k=-1), Ad)
-        Bu = sparse.kron(sparse.vstack([sparse.csc_matrix((1, self.N)), sparse.eye(self.N)]), Bd)
-        Aeq = sparse.hstack([Ax, Bu])
-
-        #TODO Config to adapt based on walls etc.
-        Aineq = sparse.eye((self.N+1)*self.nx + self.N*self.nu)
-        A = sparse.vstack([Aeq, Aineq], format='csc')
-
-
-        # Update input constraints
-        xmin = np.array([-np.inf,-np.inf,-3])
-        xmax = np.array([np.inf,np.inf,12])
-        umin = np.array([-10, np.maximum(-np.pi/4,self.delta-self.ddeltaMax)])
-        umax = np.array([2.5, np.minimum(np.pi/4,self.delta+self.ddeltaMax)])
-        lineq = np.hstack([np.kron(np.ones(self.N+1), xmin), np.kron(np.ones(self.N), umin)])
-        uineq = np.hstack([np.kron(np.ones(self.N+1), xmax), np.kron(np.ones(self.N), umax)])
-        
-        A = sparse.vstack([Aeq, Aineq], format='csc')
-
-        l = np.hstack([self.leq, lineq])
-        u = np.hstack([self.ueq, uineq])
-        
-        l[:self.nx] = -self.x0
-        u[:self.nx] = -self.x0
-        self.prob_x.update(Px = sparse.triu(P).data, Ax=A.data,q=q, l=l, u=u)
-
+    def updateMPC_z(self,egoX,mcN,lambda_JI,rho_JI,x_J):
+        # Intialize matrix variables
+        self.mcN = mcN        
+        P = sparse.eye(0,format='csc')
+        q = np.array([])
+        A = sparse.eye(0,format='csc')
+        A_data = np.array([],dtype='int')
+        for cnt_i, vin_i in enumerate(mcN):
+            # Cost function
+            P_Rho = sparse.diags(np.hstack((self.I_xy @ rho_JI.get(vin_i))), format='csc')
+            P = sparse.block_diag([P , P_Rho],format='csc')
+            q_rho = np.multiply(self.I_xy @ rho_JI.get(vin_i),-x_J.get(vin_i))
+            q_lambda = 1/2*self.I_xy @ lambda_JI.get(vin_i)
+            q = np.hstack((q, q_rho + q_lambda))
+            for cnt_j, vin_j in enumerate(mcN):
+                if cnt_j <= cnt_i:
+                    # Skip values of j which are smaller or equal than i, since i will have had those already
+                    continue
+                for i_x in range(self.N):
+                    A_data = np.hstack([A_data,
+                    x_J.get(vin_i)[i_x*2] - x_J.get(vin_j)[i_x*2],
+                    x_J.get(vin_i)[i_x*2+1] - x_J.get(vin_j)[i_x*2+1],
+                    x_J.get(vin_j)[i_x*2] - x_J.get(vin_i)[i_x*2],
+                    x_J.get(vin_j)[i_x*2+1] - x_J.get(vin_i)[i_x*2+1]])
+            A = sparse.csc_matrix((A_data,(self.A_rowi,self.A_coli)))
+        # lower bound is minimum distance, size depends on mcN len every comb * nxc
+        l = np.ones(int((len(mcN)*(len(mcN)-1))/2)*self.N)*self.d_min*self.d_mult
+        self.prob_z.update(Px = sparse.triu(P).data, Ax=A.data,q=q, l=l)
     
     def solveMPC_z(self):
         res = self.prob_x.solve()
         # Check solver status
         if res.info.status != 'solved':
             raise ValueError('OSQP did not solve the problem!')
-        self.ctrl = res.x[-self.N*self.nu:-(self.N-1)*self.nu]
-        xTraj = self.I_xy*res.x[:self.nxc]
-        return (res,self.ctrl,xTraj)
+        return (res)
 
 def tic():
     #Homemade version of matlab tic and toc functions

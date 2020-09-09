@@ -13,6 +13,7 @@ import sys
 import datetime
 import osqp
 import scipy as sp
+import copy
 from scipy import sparse
 
 # try:
@@ -375,14 +376,17 @@ class OAADMM:
         self.errMargin = errMargin
         self.pp = priorityPolicy(policy)
         self.dd = dd.deadlockDetection("DCRgraph").obj
-        self.mcN = set([])
+        self.mcN = []
         self.x_i = np.array([])
+        self.x_J = {}
+        self.x_J0 = {}
+        self.theta_J = {}
         self.z_IJ = {}
         self.z_JI = {}
         self.lambda_JI = {}
         self.lambda_IJ = {}
         self.rho_JI = {}
-
+        self.rho_IJ = {}
         ## OA-ADMM Parameter
         self.dt = 0.1
         self.d_mult = 1.75
@@ -391,9 +395,17 @@ class OAADMM:
         self.mu_0 = 0.25
         self.N = 10                     # Prediction horizon
         self.mcN_Dist = 25              # Distance at vehicle is added to mcN
-        self.mpc = mpc.oa_mpc(self.dt,self.d_mult,self.N)
+        self.mpc = mpc.oa_mpc(self.dt,self.N,self.d_mult,self.N)
+
+        self.I_xy = sparse.kron(np.hstack((np.zeros((self.N,1)),np.eye(self.N))),np.array(([1., 0., 0.], [0., 1.,0.]))) # Indicator matrix to get a vector with only XY coordinates shape of 2*N        
+        self.I_xyv = sparse.kron(np.vstack([np.zeros((1,self.N)),np.eye(self.N)]),np.array(([1., 0.], [0., 1.],[0.,0.]))) # Indicator matrix to get a vector with only XY coordinates shape of 2*N        
+    
+    def gen_x_ref(self):
+        self.x_ref = np.array()
+
 
     def xUpdate(self,egoX,worldX):
+        mcN_copy = copy.copy(self.mcN)
         # Construct and update Neighbor set
         for msg in worldX.msg.inbox[egoX.id]:
             if egoX.id == msg.idSend:
@@ -404,42 +416,71 @@ class OAADMM:
                 else:
                     continue
             elif 0 < egoX.location.distance(msg.content.get("loc")) <= self.mcN_Dist:
-                self.mcN.add(msg.idSend)
+                self.mcN.append(msg.idSend)
+        if mcN_copy == self.mcN:
+            self.mcN_change = 0 
+        else:
+            self.mcN_change = 1
+        
 
         # Receive z_JI, lambda_JI from neighbor set
         for msg in worldX.msg.inbox[egoX.id]:
             if msg.idSend in self.mcN:
-                self.z_JI[msg.idSend] = msg.content.get("z_IJ").get(egoX.id)
-                self.lambda_JI[msg.idSend] = msg.content.get("lambda_IJ").get(egoX.id)
-        
+                self.theta_J[msg.idSend] = msg.content.get("theta")
+                # If z_JI doesn't work like this add x0 to first state
+                self.z_JI[msg.idSend] = self.I_xyv @ msg.content.get("z_IJ").get(egoX.id)
+                self.lambda_JI[msg.idSend] = self.I_xyv @ msg.content.get("lambda_IJ").get(egoX.id)
+        #TODO Generate reference x based on path
+        self.gen_x_ref()
         # Update MPC data
-        self.mpc.updateMPC_x(egoX,x_ref,z_JI,lambda_JI,rho_JI,self.mcN)
-
+        self.mpc.updateMPC_x(egoX,self.x_ref,self.z_JI,self.lambda_JI,self.rho_JI,self.mcN)
         # Solve problem
-        (res,ctrl,xTraj) = self.mpc.solve_x()
-        
-        # Send x trajectory
-        self.phi = ((np.pi*egoX.rotation.yaw)/180)%2*np.pi
+        (res,ctrl,self.x_i) = self.mpc.solveMPC_x()
+        # Save current theta
+        self.theta = ((np.pi*egoX.rotation.yaw)/180)%2*np.pi
 
 
     def zUpdate(self,egoX,worldX):
         # Receive z_JI, lambda_JI from neighbor set
+        for msg in worldX.msg.inbox[egoX.id]:
+            if msg.idSend == egoX.id:
+                print('ERROR!, if never error remove this code')
+                continue
+            if msg.idSend in self.mcN:
+                self.x_J0[msg.idSend] = msg.content.get("x_i")
+                # Convert x_i into our ego coordinate system 
+                Tps_ji = rMatrix(self.theta_J) @ np.array([egoX.location.x-worldX.actorDict.get(msg.idSend).location.x,egoX.location.y - worldX.actorDict.get(msg.idSend).location.y])
+                self.x_J[msg.idSend] = np.kron(np.ones((self.N,1)),rMatrixAB(self.theta_J[msg.idSend],self.theta)) @ (msg.content.get("x_i") - np.kron(np.ones((self.N,1)),Tps_ji)) 
+                self.lambda_JI[msg.idSend] = msg.content.get("lambda_IJ").get(egoX.id)
 
-        # z-Update optimization
 
-        # Update MPC data
-        self.mpc.updateMPC_z(egoX)
+        if self.mcN_change == 1:
+            # z-Update optimization
+            self.mpc.setupMPC_z(egoX,self.mcN,self.lambda_JI,self.rho_JI,self.x_J)
+        else:
+            # Update MPC data
+            self.mpc.updateMPC_z(egoX,self.mcN,self.lambda_JI,self.rho_JI,self.x_J)
 
         # Solve problem
-        (res,ctrl,zTraj) = self.mpc.solve_z()
+        (res) = self.mpc.solveMPC_z()
 
+        for cnt_i, vin_i in enumerate(self.mcN):
+            if vin_i == egoX.id:
+                self.z_IJ[vin_i] = res.x[cnt_i*self.N*2:(cnt_i+1)*self.N*2]
+            else:
+                z_ij_loc = res.x[cnt_i*self.N*2:(cnt_i+1)*self.N*2]
+                Tps_ij = rMatrix(self.theta) @ np.array([worldX.actorDict.get(vin_i).location.x-egoX.location.x,worldX.actorDict.get(vin_i).location.y-egoX.location.y])
+                self.z_IJ[vin_i] = np.kron(np.ones((self.N,1)),rMatrixAB(self.theta,self.theta_J[vin_i] )) @ (z_ij_loc - np.kron(np.ones((self.N,1)),Tps_ij))
 
         # Update lambda 
-
+        for vin_i in range(self.mcN):
+            self.lambda_IJ[vin_i] = self.mu_0*self.lambda_IJ[vin_i] + self.rho_IJ[vin_i] @ (self.x_J0[vin_i]- self.z_IJ[vin_i])
+        
         # Update rho
-
-
-        # Send z trajectory and lambda
+        for vin_i in range(self.mcN):
+            #TODO figure out how rho works, and how to do lambda_ij vs lambda_ji
+            self.rho_IJ = []
+        
         
 
     def updateData(self,egoX,worldX):
@@ -454,12 +495,11 @@ class OAADMM:
         content["loc"] = egoX.location
         if var == "xUpdate":
             content["x_i"] = self.x_i
+            content["theta"] = self.theta
         elif var == "zUpdate":
+            #TODO make sure correct info is communicated
             content["z_IJ"] = self.z_IJ
             content["lambda_IJ"] = self.lambda_IJ
-        # Common
-        # content["wp"] = egoX.waypoint
-        # content["spwnid"] = egoX.spwnid
         msg_obj = msg(egoX.id,"COM",content)
         return msg_obj
 
@@ -467,7 +507,22 @@ class OAADMM:
         self.priorityScore = score
 
     def setup(self,egoX,worldX):
-        self.mcN.add(egoX.id)
+        self.mcN.append(egoX.id)
         self.mpc.setupMPC_x(egoX)
-        self.mpc.setupMPC_z(egoX)
         self.setPriority(0)        
+
+
+def rMatrix(theta):
+    R = np.array([[np.cos(theta),-np.sin(theta)],[np.sin(theta),np.cos(theta)]])
+    return R
+def rMatrixAB(thetaA,thetaB):
+    R = np.array([[np.cos(thetaA-thetaB),-np.sin(thetaA-thetaB)],[np.sin(thetaA-thetaB),np.cos(thetaA-thetaB)]])
+    return R
+def tMatrix(x1,x2):
+    T = x2-x1
+    return T
+def transform(theta,xy1,xy2,vec):
+    R = rMatrix(theta)
+    T = tMatrix(xy1,xy2)
+    vec = R @ (vec-T)
+    return vec
