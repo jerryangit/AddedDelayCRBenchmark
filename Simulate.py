@@ -135,12 +135,6 @@ def main(cr_method = "OAADMM", ctrlPolicy = "OAMPC", PriorityPolicy = "PriorityS
         else:
             bp = blueprint_library.find('vehicle.audi.a2')
 
-        # # A blueprint contains the list of attributes that define a vehicle's
-        # # instance, we can read them and modify some of them. For instance,
-        # # let's randomize its color.
-        # if bp.has_attribute('color'):
-        #     color = random.choice(bp.get_attribute('color').recommended_values)
-        #     bp.set_attribute('color', color)
         #* Generate spawn
         i = 0
         # spwnRand = random.randint(1,4)
@@ -274,31 +268,41 @@ def main(cr_method = "OAADMM", ctrlPolicy = "OAMPC", PriorityPolicy = "PriorityS
                         if spwn is not None:
                             # Add new spwn to actor_list
                             actorDict_obj.actor_list.append(spwn)
+
                             # Create inbox for new vehicle
                             worldX_obj.msg.inbox[spwn.id] = []
+
                             # Create actorX object for new vehicle
                             spwnX = ah.actorX(spwn,0,dt,ts.elapsed_seconds-ts0s,spwnLoc[spwnRand[i]],spwnRand[i],exitLoc[destRand[i]],destRand[i],velRand[i],idRand[i],i)
+
                             # Trace route using A* and set to spwnX.route
                             if preGenRoute == 1:
                                 spwnX.route = routeDictionary.get((spwnRand[i],destRand[i]))
-                            else:    
+                            else:
                                 spwnX.route = grp.trace_route(spwnLoc[spwnRand[i]].location,spwnX.dest.location)
+
                             # Create conflict resolution object and save it
                             spwnX.cr = cr.conflictResolution(cr_method,[errMargin,PriorityPolicy]).obj
+
                             # Setup conflict resolution using egoX and worldX
                             spwnX.cr.setup(spwnX,worldX_obj)
+
                             # Create control object and save it
                             spwnX.co = ac.actorControl(ctrlPolicy)
+
                             # Add new objects to dictionary
                             actorDict_obj.addKey(spwn.id,spwnX)
+
                             # Add spawn time to list for analysis
                             spwnTime.append(ts.elapsed_seconds-ts0s)
-                            # TODO see if setting velocity reduces start delay
+
                             # Set vehicle velocity to its reference
                             vel3D = proj3D(velRand[i],np.radians(spwnLoc[spwnRand[i]].rotation.yaw))
                             spwn.set_velocity(vel3D)
+
                             # Set gear to 1 to avoid spawn delay bug
                             spwn.apply_control(carla.VehicleControl(manual_gear_shift=True,gear=1))
+
                             # Set gear back to automatic 
                             # spwn.apply_control(carla.VehicleControl(manual_gear_shift=False))
                             # Print out to console

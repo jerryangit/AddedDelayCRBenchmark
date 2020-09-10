@@ -396,15 +396,46 @@ class OAADMM:
         self.N = 10                     # Prediction horizon
         self.mcN_Dist = 25              # Distance at vehicle is added to mcN
         self.mpc = mpc.oa_mpc(self.dt,self.N,self.d_mult,self.N)
-
         self.I_xy = sparse.kron(np.hstack((np.zeros((self.N,1)),np.eye(self.N))),np.array(([1., 0., 0.], [0., 1.,0.]))) # Indicator matrix to get a vector with only XY coordinates shape of 2*N        
         self.I_xyv = sparse.kron(np.vstack([np.zeros((1,self.N)),np.eye(self.N)]),np.array(([1., 0.], [0., 1.],[0.,0.]))) # Indicator matrix to get a vector with only XY coordinates shape of 2*N        
-    
-    def gen_x_ref(self):
-        self.x_ref = np.array()
+    def routeProcess(self,egoX):        
+        wp_0 = egoX.route[0][0]
+        self.route_s = [0]
+        for cnt_i , (wp_i,__) in enumerate(egoX.route):
+            if cnt_i > 0:
+                self.route_s.append(wp_i.transform.location.distance(wp_0.transform.location)+self.route_s[cnt_i-1])
+            wp_0 = wp_i
+
+    def gen_x_ref(self,egoX,worldX):
+        nearestWP = worldX.map.get_waypoint(egoX.location,project_to_road=True, lane_type=(carla.LaneType.Driving))
+
+        wp_list = []
+        for i in range(10):
+            if egoX.routeIndex+i < len(egoX.route):
+                wp_list.append([egoX.location.distance(egoX.route[egoX.routeIndex+i][0].transform.location),i])
+        # the closest waypoint is deemed to be the current index.
+        egoX.routeIndex = egoX.routeIndex+sorted(wp_list)[0][1]
+        sRef = np.linspace(egoX.velRef*self.dt,egoX.velRef*(self.N+1)*self.dt,self.N)
+
+        # Calculate the xy coordinates for a certain sRef
+        self.x_ref = np.array(([0,0,egoX.velRef]))
+        for s_i in sRef:
+            x_a = None
+            x_b = None
+            idx = 0 
+            while x_b == None:
+                if self.route_s[egoX.routeIndex] + s_i < self.route_s[egoX.routeIndex+idx]:
+                    x_b = np.array([egoX.route[egoX.routeIndex+idx][0].transform.location.x,egoX.route[egoX.routeIndex+idx][0].transform.location.y])
+                    x_a = np.array([egoX.route[egoX.routeIndex+idx-1][0].transform.location.x,egoX.route[egoX.routeIndex+idx-1][0].transform.location.y])
+                    break
+                idx += 1
+            x_interp = x_a + s_i/(self.route_s[egoX.routeIndex+idx]-self.route_s[egoX.routeIndex+idx-1])*(x_b-x_a)
+            x_trans = rMatrix(-self.theta)@(x_interp-np.array([egoX.location.x,egoX.location.y]))
+            self.x_ref = np.hstack([self.x_ref , x_trans, egoX.velRef ])
 
 
     def xUpdate(self,egoX,worldX):
+        self.theta = ((np.pi*egoX.rotation.yaw)/180)%(2*np.pi)
         mcN_copy = copy.copy(self.mcN)
         # Construct and update Neighbor set
         for msg in worldX.msg.inbox[egoX.id]:
@@ -431,13 +462,12 @@ class OAADMM:
                 self.z_JI[msg.idSend] = self.I_xyv @ msg.content.get("z_IJ").get(egoX.id)
                 self.lambda_JI[msg.idSend] = self.I_xyv @ msg.content.get("lambda_IJ").get(egoX.id)
         #TODO Generate reference x based on path
-        self.gen_x_ref()
+        self.gen_x_ref(egoX,worldX)
         # Update MPC data
         self.mpc.updateMPC_x(egoX,self.x_ref,self.z_JI,self.lambda_JI,self.rho_JI,self.mcN)
         # Solve problem
         (res,ctrl,self.x_i) = self.mpc.solveMPC_x()
         # Save current theta
-        self.theta = ((np.pi*egoX.rotation.yaw)/180)%2*np.pi
 
 
     def zUpdate(self,egoX,worldX):
@@ -480,14 +510,6 @@ class OAADMM:
         for vin_i in range(self.mcN):
             #TODO figure out how rho works, and how to do lambda_ij vs lambda_ji
             self.rho_IJ = []
-        
-        
-
-    def updateData(self,egoX,worldX):
-        #  Loop needed to process msgs in a useable format
-        # for msg in worldX.msg.inbox[egoX.id]:
-        self.x0 = np.zeros(0,0,egoX.velNorm)
-        pass
 
     def outbox(self,egoX,var):
         content = {} 
@@ -508,6 +530,7 @@ class OAADMM:
 
     def setup(self,egoX,worldX):
         self.mcN.append(egoX.id)
+        self.routeProcess(egoX)        
         self.mpc.setupMPC_x(egoX)
         self.setPriority(0)        
 
