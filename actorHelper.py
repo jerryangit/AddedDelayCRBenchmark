@@ -141,6 +141,7 @@ class actorX:
         self.accNorm = np.linalg.norm([self.acceleration.x,self.acceleration.y])
         self.location = self.ego.get_transform().location
         self.rotation = self.ego.get_transform().rotation
+        self.velLoc= rMatrix(((-self.rotation.yaw*np.pi)/180)%(2*np.pi))@np.array([self.velocity.x,self.velocity.y])
         self.accLoc = rMatrix(((-self.rotation.yaw*np.pi)/180)%(2*np.pi))@np.array([self.acceleration.x,self.acceleration.y])
 
         # Rough Integration of distance

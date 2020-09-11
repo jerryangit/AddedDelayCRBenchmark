@@ -271,75 +271,80 @@ class OAMPC:
     def __init__(self):
         self.aPIDStates = (0,0,0,0)
         self.u_a0 = 0
+        self.u_delta0 = 0
 
     def control(self,egoX,worldX):
         # Input acceleration
         a = egoX.cr.ctrl[0]
         # Input steering angle
-        u_delta = egoX.cr.ctrl[1]/(1.35*1.00)
+        u_delta = egoX.cr.ctrl[1]/((4*np.pi)/9)
 
         theta = ((-egoX.ego.get_transform().rotation.yaw*np.pi)/180)%(2*np.pi)
         R = np.array([[np.cos(theta),-np.sin(theta)],[np.sin(theta),np.cos(theta)]])
         egoX.accLoc =  R@np.array([egoX.ego.get_acceleration().x,egoX.ego.get_acceleration().y])
         egoX.velLoc =  R@np.array([egoX.ego.get_velocity().x,egoX.ego.get_velocity().y])
 
+
+
         (u_a,self.aPIDStates) = accPID(egoX,self.aPIDStates,a)
         u_a = 0.5*u_a+0.5*self.u_a0
+        u_delta = 0.5*u_delta+0.5*self.u_delta0/((4*np.pi)/9)
 
         u_a = np.clip(u_a,-1,1)
         u_delta = np.clip(u_delta,-1,1)
-        if u_a > 0:
+        if u_a > 0.05:
             egoX.ego.apply_control(carla.VehicleControl(throttle=u_a, steer=u_delta,brake = 0,manual_gear_shift=True,gear=1))
-        elif egoX.velLoc[0] > 0.1:
-            egoX.ego.apply_control(carla.VehicleControl(throttle=0, steer=u_delta,brake = u_a/4,manual_gear_shift=True,gear=1))
+        elif u_a <= 0.05 and u_a > -0.25:
+            egoX.ego.apply_control(carla.VehicleControl(throttle=0, steer=u_delta,brake = 0,manual_gear_shift=True,gear=1))            
+        elif egoX.velLoc[0] <= 0.25:
+            egoX.ego.apply_control(carla.VehicleControl(throttle=-u_a*1.5, steer=u_delta,brake = 0,manual_gear_shift=True,gear=-1))
         else:
-            egoX.ego.apply_control(carla.VehicleControl(throttle=-u_a, steer=u_delta,brake = 0,manual_gear_shift=True,gear=-1))
+            egoX.ego.apply_control(carla.VehicleControl(throttle=0, steer=u_delta,brake = -u_a,manual_gear_shift=True,gear=1))
         self.u_a0 = u_a
-        
+        self.u_delta0 = u_delta*((4*np.pi)/9)
         # if egoX._spwnNr == 0:
-            # plt.figure(12)
-            # plt.title(str(egoX.id)+'Acceleration')
-            # plt.ylim(-5,10)            
-            # plt.plot(worldX.tick.elapsed_seconds,a,'gx')
-            # plt.plot(worldX.tick.elapsed_seconds,egoX.accLoc[0],'bx')
+        #     # plt.figure(12)
+        #     # plt.title(str(egoX.id)+'Acceleration')
+        #     # plt.ylim(-5,10)            
+        #     # plt.plot(worldX.tick.elapsed_seconds,a,'gx')
+        #     # plt.plot(worldX.tick.elapsed_seconds,egoX.accLoc[0],'bx')
 
-            # plt.figure(13)
-            # plt.title(str(egoX.id)+'Acceleration')
-            # plt.ylim(-10,10)            
-            # plt.plot(worldX.tick.elapsed_seconds,a,'gx')
-            # plt.plot(worldX.tick.elapsed_seconds,u_a,'rx')
-            # plt.plot(worldX.tick.elapsed_seconds,egoX.accLoc[0],'bx')
+        #     plt.figure(13)
+        #     plt.title(str(egoX.id)+'Acceleration')
+        #     plt.ylim(-10,10)            
+        #     plt.plot(worldX.tick.elapsed_seconds,a,'gx')
+        #     # plt.plot(worldX.tick.elapsed_seconds,self.aPIDStates[3],'bx')
+        #     plt.plot(worldX.tick.elapsed_seconds,u_a,'rx')
+        #     plt.plot(worldX.tick.elapsed_seconds,egoX.accLoc[0],'bx')
 
-            # plt.plot(worldX.tick.elapsed_seconds,self.aPIDStates[0],'gx')
+        #     # plt.plot(worldX.tick.elapsed_seconds,self.aPIDStates[0],'gx')
 
-            # plt.figure(14)
-            # plt.title(str(egoX.id)+'Velocity')
-            # plt.plot(worldX.tick.elapsed_seconds,egoX.velNorm,'gx')
-            # plt.plot(worldX.tick.elapsed_seconds,egoX.velRef,'bx')
+        #     plt.figure(14)
+        #     plt.title(str(egoX.id)+'Velocity')
+        #     plt.plot(worldX.tick.elapsed_seconds,egoX.velNorm,'gx')
+        #     plt.plot(worldX.tick.elapsed_seconds,egoX.velRef,'bx')
             
-            # plt.figure(14)
-            # plt.title(str(egoX.id)+'Steering Angle')
-            # plt.plot(worldX.tick.elapsed_seconds,egoX.cr.ctrl[1],'gx')
-            # plt.plot(worldX.tick.elapsed_seconds,u_delta,'bx')
-            # plt.show(block=False)
-            # plt.pause(0.016667)
+        #     plt.figure(14)
+        #     plt.title(str(egoX.id)+'Steering Angle')
+        #     plt.plot(worldX.tick.elapsed_seconds,egoX.cr.ctrl[1],'gx')
+        #     plt.plot(worldX.tick.elapsed_seconds,u_delta,'bx')
 
 
-            # if worldX.tick.elapsed_seconds > 6:
-            #     plt.show()
-                # plt.show(block=False)
-                # plt.pause(0.001)
+        #     if worldX.tick.elapsed_seconds > 10:
+        #         plt.show()
+        #         # plt.show(block=False)
+        #         # plt.pause(0.001)
 
-            # plt.show(block=False)
-            # plt.pause(0.001)
+        #     # plt.show(block=False)
+        #     # plt.pause(0.001)
 
 
 def accPID(egoX,states,aRef):
-    kp = 0.275
-    kd = 0.00
-    ki = 0.
+    kp = 0.2
+    kd = 0.0
+    ki = 0.1
     #* >
-    a = (egoX.accLoc[0] + states[3])/2
+    a = 1*egoX.accLoc[0] + 0*states[3]
     #* PID states <
     
     error = aRef - a
@@ -349,7 +354,7 @@ def accPID(egoX,states,aRef):
     u_a = kp*(error) + ki*(integral) + kd*(derivative) 
     v = np.linalg.norm([egoX.ego.get_velocity().x,egoX.ego.get_velocity().y])
     if  v > 1:
-        u_a += 0.1125+0.0938*v-0.003375*v**2 # quadractic approximation of throttle to overcome friction
+        u_a += 0.115+0.0936*v+-0.00345*v**2 # quadractic approximation of throttle to overcome friction
     else:
         u_a += 0.1+0.11*v # quadractic approximation of throttle to overcome friction
         

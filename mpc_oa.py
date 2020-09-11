@@ -61,14 +61,14 @@ class rotationYawDummy:
 
 class oa_mpc:
     def __init__(self,dt,N,d_min,d_mult):
-        # Pass through variables
+        # Pass through variables           
         self.N = N
         self.dt = dt 
         self.d_min = d_min
         self.d_mult = d_mult
         # Vehicle porperties
-        self.deltaMax = 1.35
-        self.ddeltaMax = self.deltaMax*(self.dt/0.2)   # Maximum steering angle change per step
+        self.deltaMax = (np.pi*4)/9
+        self.ddeltaMax = self.deltaMax*2 # (self.dt/0.125)   # Maximum steering angle change per step, number is amount of seconds per full rotation
 
         # Not configurable
         self.nx = 3                     # Number of states
@@ -76,8 +76,8 @@ class oa_mpc:
         self.nxc = self.nx*(self.N+1)   # Number of states concatenated
         self.nuc = self.nu*self.N       # Number of inputs concatenated
         self.nucZ = np.zeros(self.nuc)     # Empty array of zeros of shape (nuc,)
-        self.delta = 1e-5                  # Initialize delta
-        self.beta = 1e-5                   # Initialize beta
+        self.delta = 1e-10                  # Initialize delta
+        self.beta = 1e-10                   # Initialize beta
         self.I_xy0 = sparse.kron(np.eye(self.N+1),np.array(([1., 0., 0.], [0., 1.,0.]))) # Indicator matrix to get a vector with only XY coordinates shape of 2*(N+1)
         self.I_xy = sparse.kron(np.hstack((np.zeros((self.N,1)),np.eye(self.N))),np.array(([1., 0., 0.], [0., 1.,0.]))) # Indicator matrix to get a vector with only XY coordinates shape of 2*N        
         self.I_xyv = sparse.kron(np.vstack([np.zeros((1,self.N)),np.eye(self.N)]),np.array(([1., 0.], [0., 1.],[0.,0.]))) # Indicator matrix to get a vector with only XY coordinates shape of 2*N        
@@ -103,19 +103,19 @@ class oa_mpc:
         # ])
         Bd = sparse.csc_matrix([
             [0., 0.],
-            [0., self.dt*self.x0[2]/2.],
+            [0., self.dt*self.x0[2]/2+1e-10],
             [self.dt, 0.]
         ])
         # - linear dynamics
         Ax = sparse.kron(sparse.eye(self.N+1),-sparse.eye(self.nx)) + sparse.kron(sparse.eye(self.N+1, k=-1), Ad)
         Bu = sparse.kron(sparse.vstack([sparse.csc_matrix((1, self.N)), sparse.eye(self.N)]), Bd)
         Aeq = sparse.hstack([Ax, Bu])
-        self.leq = np.hstack([-self.x0, np.zeros(self.N*self.nx)])
-        self.ueq = self.leq
+        leq = np.hstack([-self.x0, np.zeros(self.N*self.nx)])
+        ueq = leq
 
         # Input constraints 
-        umin = np.array([-10, np.maximum(-self.deltaMax,self.delta-self.ddeltaMax)])
-        umax = np.array([2.5, np.minimum(self.deltaMax,self.delta+self.ddeltaMax)])
+        umin = np.array([-10, -self.deltaMax])
+        umax = np.array([3.5, self.deltaMax])
         # Ineq constraints, collision avoidance
         xmin = np.array([-np.inf,-np.inf,-3])
         xmax = np.array([np.inf,np.inf,12])
@@ -124,51 +124,59 @@ class oa_mpc:
         uineq = np.hstack([np.kron(np.ones(self.N+1), xmax), np.kron(np.ones(self.N), umax)])
 
         # Cost function
-        Q = sparse.diags([1., 15., 5.])
-        QN = Q*5
-        R = sparse.diags([1., 5.])
+        Q = sparse.diags([12.5, 15.0, 1.5])*0.75
+        QN = Q*2.5
+        R = sparse.diags([1.5, 2.5])
         x_ref = np.linspace([0,0,self.x0[2]],[1,1,self.v_ref],self.N+1).flatten()
 
 
         # Cast MPC problem to a QP: x = (x(0),x(1),...,x(N),u(0),...,u(N-1))
         # - quadratic objective
-        self.P_Q = sparse.block_diag([sparse.kron(sparse.eye(self.N), Q), QN, sparse.kron(sparse.eye(self.N), R,format='csc')], format='csc') 
+        self.P_Q = sparse.block_diag([sparse.kron(sparse.eye(self.N), Q), QN, sparse.kron(sparse.diags(np.linspace(1.0,1.0,self.N)), R,format='csc')], format='csc') 
         P = self.P_Q        
         # - linear objective
         self.lambda_ref = np.hstack([np.kron(np.ones(self.N), Q.diagonal()),QN.diagonal()])
         q = np.hstack([np.multiply(self.lambda_ref,-x_ref), self.nucZ])         
 
         A = sparse.vstack([Aeq, Aineq], format='csc')
-        l = np.hstack([self.leq, lineq])
-        u = np.hstack([self.ueq, uineq])
+        self.l = np.hstack([leq, lineq])
+        self.u = np.hstack([ueq, uineq])
         P,q 
         # Create an OSQP object
         self.prob_x = osqp.OSQP()
         # Setup workspace
-        self.prob_x.setup(P, q, A, l, u, warm_start=True, polish = 1)
+        self.prob_x.setup(P, q, A, self.l, self.u, warm_start=True, polish = 1 ,verbose = 1, max_iter = 20000)
 
 
     def updateMPC_x(self,egoX,x_ref,z_JI,lambda_JI,rho_JI,mcN):
         # x_ref.shape = (N+1)*3, z_JI.get(id).shape = (N+1)*3, lambda_JI.get(id).shape = N*2, rho_JI.get(id).shape = N*2
-        self.x0 = np.array([0,0,egoX.velNorm + 1e-10])
-        self.beta = np.arctan(1/2*np.tan(self.ctrl[1])) + 1e-10 # Add very small amount to ensure Ad elements don't become zero 
+
+        # Calculate actual beta based on previous control input
+        delta = egoX.ego.get_control().steer*((4*np.pi)/9)
+        self.beta = np.arctan(1/2*np.tan(delta)) + 1e-10 # Add very small amount to ensure Ad elements don't become zero 
+
+        # Calculate the actual velocity in the direction of bicycle model
+        R = np.array([[np.cos(-self.beta),-np.sin(-self.beta)],[np.sin(-self.beta),np.cos(-self.beta)]])
+        egoX.velLocNorm = np.array([1,0])@R@egoX.velLoc
+        self.x0 = np.array([0,0,0.85*egoX.velLocNorm+0.15*egoX.velNorm + 1e-10])
+
         # Update Q and q based on OA-ADMM rules # q = lambda.*(-reference)
-        q = np.hstack([np.multiply(self.lambda_ref,-x_ref), self.nucZ])
-        P = self.P_Q  
+        q = np.hstack([np.multiply(self.lambda_ref+self.I_xyv@rho_JI.get(egoX.id),-x_ref), self.nucZ])
+        P = self.P_Q  + sparse.diags(np.hstack((self.I_xyv@rho_JI.get(egoX.id), self.nucZ)), format='csc')
         for vin in mcN:
             q_rho = np.hstack([np.multiply(self.I_xyv@rho_JI.get(vin),-z_JI.get(vin)), self.nucZ])
             q_lambda = np.hstack((1/2*self.I_xyv@lambda_JI.get(vin),self.nucZ))
             q = q + q_rho + q_lambda
-            P_Rho = sparse.diags(np.hstack((self.I_xyv@rho_JI.get(vin),np.zeros(self.nuc))), format='csc')
+            P_Rho = sparse.diags(np.hstack((self.I_xyv@rho_JI.get(vin),self.nucZ)), format='csc')
             P = P + P_Rho
         Ad = sparse.csc_matrix([
-        [1., 0., self.dt*np.cos(self.beta)],
-        [0., 1., self.dt*np.sin(self.beta)],
+        [1., 0., self.dt*np.cos(self.beta) + 1e-10],
+        [0., 1., self.dt*np.sin(self.beta) + 1e-10],
         [0., 0., 1.]
         ])
         Bd = sparse.csc_matrix([
         [0., 0.],
-        [0., self.dt*self.x0[2]/2.],
+        [0., self.dt*self.x0[2]/2 +1e-10],
         [self.dt, 0.]])
         Ax = sparse.kron(sparse.eye(self.N+1),-sparse.eye(self.nx)) + sparse.kron(sparse.eye(self.N+1, k=-1), Ad)
         Bu = sparse.kron(sparse.vstack([sparse.csc_matrix((1, self.N)), sparse.eye(self.N)]), Bd)
@@ -180,24 +188,15 @@ class oa_mpc:
 
 
         # Update input constraints
-        xmin = np.array([-np.inf,-np.inf,-3])
-        xmax = np.array([np.inf,np.inf,12])
-        umin = np.array([-10, np.maximum(-self.deltaMax,self.delta-self.ddeltaMax)])
-        umax = np.array([2.5, np.minimum(self.deltaMax,self.delta+self.ddeltaMax)])
-        lineq = np.hstack([np.kron(np.ones(self.N+1), xmin), np.kron(np.ones(self.N), umin)])
-        uineq = np.hstack([np.kron(np.ones(self.N+1), xmax), np.kron(np.ones(self.N), umax)])
-        
+       
         A = sparse.vstack([Aeq, Aineq], format='csc')
-
-        l = np.hstack([self.leq, lineq])
-        u = np.hstack([self.ueq, uineq])
         
-        l[:self.nx] = -self.x0
-        u[:self.nx] = -self.x0
-        self.prob_x.update(Px = sparse.triu(P).data, Ax=A.data,q=q, l=l, u=u)
-        # res = self.prob_x.solve()
-        # if res.info.status != 'solved':
-        #     raise ValueError('OSQP did not solve the problem!')
+        self.l[:self.nx] = -self.x0
+        self.u[:self.nx] = -self.x0
+        self.prob_x.update(Px = sparse.triu(P).data, Ax=A.data,q=q, l=self.l, u=self.u)
+        res = self.prob_x.solve()
+        if res.info.status != 'solved':
+            raise ValueError('OSQP did not solve the problem!')
 
 
     
@@ -227,10 +226,10 @@ class oa_mpc:
         K = np.zeros(int((len(mcN)*(len(mcN)-1))/2)*self.N)
         for cnt_i, vin_i in enumerate(mcN):
             # Cost function
-            P_Rho = sparse.diags(np.hstack(( rho_JI.get(vin_i) + 1e-10)), format='csc')
+            P_Rho = sparse.diags(np.hstack(( rho_JI.get(vin_i) + 1e-7)), format='csc')
             P = sparse.block_diag([P , P_Rho],format='csc')
             q_rho = np.multiply(rho_JI.get(vin_i),-x_J.get(vin_i))
-            q_lambda = 1/2* lambda_JI.get(vin_i)
+            q_lambda = 1/2* lambda_JI.get(vin_i) * 0
             q = np.hstack((q, q_rho + q_lambda))
             # Add linearized collision avoidance between vehicles
             for cnt_j, vin_j in enumerate(mcN):
@@ -238,6 +237,7 @@ class oa_mpc:
                     # Skip values of j which are smaller or equal than i, since i will have had those already
                     continue
                 #TODO Correctly assign the data and its rows and column indices
+                #TODO Try implementing capsule based collision avoidance
                 for i_x in range(self.N):
                     # x vector at linearization point
                     x_bar = np.array([x_J.get(vin_i)[i_x*2],
@@ -270,12 +270,12 @@ class oa_mpc:
             # Create an OSQP object
             self.prob_z = osqp.OSQP()
             # Setup workspace
-            self.prob_z.setup(P, q, A, l, u, warm_start=True, polish = 1)
+            self.prob_z.setup(P, q, A, l, u, warm_start=True, polish = 1, max_iter = 10000 ,verbose = 0)
         else:
             # Create an OSQP object
             self.prob_z = osqp.OSQP()
             # Setup workspace
-            self.prob_z.setup(P, q, warm_start=True, polish = 1)
+            self.prob_z.setup(P, q, warm_start=True, polish = 1 ,verbose = 0)
 
         res = self.prob_z.solve()
         # Check solver status
@@ -298,7 +298,10 @@ class oa_mpc:
         K = np.zeros(int((len(mcN)*(len(mcN)-1))/2)*self.N)
         for cnt_i, vin_i in enumerate(mcN):
             # Cost function
+            if np.sum(rho_JI.get(vin_i)) == 0:
+                rho_JI[vin_i] = rho_JI.get(vin_i) + 1e-7
             P_Rho = sparse.diags(np.hstack(( rho_JI.get(vin_i))), format='csc')
+                
             P = sparse.block_diag([P , P_Rho],format='csc')
             q_rho = np.multiply(rho_JI.get(vin_i),-x_J.get(vin_i))
             #TODO debug lambda, setting to zero fixes it, but should not be zero
@@ -345,7 +348,9 @@ class oa_mpc:
         res = self.prob_z.solve()
         # Check solver status
         if res.info.status != 'solved':
-            raise ValueError('OSQP did not solve the problem!')
+            res = self.prob_z.solve()
+            if res.info.status != 'solved':
+                raise ValueError('OSQP did not solve the problem!')
         return (res)
 
 def tic():

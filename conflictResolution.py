@@ -14,6 +14,7 @@ import datetime
 import osqp
 import scipy as sp
 import copy
+import matplotlib.pyplot as plt
 from scipy import sparse
 
 # try:
@@ -390,14 +391,14 @@ class OAADMM:
         self.rho_IJ = {}
         ## OA-ADMM Parameter
         self.dt = 0.1
-        self.d_min = 4.75
+        self.d_min = 3.5
         self.d_phi = 1.05
-        self.d_mult = 2.05
-        self.rho_base = 2
-        self.phi_a = 6
-        self.mu_0 = 0.25
-        self.N = 10                     # Prediction horizon
-        self.mcN_Dist = 25              # Distance at vehicle is added to mcN
+        self.d_mult = 1.35
+        self.rho_base = 3
+        self.phi_a = 2
+        self.mu_0 = 1/4
+        self.N = 20                     # Prediction horizon
+        self.mcN_Dist = 30              # Distance at vehicle is added to mcN
         self.mpc = mpc.oa_mpc(self.dt,self.N,self.d_min,self.d_mult)
         self.I_xy = self.mpc.I_xy
         self.I_xyv = self.mpc.I_xyv
@@ -420,7 +421,7 @@ class OAADMM:
 
         # the closest waypoint is deemed to be the current index.
         egoX.routeIndex = egoX.routeIndex+sorted(wp_list)[0][1]
-        sRef = np.linspace(egoX.velRef*self.dt,egoX.velRef*(self.N+1)*self.dt,self.N)
+        sRef = np.linspace(egoX.velRef*self.dt,egoX.velRef*(self.N)*self.dt,self.N)
 
         # Calculate the xy coordinates for a certain sRef
         self.x_ref = np.array(([0,0,egoX.velRef]))
@@ -444,8 +445,12 @@ class OAADMM:
 
 
     def xUpdate(self,egoX,worldX):
-        self.theta = ((np.pi*egoX.rotation.yaw)/180)%(2*np.pi)
         mcN_copy = copy.copy(self.mcN)
+
+        for vin_i in self.mcN:
+            if worldX.actorDict.dict.get(vin_i) == None:
+                self.mcN.remove(vin_i)
+        self.theta = ((np.pi*egoX.rotation.yaw)/180)%(2*np.pi)
         # Construct and update Neighbor set
         for msg in worldX.msg.inbox[egoX.id]:
             #TODO Might be impossible remove
@@ -477,6 +482,7 @@ class OAADMM:
                     self.lambda_JI[msg.idSend] = msg.content.get("lambda_IJ").get(egoX.id)
                     self.rho_JI[msg.idSend] =  msg.content.get("rho_IJ").get(egoX.id)
                 else:
+                    #TODO intialize x_i to avoid missing
                     self.z_JI[msg.idSend] = self.I_xyv @ self.x_i
                     self.lambda_JI[msg.idSend] = np.zeros(self.N*2)
                     self.rho_JI[msg.idSend] = np.zeros(self.N*2)
@@ -487,6 +493,32 @@ class OAADMM:
         # Solve problem, self.x_i contains only xy coordinates for future states, shape = self.N*2
         (res,self.ctrl,self.x_i) = self.mpc.solveMPC_x()
         self.x_J[egoX.id] = self.x_i
+
+        # if egoX._spwnNr == 1:
+        #     plt.figure(1)
+        #     plt.gca().clear()        
+        #     plt.ylim(-8,8)
+        #     plt.xlim(-5,15)
+        #     plt.title(str(egoX.id)+'MPC steps')
+        #     plt.plot(res.x[0],res.x[1],'rx')        
+        #     plt.plot(res.x[3:(self.N+1)*3:3],res.x[4:(self.N+1)*3:3],'bx')
+        #     plt.plot(self.x_ref[0::3],self.x_ref[1::3],'b*')
+        #     for vin_j in self.mcN:
+        #         plt.plot(self.z_JI[vin_j][0::3],self.z_JI[vin_j][1::3],'bo',markersize = 1, alpha=0.5, markerfacecolor='none')
+        #     plt.show(block=False)
+        #     plt.pause(0.0001)
+
+        #     plt.figure(2)
+        #     plt.gca().clear()        
+        #     plt.ylim(-3,8)
+        #     plt.plot(egoX.ego.get_control().throttle,'ro',markerfacecolor='none')  # Throttle
+        #     plt.plot(egoX.accLoc[0],'r*')                   # Local Acc
+        #     plt.plot(res.x[2:(self.N+1)*3:3],'b.')          # Planned velocity
+        #     plt.plot(res.x[(self.N+1)*3::2],'r.')           # Planned Acc
+        #     plt.plot(res.x[(self.N+1)*3+1::2],'g.')         # Planned delta
+        #     plt.show(block=False)
+        #     plt.pause(0.0009)
+
 
 
     def zUpdate(self,egoX,worldX):
@@ -505,7 +537,6 @@ class OAADMM:
                 Tps_ji = rMatrix(-self.theta_J.get(msg.idSend)) @ np.array([egoX.location.x-msg.content.get("loc").x,egoX.location.y - msg.content.get("loc").y])
                 self.x_J[msg.idSend] = (np.kron(np.eye(self.N),rMatrixAB(self.theta_J.get(msg.idSend),self.theta))) @ (msg.content.get("x_i") - np.kron(np.ones((self.N)),Tps_ji))
 
-
         if self.mcN_change == 1:
             # z-Update optimization
             self.mpc.setupMPC_z(egoX,self.mcN,self.lambda_JI,self.rho_JI,self.x_J)
@@ -519,6 +550,7 @@ class OAADMM:
         for cnt_i, vin_i in enumerate(self.mcN):
             if vin_i == egoX.id:
                 self.z_IJ[vin_i] = res.x[cnt_i*self.N*2:(cnt_i+1)*self.N*2]
+                self.z_JI[vin_i] = self.I_xyv @ self.z_IJ.get(vin_i)
             else:
                 z_ij_loc = res.x[cnt_i*self.N*2:(cnt_i+1)*self.N*2]
                 Tps_ij = rMatrix(-self.theta) @ np.array([worldX.actorDict.dict.get(vin_i).location.x-egoX.location.x,worldX.actorDict.dict.get(vin_i).location.y-egoX.location.y])
@@ -564,7 +596,9 @@ class OAADMM:
         # Setup a priority value for the vehicle (unused)
         self.setPriority(0)        
         if egoX.spwnid in [1,3]:
-            self.rho_base = self.rho_base*10
+            self.rho_base = self.rho_base*1
+        if egoX.spwnid in [2,4]:
+            self.rho_base = self.rho_base*1
             
 
         # Add ego id to its own mcN list
@@ -579,7 +613,7 @@ class OAADMM:
         # Generate a reference trajectory for x MPC
         self.theta = ((np.pi*egoX.rotation.yaw)/180)%(2*np.pi)
         self.gen_x_ref(egoX,worldX)
-
+        self.x_i = self.I_xy @ self.x_ref
         # Initialize z_JI of ego id with x_ref
         self.z_JI[egoX.id] = self.x_ref
 

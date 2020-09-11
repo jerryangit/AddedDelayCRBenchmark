@@ -45,14 +45,14 @@ if not os.path.exists('./data'):
 # def main(cr_method = "AMPIP", ctrlPolicy = "MPIPControl", PriorityPolicy = "FCFS",totalVehicle = 128, scenario = 0, spwnInterval = 0.8, randomSeed = 469730,logging = 1):
 # def main(cr_method = "AMPIP", ctrlPolicy = "MPIPControl", PriorityPolicy = "FCFS",totalVehicle = 128, scenario = 0, spwnInterval = 1.2, randomSeed = 960489,logging = 1):
 
-def main(cr_method = "OAADMM", ctrlPolicy = "OAMPC", PriorityPolicy = "PriorityScore",totalVehicle = 4, scenario =7, spwnInterval = 16, randomSeed = 960489, preGenRoute = 1, logging = 1, errMargin = 0.5):
+def main(cr_method = "OAADMM", ctrlPolicy = "OAMPC", PriorityPolicy = "PriorityScore",totalVehicle = 1, scenario = 7, spwnInterval = 10, randomSeed = 960489, preGenRoute = 1, logging = 1, errMargin = 0.5):
     ###############################################
     # Config
     ###############################################  
     syncmode = 1                # Whether ticks are synced
-    freqSimulation = 200        # [HZ] The frequency at which the simulation is ran 
+    freqSimulation = 100        # [HZ] The frequency at which the simulation is ran 
     freqOnBoard = 10            # [HZ] The frequency at which vehicle on board controller is simulated
-    freqControl = 25           # [Hz] The frequency at which the low level control is performed
+    freqControl = 50           # [Hz] The frequency at which the low level control is performed
     random.seed(randomSeed)     # Random seed
     maxVehicle = 24             # Max simultaneous vehicle
     # preGenRoute 
@@ -85,7 +85,6 @@ def main(cr_method = "OAADMM", ctrlPolicy = "OAMPC", PriorityPolicy = "PriorityS
         wind_intensity=0.0, 
         sun_azimuth_angle=70.0, 
         sun_altitude_angle=70.0)                  # Doesn't affect simulation, but does affect visuals
-    multiProcessTest = 0
 
     try:
         # Init carla at port 2000
@@ -99,7 +98,7 @@ def main(cr_method = "OAADMM", ctrlPolicy = "OAMPC", PriorityPolicy = "PriorityS
         else:
             client.reload_world()
         world = client.get_world()
-        world.get_spectator().set_transform(carla.Transform(carla.Location(x=-140.0, y=-25.0, z=25.3), carla.Rotation(yaw=180))) 
+        world.get_spectator().set_transform(carla.Transform(carla.Location(x=-135.0, y=-22.50, z=20.), carla.Rotation(yaw=180))) 
         client.set_timeout(2.0)
         world.set_weather(weather)
         if syncmode == 1: 
@@ -107,7 +106,7 @@ def main(cr_method = "OAADMM", ctrlPolicy = "OAMPC", PriorityPolicy = "PriorityS
             if settings.synchronous_mode == False:
                 settings.fixed_delta_seconds = 1/freqSimulation
                 settings.synchronous_mode = True
-                settings.no_rendering_mode = False
+                settings.no_rendering_mode = True
                 world.apply_settings(settings)
             world.tick()
             tick0 = world.get_snapshot()
@@ -198,12 +197,12 @@ def main(cr_method = "OAADMM", ctrlPolicy = "OAMPC", PriorityPolicy = "PriorityS
             velRand = [7]
         elif scenario == 7:
             # testing for OA-ADMM MPC
-            kmax = 4
-            totalVehicle = 4
-            spwnInterval = 0
-            spwnRand = [1,2,3,4]
-            destRand = [3,4,1,2]
-            velRand = [7,7,7,7]
+            kmax = 1
+            totalVehicle = 12
+            spwnInterval = 20
+            spwnRand = [1,2,3,4,1,2,3,4,1,2,3,4]
+            destRand = [4,1,2,3,2,3,4,1,3,4,1,2]
+            velRand = [5,5,5,5,5,5,5,5,5,5,5,5]
         # idRand is only used for tie breaking, used to avoid odd behavior
         idRand = np.array([random.randint(100000,999999) for iter in range(totalVehicle)])
         spwnTime = [0]
@@ -217,9 +216,9 @@ def main(cr_method = "OAADMM", ctrlPolicy = "OAMPC", PriorityPolicy = "PriorityS
         # southSpawn = carla.Transform(carla.Location(x=-148.49, y=0.0, z=0.31), carla.Rotation(yaw=-90))
         # westSpawn = carla.Transform(carla.Location(x=-185.0, y=-33.3, z=0.01), carla.Rotation(yaw=0))
         northSpawn = carla.Transform(carla.Location(x=-151.49, y=-70.0, z=0.271), carla.Rotation(yaw=90))
-        eastSpawn = carla.Transform(carla.Location(x=-115.0, y=-36.1, z=0.264), carla.Rotation(yaw=-180))
+        eastSpawn = carla.Transform(carla.Location(x=-115.05, y=-36.1, z=0.264), carla.Rotation(yaw=-180))
         southSpawn = carla.Transform(carla.Location(x=-148.99, y=0.0, z=0.305), carla.Rotation(yaw=-90))
-        westSpawn = carla.Transform(carla.Location(x=-185.0, y=-33.8, z=0.0075), carla.Rotation(yaw=0))
+        westSpawn = carla.Transform(carla.Location(x=-184.0, y=-33.7, z=0.0112), carla.Rotation(yaw=0))
 
 
         spwnLoc = [intersection,northSpawn,eastSpawn,southSpawn,westSpawn]
@@ -352,12 +351,6 @@ def main(cr_method = "OAADMM", ctrlPolicy = "OAMPC", PriorityPolicy = "PriorityS
                     actor.destroy()
 
 
-            #* Set vehicle velocity to reference velocity for its first second
-            for actorX,vel3D in justSpwn:
-                if ts.elapsed_seconds-ts0s - actorX.spwnTime > 0.75:
-                    justSpwn.remove((actorX,vel3D))
-                    continue
-                actorX.ego.set_velocity(vel3D)
 
 
             #* Code to enforce a different freq for on board calculations and simulation
@@ -418,6 +411,14 @@ def main(cr_method = "OAADMM", ctrlPolicy = "OAMPC", PriorityPolicy = "PriorityS
             else:
                 lastCycle_ct += 1
 
+
+            #* Set vehicle velocity to reference velocity for its first second
+            for actorX,vel3D in justSpwn:
+                if ts.elapsed_seconds-ts0s - actorX.spwnTime > 1.2:
+                    justSpwn.remove((actorX,vel3D))
+                    continue
+                actorX.ego.set_velocity(vel3D)
+                actorX.ego.apply_control(carla.VehicleControl(throttle=1, steer=0,brake = 0,manual_gear_shift=True,gear=1))
 
                 # TODO Integrate in while loop if useless
                 if i >= totalVehicle and len(actorDict_obj.actor_list) == 0:
