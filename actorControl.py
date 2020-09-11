@@ -269,82 +269,92 @@ class DCRControl:
 
 class OAMPC:
     def __init__(self):
-        self.vPIDStates = (0,0,0)
-        self.thetaPIDStates = (0,0,0)
+        self.aPIDStates = (0,0,0,0)
+        self.u_a0 = 0
 
     def control(self,egoX,worldX):
-        egoX.ego.apply_control(carla.VehicleControl(throttle=0.5, steer=0,brake = 0,manual_gear_shift=True,gear=1))
+        # Input acceleration
+        a = egoX.cr.ctrl[0]
+        # Input steering angle
+        u_delta = egoX.cr.ctrl[1]/(1.35*1.00)
 
-        pass 
-        # ego = egoX.ego
-        # if egoX.location == carla.Location(0,0,0):
-        #     return "NAN"
+        theta = ((-egoX.ego.get_transform().rotation.yaw*np.pi)/180)%(2*np.pi)
+        R = np.array([[np.cos(theta),-np.sin(theta)],[np.sin(theta),np.cos(theta)]])
+        egoX.accLoc =  R@np.array([egoX.ego.get_acceleration().x,egoX.ego.get_acceleration().y])
+        egoX.velLoc =  R@np.array([egoX.ego.get_velocity().x,egoX.ego.get_velocity().y])
 
-        # #* MPC velocity control:
-        # x0 = np.array([[egoX.sTraversed],[egoX.velNorm]])
-        # # cell = (sInCell,TinCell)
-        # # From egoX T received as time from current timestep
-        # CellList = [] 
-        # for cell in egoX.cr.cd.traj:
-        #     # For each cell in traj get its sIn and tIn
-        #     # TODO add constraint at last timestep to if first cell is outside of its horizon
-        #     CellList.append((egoX.cr.cd.sTCL.get(cell)[0],egoX.cr.cd.traj.get(cell)[0]-worldX.tick.timestamp.elapsed_seconds))
-        # # TODO move N to be an input
+        (u_a,self.aPIDStates) = accPID(egoX,self.aPIDStates,a)
+        u_a = 0.5*u_a+0.5*self.u_a0
 
-        # N = 30
+        u_a = np.clip(u_a,-1,1)
+        u_delta = np.clip(u_delta,-1,1)
+        if u_a > 0:
+            egoX.ego.apply_control(carla.VehicleControl(throttle=u_a, steer=u_delta,brake = 0,manual_gear_shift=True,gear=1))
+        elif egoX.velLoc[0] > 0.1:
+            egoX.ego.apply_control(carla.VehicleControl(throttle=0, steer=u_delta,brake = u_a/4,manual_gear_shift=True,gear=1))
+        else:
+            egoX.ego.apply_control(carla.VehicleControl(throttle=-u_a, steer=u_delta,brake = 0,manual_gear_shift=True,gear=-1))
+        self.u_a0 = u_a
+        
+        # if egoX._spwnNr == 0:
+            # plt.figure(12)
+            # plt.title(str(egoX.id)+'Acceleration')
+            # plt.ylim(-5,10)            
+            # plt.plot(worldX.tick.elapsed_seconds,a,'gx')
+            # plt.plot(worldX.tick.elapsed_seconds,egoX.accLoc[0],'bx')
 
-        # velDes = egoX.velRef
-        # if egoX.state == "IL":
-        #     for actor in worldX.actorDict.actor_list:
-        #         if ego.id != actor.id and carla.Location.distance ( ego.get_location() , actor.get_location() ) < 10 : 
-        #             cd_bool,smpList = self.cd_obj.detect(ego,actor,1)
-        #             if cd_bool == 1:
-        #                 if smpList[0] < 4:
-        #                     velDes = 0
+            # plt.figure(13)
+            # plt.title(str(egoX.id)+'Acceleration')
+            # plt.ylim(-10,10)            
+            # plt.plot(worldX.tick.elapsed_seconds,a,'gx')
+            # plt.plot(worldX.tick.elapsed_seconds,u_a,'rx')
+            # plt.plot(worldX.tick.elapsed_seconds,egoX.accLoc[0],'bx')
 
-        # if egoX.state != "OL":
-        #     (sol,u0) = qpMPC(x0,egoX.dt*4,egoX.velRef,CellList,egoX.id,N)
-        #     egoX.cr.cd.MPCFeedback(sol,worldX.tick.timestamp.elapsed_seconds,egoX.dt*4,N,2,egoX.velRef,egoX.id,egoX.sTraversed) # dt is multiplied in order to increase finite horizon time range
-        #     velDes = min(egoX.velNorm+u0[0]*1.3,velDes)
-        # else: 
-        #     velDes = egoX.velRef
+            # plt.plot(worldX.tick.elapsed_seconds,self.aPIDStates[0],'gx')
 
-        # (u_v,self.vPIDStates) = velocityPID(egoX,self.vPIDStates,velDes)
-        # #* PID Control
-
-        # (u_theta,self.thetaPIDStates)  = anglePID(egoX,worldX,self.thetaPIDStates)
-        # u_v = np.clip(u_v,-1,1)
-
-
-        # if u_v >= 0:
-        #     ego.apply_control(carla.VehicleControl(throttle=u_v, steer=u_theta,brake = 0,manual_gear_shift=True,gear=1))
-        # elif u_v < 0:
-        #     ego.apply_control(carla.VehicleControl(throttle=0, steer=u_theta,brake = - u_v*1.2,manual_gear_shift=True,gear=1))
+            # plt.figure(14)
+            # plt.title(str(egoX.id)+'Velocity')
+            # plt.plot(worldX.tick.elapsed_seconds,egoX.velNorm,'gx')
+            # plt.plot(worldX.tick.elapsed_seconds,egoX.velRef,'bx')
+            
+            # plt.figure(14)
+            # plt.title(str(egoX.id)+'Steering Angle')
+            # plt.plot(worldX.tick.elapsed_seconds,egoX.cr.ctrl[1],'gx')
+            # plt.plot(worldX.tick.elapsed_seconds,u_delta,'bx')
+            # plt.show(block=False)
+            # plt.pause(0.016667)
 
 
-        # state = egoX.state
-        # if egoX.state == "NAN":
-        #     state = "IL"
-        # elif egoX.state == "IL" and egoX.info.get("idFront") == None:
-        #     queue = [(egoX.id,egoX.location.distance(worldX.inter_location))]
-        #     for msg in worldX.msg.inbox[egoX.id]:
-        #         # If the sender is not in the intersection or leaving and on the same road_id:
-        #         # if msg.content.get("state") not in ["I","OL"] and msg.content.get("wp") != [] and msg.content.get("wp").road_id == egoX.waypoint.road_id:
-        #         if msg.content.get("state") not in ["I","OL"] and msg.content.get("spwnid") == egoX.spwnid:
-        #             queue.append((msg.idSend,worldX.actorDict.dict.get(msg.idSend).location.distance(worldX.inter_location)))
-        #     queue.sort(key=lambda x: x[1])
-        #     if queue[0][0] == egoX.id:
-        #         state = "FIL"
-        #     else: 
-        #         for pair in enumerate(queue):
-        #             if pair[1][0] == egoX.id:
-        #                 egoX.infoSet("idFront",queue[pair[0] - 1][0])
-        # elif egoX.state == "FIL" and egoX.sTraversed > egoX.cr.cd.sTCL[egoX.cr.cd.TCL[0]][0]+0.25:
-        #     state = "I"
-        # elif egoX.state == "I" and egoX.sTraversed > egoX.cr.cd.sTCL[egoX.cr.cd.TCL[-1]][1]+0.25:
-        #     state = "OL"
-        # egoX.discreteState(state)
-        # return state
+            # if worldX.tick.elapsed_seconds > 6:
+            #     plt.show()
+                # plt.show(block=False)
+                # plt.pause(0.001)
+
+            # plt.show(block=False)
+            # plt.pause(0.001)
+
+
+def accPID(egoX,states,aRef):
+    kp = 0.275
+    kd = 0.00
+    ki = 0.
+    #* >
+    a = (egoX.accLoc[0] + states[3])/2
+    #* PID states <
+    
+    error = aRef - a
+    integral = states[1] + error * egoX.dt
+    derivative = (error - states[0]) / egoX.dt
+    #* >
+    u_a = kp*(error) + ki*(integral) + kd*(derivative) 
+    v = np.linalg.norm([egoX.ego.get_velocity().x,egoX.ego.get_velocity().y])
+    if  v > 1:
+        u_a += 0.1125+0.0938*v-0.003375*v**2 # quadractic approximation of throttle to overcome friction
+    else:
+        u_a += 0.1+0.11*v # quadractic approximation of throttle to overcome friction
+        
+    states = (error,integral,derivative,a)
+    return (u_a,states)
 
 
 def velocityPID(egoX,states,velDes=None):

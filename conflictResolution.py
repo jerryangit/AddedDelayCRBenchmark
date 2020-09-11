@@ -377,6 +377,7 @@ class OAADMM:
         self.pp = priorityPolicy(policy)
         self.dd = dd.deadlockDetection("DCRgraph").obj
         self.mcN = []
+        self.ctrl = np.array([1e-10,1e-10])
         self.x_i = np.array([])
         self.x_J = {}
         self.x_J0 = {}
@@ -389,15 +390,17 @@ class OAADMM:
         self.rho_IJ = {}
         ## OA-ADMM Parameter
         self.dt = 0.1
-        self.d_mult = 1.75
-        self.rho_base = 1
+        self.d_min = 4.75
+        self.d_phi = 1.05
+        self.d_mult = 2.05
+        self.rho_base = 2
         self.phi_a = 6
         self.mu_0 = 0.25
         self.N = 10                     # Prediction horizon
         self.mcN_Dist = 25              # Distance at vehicle is added to mcN
-        self.mpc = mpc.oa_mpc(self.dt,self.N,self.d_mult,self.N)
-        self.I_xy = sparse.kron(np.hstack((np.zeros((self.N,1)),np.eye(self.N))),np.array(([1., 0., 0.], [0., 1.,0.]))) # Indicator matrix to get a vector with only XY coordinates shape of 2*N        
-        self.I_xyv = sparse.kron(np.vstack([np.zeros((1,self.N)),np.eye(self.N)]),np.array(([1., 0.], [0., 1.],[0.,0.]))) # Indicator matrix to get a vector with only XY coordinates shape of 2*N        
+        self.mpc = mpc.oa_mpc(self.dt,self.N,self.d_min,self.d_mult)
+        self.I_xy = self.mpc.I_xy
+        self.I_xyv = self.mpc.I_xyv
     def routeProcess(self,egoX):        
         wp_0 = egoX.route[0][0]
         self.route_s = [0]
@@ -407,12 +410,14 @@ class OAADMM:
             wp_0 = wp_i
 
     def gen_x_ref(self,egoX,worldX):
-        nearestWP = worldX.map.get_waypoint(egoX.location,project_to_road=True, lane_type=(carla.LaneType.Driving))
-
         wp_list = []
         for i in range(10):
             if egoX.routeIndex+i < len(egoX.route):
                 wp_list.append([egoX.location.distance(egoX.route[egoX.routeIndex+i][0].transform.location),i])
+        if sorted(wp_list)[0][0] > 25:
+            self.x_ref = np.zeros((self.N+1)*3)
+            return
+
         # the closest waypoint is deemed to be the current index.
         egoX.routeIndex = egoX.routeIndex+sorted(wp_list)[0][1]
         sRef = np.linspace(egoX.velRef*self.dt,egoX.velRef*(self.N+1)*self.dt,self.N)
@@ -420,18 +425,22 @@ class OAADMM:
         # Calculate the xy coordinates for a certain sRef
         self.x_ref = np.array(([0,0,egoX.velRef]))
         for s_i in sRef:
-            x_a = None
-            x_b = None
+            x_a = np.array([])
+            x_b = np.array([])
             idx = 0 
-            while x_b == None:
+            while x_b.size == 0 and egoX.routeIndex+idx < len(self.route_s) :
                 if self.route_s[egoX.routeIndex] + s_i < self.route_s[egoX.routeIndex+idx]:
                     x_b = np.array([egoX.route[egoX.routeIndex+idx][0].transform.location.x,egoX.route[egoX.routeIndex+idx][0].transform.location.y])
                     x_a = np.array([egoX.route[egoX.routeIndex+idx-1][0].transform.location.x,egoX.route[egoX.routeIndex+idx-1][0].transform.location.y])
                     break
                 idx += 1
-            x_interp = x_a + s_i/(self.route_s[egoX.routeIndex+idx]-self.route_s[egoX.routeIndex+idx-1])*(x_b-x_a)
-            x_trans = rMatrix(-self.theta)@(x_interp-np.array([egoX.location.x,egoX.location.y]))
-            self.x_ref = np.hstack([self.x_ref , x_trans, egoX.velRef ])
+
+            if x_a.size + x_b.size == 4:
+                x_interp = x_a + (self.route_s[egoX.routeIndex] + s_i - self.route_s[egoX.routeIndex+idx-1])/(self.route_s[egoX.routeIndex+idx]-self.route_s[egoX.routeIndex+idx-1])*(x_b-x_a)
+                x_trans = rMatrix(-self.theta)@(x_interp-np.array([egoX.location.x,egoX.location.y]))
+                self.x_ref = np.hstack([self.x_ref , x_trans, egoX.velRef ])
+            else: 
+                self.x_ref = np.hstack([self.x_ref , self.x_ref[-3:]])
 
 
     def xUpdate(self,egoX,worldX):
@@ -439,6 +448,7 @@ class OAADMM:
         mcN_copy = copy.copy(self.mcN)
         # Construct and update Neighbor set
         for msg in worldX.msg.inbox[egoX.id]:
+            #TODO Might be impossible remove
             if egoX.id == msg.idSend:
                 continue
             elif msg.idSend in self.mcN:
@@ -448,8 +458,12 @@ class OAADMM:
                     continue
             elif 0 < egoX.location.distance(msg.content.get("loc")) <= self.mcN_Dist:
                 self.mcN.append(msg.idSend)
-        if mcN_copy == self.mcN:
-            self.mcN_change = 0 
+        # Check if the only vehicle in mcN is the ego vehicle
+        if self.mcN != [egoX.id]:
+            if mcN_copy == self.mcN:
+                self.mcN_change = 0 
+            else:
+                self.mcN_change = 1
         else:
             self.mcN_change = 1
         
@@ -457,17 +471,22 @@ class OAADMM:
         # Receive z_JI, lambda_JI from neighbor set
         for msg in worldX.msg.inbox[egoX.id]:
             if msg.idSend in self.mcN:
-                self.theta_J[msg.idSend] = msg.content.get("theta")
                 # If z_JI doesn't work like this add x0 to first state
-                self.z_JI[msg.idSend] = self.I_xyv @ msg.content.get("z_IJ").get(egoX.id)
-                self.lambda_JI[msg.idSend] = self.I_xyv @ msg.content.get("lambda_IJ").get(egoX.id)
-        #TODO Generate reference x based on path
+                if egoX.id in msg.content.get("z_IJ").keys():
+                    self.z_JI[msg.idSend] = self.I_xyv @ msg.content.get("z_IJ").get(egoX.id)
+                    self.lambda_JI[msg.idSend] = msg.content.get("lambda_IJ").get(egoX.id)
+                    self.rho_JI[msg.idSend] =  msg.content.get("rho_IJ").get(egoX.id)
+                else:
+                    self.z_JI[msg.idSend] = self.I_xyv @ self.x_i
+                    self.lambda_JI[msg.idSend] = np.zeros(self.N*2)
+                    self.rho_JI[msg.idSend] = np.zeros(self.N*2)
+
         self.gen_x_ref(egoX,worldX)
         # Update MPC data
         self.mpc.updateMPC_x(egoX,self.x_ref,self.z_JI,self.lambda_JI,self.rho_JI,self.mcN)
-        # Solve problem
-        (res,ctrl,self.x_i) = self.mpc.solveMPC_x()
-        # Save current theta
+        # Solve problem, self.x_i contains only xy coordinates for future states, shape = self.N*2
+        (res,self.ctrl,self.x_i) = self.mpc.solveMPC_x()
+        self.x_J[egoX.id] = self.x_i
 
 
     def zUpdate(self,egoX,worldX):
@@ -477,11 +496,14 @@ class OAADMM:
                 print('ERROR!, if never error remove this code')
                 continue
             if msg.idSend in self.mcN:
+                self.theta_J[msg.idSend] = msg.content.get("theta")
+
+                # Save their planned trajectory in their own coordinate system under self.x_J0
                 self.x_J0[msg.idSend] = msg.content.get("x_i")
-                # Convert x_i into our ego coordinate system 
-                Tps_ji = rMatrix(self.theta_J) @ np.array([egoX.location.x-worldX.actorDict.get(msg.idSend).location.x,egoX.location.y - worldX.actorDict.get(msg.idSend).location.y])
-                self.x_J[msg.idSend] = np.kron(np.ones((self.N,1)),rMatrixAB(self.theta_J[msg.idSend],self.theta)) @ (msg.content.get("x_i") - np.kron(np.ones((self.N,1)),Tps_ji)) 
-                self.lambda_JI[msg.idSend] = msg.content.get("lambda_IJ").get(egoX.id)
+
+                # Convert x_i into our ego coordinate system and save it under self.x_J
+                Tps_ji = rMatrix(-self.theta_J.get(msg.idSend)) @ np.array([egoX.location.x-msg.content.get("loc").x,egoX.location.y - msg.content.get("loc").y])
+                self.x_J[msg.idSend] = (np.kron(np.eye(self.N),rMatrixAB(self.theta_J.get(msg.idSend),self.theta))) @ (msg.content.get("x_i") - np.kron(np.ones((self.N)),Tps_ji))
 
 
         if self.mcN_change == 1:
@@ -499,17 +521,26 @@ class OAADMM:
                 self.z_IJ[vin_i] = res.x[cnt_i*self.N*2:(cnt_i+1)*self.N*2]
             else:
                 z_ij_loc = res.x[cnt_i*self.N*2:(cnt_i+1)*self.N*2]
-                Tps_ij = rMatrix(self.theta) @ np.array([worldX.actorDict.get(vin_i).location.x-egoX.location.x,worldX.actorDict.get(vin_i).location.y-egoX.location.y])
-                self.z_IJ[vin_i] = np.kron(np.ones((self.N,1)),rMatrixAB(self.theta,self.theta_J[vin_i] )) @ (z_ij_loc - np.kron(np.ones((self.N,1)),Tps_ij))
+                Tps_ij = rMatrix(-self.theta) @ np.array([worldX.actorDict.dict.get(vin_i).location.x-egoX.location.x,worldX.actorDict.dict.get(vin_i).location.y-egoX.location.y])
+                self.z_IJ[vin_i] = (np.kron( np.eye(self.N) , rMatrixAB( self.theta,self.theta_J.get(vin_i) )  ) ) @ ( z_ij_loc - np.kron(np.ones((self.N)),Tps_ij) )
 
         # Update lambda 
-        for vin_i in range(self.mcN):
-            self.lambda_IJ[vin_i] = self.mu_0*self.lambda_IJ[vin_i] + self.rho_IJ[vin_i] @ (self.x_J0[vin_i]- self.z_IJ[vin_i])
-        
+        for vin_i in self.mcN:
+            if vin_i == egoX.id:
+                self.lambda_JI[egoX.id] = self.mu_0*self.lambda_JI.get(vin_i) + self.rho_JI.get(vin_i) @ (self.x_i - self.z_IJ.get(vin_i))
+            else:
+                if vin_i in self.lambda_IJ.keys():
+                    self.lambda_IJ[vin_i] = self.mu_0*self.lambda_IJ.get(vin_i) + self.rho_IJ.get(vin_i) @ (self.x_J0.get(vin_i) - self.z_IJ.get(vin_i))
+                else:
+                    self.lambda_IJ[vin_i] = np.zeros(self.N*2)
         # Update rho
-        for vin_i in range(self.mcN):
+        self.rho_JI[egoX.id] = np.zeros(self.N*2)
+        for vin_i in self.mcN:
             #TODO figure out how rho works, and how to do lambda_ij vs lambda_ji
-            self.rho_IJ = []
+            if vin_i == egoX.id:
+                continue
+            self.rho_IJ[vin_i] = self.rho_base * ( (self.d_min*self.d_phi)/(dist2Agents(self.x_i,self.x_J[vin_i],2,self.N)) )**self.phi_a 
+            self.rho_JI[egoX.id] = self.rho_JI[egoX.id] + self.rho_IJ[vin_i]*(len(self.mcN)-1)**-1
 
     def outbox(self,egoX,var):
         content = {} 
@@ -522,6 +553,7 @@ class OAADMM:
             #TODO make sure correct info is communicated
             content["z_IJ"] = self.z_IJ
             content["lambda_IJ"] = self.lambda_IJ
+            content["rho_IJ"] = self.rho_IJ
         msg_obj = msg(egoX.id,"COM",content)
         return msg_obj
 
@@ -529,12 +561,40 @@ class OAADMM:
         self.priorityScore = score
 
     def setup(self,egoX,worldX):
-        self.mcN.append(egoX.id)
-        self.routeProcess(egoX)        
-        self.mpc.setupMPC_x(egoX)
+        # Setup a priority value for the vehicle (unused)
         self.setPriority(0)        
+        if egoX.spwnid in [1,3]:
+            self.rho_base = self.rho_base*10
+            
+
+        # Add ego id to its own mcN list
+        self.mcN.append(egoX.id)
+         
+        # Pre process the route of egoX
+        self.routeProcess(egoX)        
+         
+        # Setup the x MPC for egoX
+        self.mpc.setupMPC_x(egoX)
+
+        # Generate a reference trajectory for x MPC
+        self.theta = ((np.pi*egoX.rotation.yaw)/180)%(2*np.pi)
+        self.gen_x_ref(egoX,worldX)
+
+        # Initialize z_JI of ego id with x_ref
+        self.z_JI[egoX.id] = self.x_ref
+
+        # Initialize lambda_JI of ego id with zeros
+        self.lambda_JI[egoX.id] = np.zeros(self.N*2)
+        
+        # Initialize rho_JI of ego id with zeros        
+        self.rho_JI[egoX.id] = np.zeros(self.N*2)
 
 
+def dist2Agents(x_i,x_j,nx,N):
+    dist = np.array([])
+    for k in range(N):
+        dist = np.hstack([dist , np.ones(nx) * np.linalg.norm(x_i[nx*k:nx*(k+1)]-x_j[nx*k:nx*(k+1)])])
+    return dist
 def rMatrix(theta):
     R = np.array([[np.cos(theta),-np.sin(theta)],[np.sin(theta),np.cos(theta)]])
     return R

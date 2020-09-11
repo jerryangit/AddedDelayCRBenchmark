@@ -136,10 +136,13 @@ class actorX:
     def updateParameters(self,dt):
         self.dt = dt
         self.velocity = self.ego.get_velocity()
-        # TODO 3D norm?
+        self.acceleration = self.ego.get_acceleration()
         self.velNorm = np.linalg.norm([self.velocity.x,self.velocity.y])
+        self.accNorm = np.linalg.norm([self.acceleration.x,self.acceleration.y])
         self.location = self.ego.get_transform().location
         self.rotation = self.ego.get_transform().rotation
+        self.accLoc = rMatrix(((-self.rotation.yaw*np.pi)/180)%(2*np.pi))@np.array([self.acceleration.x,self.acceleration.y])
+
         # Rough Integration of distance
         self.sTraversed += self.dt*self.velNorm
         for fnc in self.onTickList:
@@ -152,3 +155,6 @@ class actorX:
     def discreteState(self,state):
         self.state = state
 
+def rMatrix(theta):
+    R = np.array([[np.cos(theta),-np.sin(theta)],[np.sin(theta),np.cos(theta)]])
+    return R

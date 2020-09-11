@@ -45,13 +45,14 @@ if not os.path.exists('./data'):
 # def main(cr_method = "AMPIP", ctrlPolicy = "MPIPControl", PriorityPolicy = "FCFS",totalVehicle = 128, scenario = 0, spwnInterval = 0.8, randomSeed = 469730,logging = 1):
 # def main(cr_method = "AMPIP", ctrlPolicy = "MPIPControl", PriorityPolicy = "FCFS",totalVehicle = 128, scenario = 0, spwnInterval = 1.2, randomSeed = 960489,logging = 1):
 
-def main(cr_method = "OAADMM", ctrlPolicy = "OAMPC", PriorityPolicy = "PriorityScore",totalVehicle = 4, scenario = 0, spwnInterval = 0, randomSeed = 960489, preGenRoute = 1, logging = 1, errMargin = 0.5):
+def main(cr_method = "OAADMM", ctrlPolicy = "OAMPC", PriorityPolicy = "PriorityScore",totalVehicle = 4, scenario =7, spwnInterval = 16, randomSeed = 960489, preGenRoute = 1, logging = 1, errMargin = 0.5):
     ###############################################
     # Config
     ###############################################  
     syncmode = 1                # Whether ticks are synced
-    freqSimulation = 40         # [HZ] The frequency at which the simulation is ran 
-    freqOnBoard = 20            # [HZ] The frequency at which vehicle on board controller is simulated
+    freqSimulation = 200        # [HZ] The frequency at which the simulation is ran 
+    freqOnBoard = 10            # [HZ] The frequency at which vehicle on board controller is simulated
+    freqControl = 25           # [Hz] The frequency at which the low level control is performed
     random.seed(randomSeed)     # Random seed
     maxVehicle = 24             # Max simultaneous vehicle
     # preGenRoute 
@@ -98,6 +99,7 @@ def main(cr_method = "OAADMM", ctrlPolicy = "OAMPC", PriorityPolicy = "PriorityS
         else:
             client.reload_world()
         world = client.get_world()
+        world.get_spectator().set_transform(carla.Transform(carla.Location(x=-140.0, y=-25.0, z=25.3), carla.Rotation(yaw=180))) 
         client.set_timeout(2.0)
         world.set_weather(weather)
         if syncmode == 1: 
@@ -105,7 +107,7 @@ def main(cr_method = "OAADMM", ctrlPolicy = "OAMPC", PriorityPolicy = "PriorityS
             if settings.synchronous_mode == False:
                 settings.fixed_delta_seconds = 1/freqSimulation
                 settings.synchronous_mode = True
-                settings.no_rendering_mode = True
+                settings.no_rendering_mode = False
                 world.apply_settings(settings)
             world.tick()
             tick0 = world.get_snapshot()
@@ -194,7 +196,14 @@ def main(cr_method = "OAADMM", ctrlPolicy = "OAMPC", PriorityPolicy = "PriorityS
             spwnRand = [3]
             destRand = [1]
             velRand = [7]
-
+        elif scenario == 7:
+            # testing for OA-ADMM MPC
+            kmax = 4
+            totalVehicle = 4
+            spwnInterval = 0
+            spwnRand = [1,2,3,4]
+            destRand = [3,4,1,2]
+            velRand = [7,7,7,7]
         # idRand is only used for tie breaking, used to avoid odd behavior
         idRand = np.array([random.randint(100000,999999) for iter in range(totalVehicle)])
         spwnTime = [0]
@@ -203,10 +212,16 @@ def main(cr_method = "OAADMM", ctrlPolicy = "OAMPC", PriorityPolicy = "PriorityS
         # Integrate into map object?
         # Map Locations, spwnLoc contains loc, 0= intersec, 1 = N, 2 = E, 3 = S, 4 = W.
         intersection = carla.Transform(carla.Location(x=-150.0, y=-35.0, z=0.3), carla.Rotation(yaw=180))
-        northSpawn = carla.Transform(carla.Location(x=-151.9, y=-70.0, z=0.272), carla.Rotation(yaw=90))
-        eastSpawn = carla.Transform(carla.Location(x=-115.0, y=-36.6, z=0.265), carla.Rotation(yaw=-180))
-        southSpawn = carla.Transform(carla.Location(x=-148.49, y=0.0, z=0.31), carla.Rotation(yaw=-90))
-        westSpawn = carla.Transform(carla.Location(x=-185.0, y=-33.3, z=0.01), carla.Rotation(yaw=0))
+        # northSpawn = carla.Transform(carla.Location(x=-151.9, y=-70.0, z=0.272), carla.Rotation(yaw=90))
+        # eastSpawn = carla.Transform(carla.Location(x=-115.0, y=-36.6, z=0.265), carla.Rotation(yaw=-180))
+        # southSpawn = carla.Transform(carla.Location(x=-148.49, y=0.0, z=0.31), carla.Rotation(yaw=-90))
+        # westSpawn = carla.Transform(carla.Location(x=-185.0, y=-33.3, z=0.01), carla.Rotation(yaw=0))
+        northSpawn = carla.Transform(carla.Location(x=-151.49, y=-70.0, z=0.271), carla.Rotation(yaw=90))
+        eastSpawn = carla.Transform(carla.Location(x=-115.0, y=-36.1, z=0.264), carla.Rotation(yaw=-180))
+        southSpawn = carla.Transform(carla.Location(x=-148.99, y=0.0, z=0.305), carla.Rotation(yaw=-90))
+        westSpawn = carla.Transform(carla.Location(x=-185.0, y=-33.8, z=0.0075), carla.Rotation(yaw=0))
+
+
         spwnLoc = [intersection,northSpawn,eastSpawn,southSpawn,westSpawn]
         
         northExit = carla.Transform(carla.Location(x=-148.2, y=-70.0, z=0.3), carla.Rotation(yaw=-90))
@@ -232,8 +247,9 @@ def main(cr_method = "OAADMM", ctrlPolicy = "OAMPC", PriorityPolicy = "PriorityS
         
         # Random variables
         # TODO Clean up
-        lastCycle = 1
-
+        lastCycle_ob = 1
+        lastCycle_ct = 1
+        justSpwn = []
         if plot == 1:
             velDict = {}
             locDict = {}
@@ -263,7 +279,7 @@ def main(cr_method = "OAADMM", ctrlPolicy = "OAMPC", PriorityPolicy = "PriorityS
                     bp = blueprint_library.find('vehicle.audi.a2')
 
                 for _k in range(kmax):
-                    if i < totalVehicle:
+                    if i <= totalVehicle:
                         spwn = world.try_spawn_actor(bp, spwnLoc[spwnRand[i]])
                         if spwn is not None:
                             # Add new spwn to actor_list
@@ -299,6 +315,7 @@ def main(cr_method = "OAADMM", ctrlPolicy = "OAMPC", PriorityPolicy = "PriorityS
                             # Set vehicle velocity to its reference
                             vel3D = proj3D(velRand[i],np.radians(spwnLoc[spwnRand[i]].rotation.yaw))
                             spwn.set_velocity(vel3D)
+                            justSpwn.append((spwnX,vel3D))
 
                             # Set gear to 1 to avoid spawn delay bug
                             spwn.apply_control(carla.VehicleControl(manual_gear_shift=True,gear=1))
@@ -334,77 +351,79 @@ def main(cr_method = "OAADMM", ctrlPolicy = "OAMPC", PriorityPolicy = "PriorityS
                     worldX_obj.msg.clear(actor.id)
                     actor.destroy()
 
-            #* Temporary code to detect time it takes to reach ref vel
-            if plot == 1:
-                if plotLoc == 1:
-                    for actorX in actorDict_obj.dict.values():
-                        locDict.get(actorX.id).append([ts.elapsed_seconds-ts0s,actorX.location.x,actorX.location.y])
-                if plotVel == 1:
-                    for actorX in actorDict_obj.dict.values():
-                        velDict.get(actorX.id).append([ts.elapsed_seconds-ts0s,actorX.velNorm])
-                        aclDict.get(actorX.id).append([ts.elapsed_seconds-ts0s,actorX.ego.get_acceleration().x,actorX.ego.get_acceleration().y])
-                        ctrDict.get(actorX.id).append([ts.elapsed_seconds-ts0s,actorX.ego.get_control().throttle,actorX.ego.get_control().steer,actorX.ego.get_control().brake,actorX.ego.get_control().gear,actorX.ego.get_control().manual_gear_shift])
-                if plotTheta == 1:
-                    for actorX in actorDict_obj.dict.values():
-                        thetaDict.get(actorX.id).append([ts.elapsed_seconds-ts0s,actorX.rotation.yaw,actorX.ego.get_control().steer])
+
+            #* Set vehicle velocity to reference velocity for its first second
+            for actorX,vel3D in justSpwn:
+                if ts.elapsed_seconds-ts0s - actorX.spwnTime > 0.75:
+                    justSpwn.remove((actorX,vel3D))
+                    continue
+                actorX.ego.set_velocity(vel3D)
+
+
             #* Code to enforce a different freq for on board calculations and simulation
-            tickRatio = freqSimulation/freqOnBoard
-            if lastCycle < tickRatio:
-                lastCycle += 1
-                continue
-            else:
-                lastCycle = 1               
 
-            currTick_s = ts.elapsed_seconds
-            dt_ob = currTick_s - lastTick_s
-            lastTick_s = currTick_s
-            # Feed world info to classes and functions streamlined      
-            worldX_obj.update(actorDict_obj)
 
-            #* Loop to communicate information 
-            # TODO separate class or function)
-            # <<
-            for actorX in actorDict_obj.dict.values():
-                worldX_obj.msg.receive(actorX)
-                actorX.updateParameters(dt_ob)
+            # If last cycle of onboard has been geq to the expected ratio perform onboard
+            if lastCycle_ob  >= freqSimulation/freqOnBoard: 
+                lastCycle_ob = 1
+                currTick_s = ts.elapsed_seconds
+                dt_ob = currTick_s - lastTick_s
+                lastTick_s = currTick_s
+                # Feed world info to classes and functions streamlined      
+                worldX_obj.update(actorDict_obj)
 
-            worldX_obj.msg.clearCloud()
-            #* Loop to resolve conflicts 
-            # <<
-            # If OA-ADMM use multiple communication rounds
-            if cr_method == "OAADMM":
-                # X-update, Send X-traj
-                for actorX in actorDict_obj.dict.values():
-                    actorX.cr.xUpdate(actorX,worldX_obj)
-                    msg = actorX.cr.outbox(actorX,"xUpdate")
-                    worldX_obj.msg.broadcast(actorX.id,actorX.location,msg,250)
-                # Receive X-Traj
+                #* Loop to communicate information 
+                # <<
                 for actorX in actorDict_obj.dict.values():
                     worldX_obj.msg.receive(actorX)
-                worldX_obj.msg.clearCloud()
-                # Z-update, Lambda-update, Rho-update, and Send Z,Lambda,Rho
-                for actorX in actorDict_obj.dict.values():                    
-                    actorX.cr.zUpdate(actorX,worldX_obj)
-                    msg = actorX.cr.outbox(actorX,"zUpdate")
-                    worldX_obj.msg.broadcast(actorX.id,actorX.location,msg,250)
-            else:
-                for actorX in actorDict_obj.dict.values():
-                    actorX.cr.resolve(actorX,worldX_obj)            
-                    msg = actorX.cr.outbox(actorX)
-                    worldX_obj.msg.broadcast(actorX.id,actorX.location,msg,250)
-            # >>
+                    actorX.updateParameters(dt_ob)
 
-            #* Loop to apply vehicle control
-            # <<
-            for actorX in actorDict_obj.dict.values():
-                actorX.co.control(actorX,worldX_obj)
-            # >>
-            #* End the loop 
-            # TODO Integrate in while loop if useless
-            if i >= totalVehicle and len(actorDict_obj.actor_list) == 0:
-                notComplete = 0
-            if logging == 1:
-                worldX_obj0 = copy.copy(worldX_obj)
+                worldX_obj.msg.clearCloud()
+                #* Loop to resolve conflicts 
+                # <<
+                # If OA-ADMM use multiple communication rounds
+                if cr_method == "OAADMM":
+                    # X-update, Send X-traj
+                    for actorX in actorDict_obj.dict.values():
+                        actorX.cr.xUpdate(actorX,worldX_obj)
+                        msg = actorX.cr.outbox(actorX,"xUpdate")
+                        worldX_obj.msg.broadcast(actorX.id,actorX.location,msg,250)
+                    # Receive X-Traj
+                    for actorX in actorDict_obj.dict.values():
+                        worldX_obj.msg.receive(actorX)
+                    worldX_obj.msg.clearCloud()
+                    # Z-update, Lambda-update, Rho-update, and Send Z,Lambda,Rho
+                    for actorX in actorDict_obj.dict.values():                    
+                        actorX.cr.zUpdate(actorX,worldX_obj)
+                        msg = actorX.cr.outbox(actorX,"zUpdate")
+                        worldX_obj.msg.broadcast(actorX.id,actorX.location,msg,250)
+                else:
+                    for actorX in actorDict_obj.dict.values():
+                        actorX.cr.resolve(actorX,worldX_obj)            
+                        msg = actorX.cr.outbox(actorX)
+                        worldX_obj.msg.broadcast(actorX.id,actorX.location,msg,250)
+                # >>
+            else: 
+                lastCycle_ob += 1
+
+            # If last cycle of onboard has been geq to the expected ratio perform onboard
+            if lastCycle_ct >= freqSimulation/freqControl: 
+                lastCycle_ct = 1
+                #* Loop to apply vehicle control
+                # <<
+                for actorX in actorDict_obj.dict.values():
+                    actorX.co.control(actorX,worldX_obj)
+                # >>
+                #* End the loop 
+            else:
+                lastCycle_ct += 1
+
+
+                # TODO Integrate in while loop if useless
+                if i >= totalVehicle and len(actorDict_obj.actor_list) == 0:
+                    notComplete = 0
+                # if logging == 1:
+                #     worldX_obj0 = copy.copy(worldX_obj)
     finally:
         print("Ended with Method:",cr_method,", Control Policy: ", ctrlPolicy, ", Total Vehicles: ", totalVehicle, "Scenario: ",scenario, "Spawn Interval: ",spwnInterval, "Random Seed: ",randomSeed)
 
