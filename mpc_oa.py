@@ -124,7 +124,7 @@ class oa_mpc:
         uineq = np.hstack([np.kron(np.ones(self.N+1), xmax), np.kron(np.ones(self.N), umax)])
 
         # Cost function
-        Q = sparse.diags([12.5, 15.0, 1.5])*0.75
+        Q = sparse.diags([12.5, 15.0, 1.5])*0.775 # 0.775 2 working
         QN = Q*2.5
         R = sparse.diags([1.5, 2.5])
         x_ref = np.linspace([0,0,self.x0[2]],[1,1,self.v_ref],self.N+1).flatten()
@@ -158,7 +158,7 @@ class oa_mpc:
         # Calculate the actual velocity in the direction of bicycle model
         R = np.array([[np.cos(-self.beta),-np.sin(-self.beta)],[np.sin(-self.beta),np.cos(-self.beta)]])
         egoX.velLocNorm = np.array([1,0])@R@egoX.velLoc
-        self.x0 = np.array([0,0,0.85*egoX.velLocNorm+0.15*egoX.velNorm + 1e-10])
+        self.x0 = np.array([0,0,1*egoX.velLocNorm+0.0*egoX.velNorm + 1e-10])
 
         # Update Q and q based on OA-ADMM rules # q = lambda.*(-reference)
         q = np.hstack([np.multiply(self.lambda_ref+self.I_xyv@rho_JI.get(egoX.id),-x_ref), self.nucZ])
