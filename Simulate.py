@@ -217,7 +217,7 @@ def main(cr_method = "OAADMM", ctrlPolicy = "OAMPC", PriorityPolicy = "PriorityS
         # westSpawn = carla.Transform(carla.Location(x=-185.0, y=-33.3, z=0.01), carla.Rotation(yaw=0))
         northSpawn = carla.Transform(carla.Location(x=-151.49, y=-70.0, z=0.271), carla.Rotation(yaw=90))
         eastSpawn = carla.Transform(carla.Location(x=-115.05, y=-36.4, z=0.264), carla.Rotation(yaw=-180))
-        southSpawn = carla.Transform(carla.Location(x=-149.05, y=10.0, z=0.305), carla.Rotation(yaw=-90))
+        southSpawn = carla.Transform(carla.Location(x=-149.05, y=00.0, z=0.305), carla.Rotation(yaw=-90))
         westSpawn = carla.Transform(carla.Location(x=-184.0, y=-33.7, z=0.0112), carla.Rotation(yaw=0))
 
 

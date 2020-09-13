@@ -397,8 +397,8 @@ class OAADMM:
         self.rho_base = 1
         self.phi_a = 6
         self.mu_0 = 0/8
-        self.N = 15                    # Prediction horizon
-        self.mcN_Dist = 60              # Distance at vehicle is added to mcN
+        self.N = 15                         # Prediction horizon
+        self.mcN_Dist = self.N*self.dt*10*2   # Distance at vehicle is added to mcN
         self.mpc = mpc.oa_mpc(self.dt,self.N,self.d_min,self.d_mult)
         self.I_xy = self.mpc.I_xy
         self.I_xyv = self.mpc.I_xyv

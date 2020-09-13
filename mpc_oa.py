@@ -271,7 +271,7 @@ class oa_mpc:
             # Create an OSQP object
             self.prob_z = osqp.OSQP()
             # Setup workspace
-            self.prob_z.setup(P, q, A, l, u, warm_start=True, polish = 1, max_iter = 10000 ,verbose = 1, scaling=100,eps_abs = 1e-10)
+            self.prob_z.setup(P, q, A, l, u, warm_start=True, polish = 1, max_iter = 10000 ,verbose = 0, scaling=100,eps_abs = 1e-10)
         else:
             # Create an OSQP object
             self.prob_z = osqp.OSQP()
