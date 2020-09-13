@@ -198,15 +198,15 @@ def main(cr_method = "OAADMM", ctrlPolicy = "OAMPC", PriorityPolicy = "PriorityS
         elif scenario == 7:
             # testing for OA-ADMM MPC
             kmax = 2
-            totalVehicle = 12
+            totalVehicle = 16
             spwnInterval = 20
-            spwnRand = [1,2,3,4,1,2,3,4,1,2,3,4]
-            destRand = [4,1,2,3,2,3,4,1,3,4,1,2]
-            velRand = [5,5,5,5,5,5,5,5,5,5,5,5]
+            spwnRand = [1,2,3,4,1,3,2,4,1,2,3,4,1,2,3,4]
+            destRand = [4,1,2,3,2,4,3,1,2,3,4,1,3,4,1,2]
+            velRand = [5,5,5,5,5,5,5,5,5,5,5,5,5,5,5,5]
         # idRand is only used for tie breaking, used to avoid odd behavior
         idRand = np.array([random.randint(100000,999999) for iter in range(totalVehicle)])
-        spwnTime = [0]
-        destTime = [0]
+        spwnTime = [-spwnInterval]
+        destTime = [-1]
 
         # Integrate into map object?
         # Map Locations, spwnLoc contains loc, 0= intersec, 1 = N, 2 = E, 3 = S, 4 = W.
@@ -430,8 +430,8 @@ def main(cr_method = "OAADMM", ctrlPolicy = "OAMPC", PriorityPolicy = "PriorityS
 
         # Save lists as csv
         data = []
-        spwnTime.remove(0)
-        destTime.remove(0)
+        spwnTime.remove(-spwnInterval)
+        destTime.remove(-1)
         data = zip(spwnRand,destRand,spwnTime,destTime)
         filename = str(cr_method) + "_" + str(ctrlPolicy) + "_" + str(totalVehicle).zfill(3) + "_" + str(scenario) + "_" + str(spwnInterval)+ "_" + str(randomSeed).zfill(6) + "_" + f'{errMargin:.1f}'.zfill(2) + "_" + datetime.datetime.now().strftime('%Y-%m-%d-%H-%M.csv')
         dirname = './data/'
