@@ -102,7 +102,7 @@ class oa_mpc:
         #     [self.dt, 0.]
         # ])
         Bd = sparse.csc_matrix([
-            [0., 0.],
+            [0., -self.dt*self.x0[2]/2+1e-10],
             [0., self.dt*self.x0[2]/2+1e-10],
             [self.dt, 0.]
         ])
@@ -124,8 +124,8 @@ class oa_mpc:
         uineq = np.hstack([np.kron(np.ones(self.N+1), xmax), np.kron(np.ones(self.N), umax)])
 
         # Cost function
-        Q = sparse.diags([12.5, 15.0, 1.5])*0.775 # 0.775 2 working
-        QN = Q*2.5
+        Q = sparse.diags([12.5, 15., 0.25])*0.775 # 0.775 2 working
+        QN = Q*1
         R = sparse.diags([1.5, 2.5])
         x_ref = np.linspace([0,0,self.x0[2]],[1,1,self.v_ref],self.N+1).flatten()
 
@@ -145,7 +145,7 @@ class oa_mpc:
         # Create an OSQP object
         self.prob_x = osqp.OSQP()
         # Setup workspace
-        self.prob_x.setup(P, q, A, self.l, self.u, warm_start=True, polish = 1 ,verbose = 1, max_iter = 20000)
+        self.prob_x.setup(P, q, A, self.l, self.u, warm_start=True, polish = 1 ,verbose = 0, max_iter = 4000)
 
 
     def updateMPC_x(self,egoX,x_ref,z_JI,lambda_JI,rho_JI,mcN):
@@ -175,7 +175,7 @@ class oa_mpc:
         [0., 0., 1.]
         ])
         Bd = sparse.csc_matrix([
-        [0., 0.],
+        [0., -self.dt*self.x0[2]/2+1e-10],
         [0., self.dt*self.x0[2]/2 +1e-10],
         [self.dt, 0.]])
         Ax = sparse.kron(sparse.eye(self.N+1),-sparse.eye(self.nx)) + sparse.kron(sparse.eye(self.N+1, k=-1), Ad)
@@ -194,9 +194,9 @@ class oa_mpc:
         self.l[:self.nx] = -self.x0
         self.u[:self.nx] = -self.x0
         self.prob_x.update(Px = sparse.triu(P).data, Ax=A.data,q=q, l=self.l, u=self.u)
-        res = self.prob_x.solve()
-        if res.info.status != 'solved':
-            raise ValueError('OSQP did not solve the problem!')
+        # res = self.prob_x.solve()
+        # if res.info.status != 'solved':
+        #     raise ValueError('OSQP did not solve the problem!')
 
 
     
@@ -277,10 +277,10 @@ class oa_mpc:
             # Setup workspace
             self.prob_z.setup(P, q, warm_start=True, polish = 1 ,verbose = 0)
 
-        res = self.prob_z.solve()
-        # Check solver status
-        if res.info.status != 'solved':
-            raise ValueError('OSQP did not solve the problem!')
+        # res = self.prob_z.solve()
+        # # Check solver status
+        # if res.info.status != 'solved':
+        #     raise ValueError('OSQP did not solve the problem!')
 
 
 
@@ -336,12 +336,12 @@ class oa_mpc:
             self.prob_z.update(Px = sparse.triu(P).data, q=q)
 
 
-        res = self.prob_z.solve()
+        # res = self.prob_z.solve()
         # Check solver status
-        if res.info.status != 'solved':
-            res = self.prob_z.solve()
-            if res.info.status != 'solved':
-                raise ValueError('OSQP did not solve the problem!')
+        # if res.info.status != 'solved':
+        #     res = self.prob_z.solve()
+        #     if res.info.status != 'solved':
+        #         raise ValueError('OSQP did not solve the problem!')
 
     
     def solveMPC_z(self):

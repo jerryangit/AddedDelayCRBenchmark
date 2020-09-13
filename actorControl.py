@@ -288,7 +288,8 @@ class OAMPC:
 
         (u_a,self.aPIDStates) = accPID(egoX,self.aPIDStates,a)
         u_a = 0.5*u_a+0.5*self.u_a0
-        u_delta = 0.5*u_delta+0.5*self.u_delta0/((4*np.pi)/9)
+        u_delta_ratio = 0.5
+        u_delta = u_delta_ratio*u_delta+(1-u_delta_ratio)*self.u_delta0/((4*np.pi)/9)
 
         u_a = np.clip(u_a,-1,1)
         u_delta = np.clip(u_delta,-1,1)

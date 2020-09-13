@@ -216,8 +216,8 @@ def main(cr_method = "OAADMM", ctrlPolicy = "OAMPC", PriorityPolicy = "PriorityS
         # southSpawn = carla.Transform(carla.Location(x=-148.49, y=0.0, z=0.31), carla.Rotation(yaw=-90))
         # westSpawn = carla.Transform(carla.Location(x=-185.0, y=-33.3, z=0.01), carla.Rotation(yaw=0))
         northSpawn = carla.Transform(carla.Location(x=-151.49, y=-70.0, z=0.271), carla.Rotation(yaw=90))
-        eastSpawn = carla.Transform(carla.Location(x=-115.05, y=-36.1, z=0.264), carla.Rotation(yaw=-180))
-        southSpawn = carla.Transform(carla.Location(x=-148.99, y=0.0, z=0.305), carla.Rotation(yaw=-90))
+        eastSpawn = carla.Transform(carla.Location(x=-115.05, y=-36.4, z=0.264), carla.Rotation(yaw=-180))
+        southSpawn = carla.Transform(carla.Location(x=-149.05, y=0.0, z=0.305), carla.Rotation(yaw=-90))
         westSpawn = carla.Transform(carla.Location(x=-184.0, y=-33.7, z=0.0112), carla.Rotation(yaw=0))
 
 
@@ -420,11 +420,11 @@ def main(cr_method = "OAADMM", ctrlPolicy = "OAMPC", PriorityPolicy = "PriorityS
                 actorX.ego.set_velocity(vel3D)
                 actorX.ego.apply_control(carla.VehicleControl(throttle=1, steer=0,brake = 0,manual_gear_shift=True,gear=1))
 
-                # TODO Integrate in while loop if useless
-                if i >= totalVehicle and len(actorDict_obj.actor_list) == 0:
-                    notComplete = 0
-                # if logging == 1:
-                #     worldX_obj0 = copy.copy(worldX_obj)
+            # TODO Integrate in while loop if useless
+            if i >= totalVehicle and len(actorDict_obj.actor_list) == 0:
+                notComplete = 0
+            # if logging == 1:
+            #     worldX_obj0 = copy.copy(worldX_obj)
     finally:
         print("Ended with Method:",cr_method,", Control Policy: ", ctrlPolicy, ", Total Vehicles: ", totalVehicle, "Scenario: ",scenario, "Spawn Interval: ",spwnInterval, "Random Seed: ",randomSeed)
 

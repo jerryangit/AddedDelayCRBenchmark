@@ -494,7 +494,7 @@ class OAADMM:
         (res,self.ctrl,self.x_i) = self.mpc.solveMPC_x()
         self.x_J[egoX.id] = self.x_i
 
-        # if egoX._spwnNr == 1:
+        # if egoX._spwnNr == 2:
         #     plt.figure(1)
         #     plt.gca().clear()        
         #     plt.ylim(-8,8)
