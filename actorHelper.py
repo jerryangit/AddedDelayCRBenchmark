@@ -24,6 +24,7 @@ import carla
 import random
 import numpy as np
 import scipy.signal
+import copy
 
 
 class msgInterface:
@@ -128,6 +129,8 @@ class actorX:
         self.aMax = 2.5
         # spwnNr
         self._spwnNr = spwnNr
+        self.acc_prev = np.array([0,0])
+        self.updateStats()
         self.updateParameters(dt)
 
     def infoSet(self,key,value):
@@ -142,13 +145,17 @@ class actorX:
         self.location = self.ego.get_transform().location
         self.rotation = self.ego.get_transform().rotation
         self.velLoc= rMatrix(((-self.rotation.yaw*np.pi)/180)%(2*np.pi))@np.array([self.velocity.x,self.velocity.y])
-        self.accLoc = rMatrix(((-self.rotation.yaw*np.pi)/180)%(2*np.pi))@np.array([self.acceleration.x,self.acceleration.y])
+        self.accLoc = rMatrix(((-self.rotation.yaw*np.pi)/180)%(2*np.pi))@np.array([self.accAvg[0],self.accAvg[1]])
 
         # Rough Integration of distance
         self.sTraversed += self.dt*self.velNorm
         for fnc in self.onTickList:
             fnc()
         self.aMax = 2 - (0.25 * self.velNorm - 1)**2 + 0.9
+    def updateStats(self):
+        self.accAvg = (np.array([self.ego.get_acceleration().x,self.ego.get_acceleration().y]) + self.acc_prev)/2
+        self.acc_prev = copy.deepcopy(self.accAvg)
+        # self.acc_prev = copy.deepcopy(np.array([self.ego.get_acceleration().x,self.ego.get_acceleration().y]))
 
     def onTick(self,fnc):
         self.onTickList.append(fnc)        

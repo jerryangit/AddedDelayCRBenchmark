@@ -52,7 +52,7 @@ def main(cr_method = "OAADMM", ctrlPolicy = "OAMPC", PriorityPolicy = "PriorityS
     syncmode = 1                # Whether ticks are synced
     freqSimulation = 100        # [HZ] The frequency at which the simulation is ran 
     freqOnBoard = 10            # [HZ] The frequency at which vehicle on board controller is simulated
-    freqControl = 50           # [Hz] The frequency at which the low level control is performed
+    freqControl = 25           # [Hz] The frequency at which the low level control is performed
     random.seed(randomSeed)     # Random seed
     maxVehicle = 24             # Max simultaneous vehicle
     # preGenRoute 
@@ -197,7 +197,7 @@ def main(cr_method = "OAADMM", ctrlPolicy = "OAMPC", PriorityPolicy = "PriorityS
             velRand = [7]
         elif scenario == 7:
             # testing for OA-ADMM MPC
-            kmax = 1
+            kmax = 2
             totalVehicle = 12
             spwnInterval = 20
             spwnRand = [1,2,3,4,1,2,3,4,1,2,3,4]
@@ -350,8 +350,8 @@ def main(cr_method = "OAADMM", ctrlPolicy = "OAMPC", PriorityPolicy = "PriorityS
                     worldX_obj.msg.clear(actor.id)
                     actor.destroy()
 
-
-
+            for actorX in actorDict_obj.dict.values():
+                actorX.updateStats()
 
             #* Code to enforce a different freq for on board calculations and simulation
 
