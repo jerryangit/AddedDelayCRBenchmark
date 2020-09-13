@@ -390,13 +390,13 @@ class OAADMM:
         self.rho_JI = {}
         self.rho_IJ = {}
         ## OA-ADMM Parameter
-        self.dt = 0.1
+        self.dt = 0.25
         self.d_min = 4.129
-        self.d_phi = 1.1
-        self.d_mult = 1.75
-        self.rho_base = 1
+        self.d_phi = 1.15
+        self.d_mult = 2.5
+        self.rho_base = 10
         self.phi_a = 6
-        self.mu_0 = 3/4
+        self.mu_0 = 5/8
         self.N = 25                     # Prediction horizon
         self.mcN_Dist = 30              # Distance at vehicle is added to mcN
         self.mpc = mpc.oa_mpc(self.dt,self.N,self.d_min,self.d_mult)

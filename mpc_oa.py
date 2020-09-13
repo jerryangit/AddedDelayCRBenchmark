@@ -117,16 +117,16 @@ class oa_mpc:
         umin = np.array([-10, -self.deltaMax])
         umax = np.array([3.5, self.deltaMax])
         # Ineq constraints, collision avoidance
-        xmin = np.array([-np.inf,-np.inf,-3])
+        xmin = np.array([-np.inf,-np.inf,-5])
         xmax = np.array([np.inf,np.inf,12])
         Aineq = sparse.eye((self.N+1)*self.nx + self.N*self.nu)
         lineq = np.hstack([np.kron(np.ones(self.N+1), xmin), np.kron(np.ones(self.N), umin)])
         uineq = np.hstack([np.kron(np.ones(self.N+1), xmax), np.kron(np.ones(self.N), umax)])
 
         # Cost function
-        Q = sparse.diags([6.5, 10., 0.125])
+        Q = sparse.diags([5, 15., 0.05])
         QN = Q*1
-        R = sparse.diags([3.5, 4.5])
+        R = sparse.diags([1.5, 5.5])
         x_ref = np.linspace([0,0,self.x0[2]],[1,1,self.v_ref],self.N+1).flatten()
 
 
@@ -194,9 +194,9 @@ class oa_mpc:
         self.l[:self.nx] = -self.x0
         self.u[:self.nx] = -self.x0
         self.prob_x.update(Px = sparse.triu(P).data, Ax=A.data,q=q, l=self.l, u=self.u)
-        # res = self.prob_x.solve()
-        # if res.info.status != 'solved':
-        #     raise ValueError('OSQP did not solve the problem!')
+        res = self.prob_x.solve()
+        if res.info.status != 'solved':
+            raise ValueError('OSQP did not solve the problem!')
 
 
     
@@ -204,6 +204,7 @@ class oa_mpc:
         res = self.prob_x.solve()
         # Check solver status
         if res.info.status != 'solved':
+            print(res.info.status)
             raise ValueError('OSQP did not solve the problem!')
         self.ctrl = res.x[-self.N*self.nu:-(self.N-1)*self.nu]
         xTraj = self.I_xy @ res.x[:self.nxc]

@@ -343,7 +343,7 @@ def main(cr_method = "OAADMM", ctrlPolicy = "OAMPC", PriorityPolicy = "PriorityS
             for actor in actorDict_obj.actor_list:
                 if actor.get_location().distance(carla.Location(x=-150, y=-35, z=0.3)) > 38 and actor.get_location().distance(carla.Location(x=0, y=0, z=0)) > 5:
                     if logging == 1:
-                        print(actor.id,' left the area at ', round(actor.get_location().x,2),round(actor.get_location().y,2),round(actor.get_location().z,2), ', elapsed time:  ', round(ts.elapsed_seconds-ts0s), "s")
+                        print('[',actorDict_obj.dict.get(actor.id)._spwnNr,',',actor.id,'] left the area at (', round(actor.get_location().x,2),', ',round(actor.get_location().y,2), '), elapsed time: ', round(ts.elapsed_seconds-ts0s), "s",sep='')
                     destTime.append(ts.elapsed_seconds-ts0s)
                     actorDict_obj.actor_list.remove(actor)
                     del actorDict_obj.dict[actor.id]
