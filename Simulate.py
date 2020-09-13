@@ -200,8 +200,8 @@ def main(cr_method = "OAADMM", ctrlPolicy = "OAMPC", PriorityPolicy = "PriorityS
             kmax = 2
             totalVehicle = 16
             spwnInterval = 20
-            spwnRand = [1,2,3,4,1,3,2,4,1,2,3,4,1,2,3,4]
-            destRand = [4,1,2,3,2,4,3,1,2,3,4,1,3,4,1,2]
+            spwnRand = [1,2,3,4,1,2,3,4,1,3,2,4,1,2,3,4]
+            destRand = [3,4,1,2,4,1,2,3,2,4,3,1,2,3,4,1]
             velRand = [5,5,5,5,5,5,5,5,5,5,5,5,5,5,5,5]
         # idRand is only used for tie breaking, used to avoid odd behavior
         idRand = np.array([random.randint(100000,999999) for iter in range(totalVehicle)])
@@ -217,16 +217,16 @@ def main(cr_method = "OAADMM", ctrlPolicy = "OAMPC", PriorityPolicy = "PriorityS
         # westSpawn = carla.Transform(carla.Location(x=-185.0, y=-33.3, z=0.01), carla.Rotation(yaw=0))
         northSpawn = carla.Transform(carla.Location(x=-151.49, y=-70.0, z=0.271), carla.Rotation(yaw=90))
         eastSpawn = carla.Transform(carla.Location(x=-115.05, y=-36.4, z=0.264), carla.Rotation(yaw=-180))
-        southSpawn = carla.Transform(carla.Location(x=-149.05, y=0.0, z=0.305), carla.Rotation(yaw=-90))
+        southSpawn = carla.Transform(carla.Location(x=-149.05, y=10.0, z=0.305), carla.Rotation(yaw=-90))
         westSpawn = carla.Transform(carla.Location(x=-184.0, y=-33.7, z=0.0112), carla.Rotation(yaw=0))
 
 
         spwnLoc = [intersection,northSpawn,eastSpawn,southSpawn,westSpawn]
         
-        northExit = carla.Transform(carla.Location(x=-148.2, y=-70.0, z=0.3), carla.Rotation(yaw=-90))
-        eastExit = carla.Transform(carla.Location(x=-115.0, y=-33.3, z=0.3), carla.Rotation(yaw=0))
-        southExit = carla.Transform(carla.Location(x=-152, y=0.0, z=0.3), carla.Rotation(yaw=90))
-        westExit = carla.Transform(carla.Location(x=-185.0, y=-37.0, z=0.3), carla.Rotation(yaw=-180))
+        northExit = carla.Transform(carla.Location(x=-148.2, y=-80.0, z=0.3), carla.Rotation(yaw=-90))
+        eastExit = carla.Transform(carla.Location(x=-105.0, y=-33.3, z=0.3), carla.Rotation(yaw=0))
+        southExit = carla.Transform(carla.Location(x=-152, y=10.0, z=0.3), carla.Rotation(yaw=90))
+        westExit = carla.Transform(carla.Location(x=-195.0, y=-37.0, z=0.3), carla.Rotation(yaw=-180))
         exitLoc = [intersection,northExit,eastExit,southExit,westExit]
 
         # Pre generate the routes for all spawn and exit combinations

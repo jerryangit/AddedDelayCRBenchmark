@@ -390,15 +390,15 @@ class OAADMM:
         self.rho_JI = {}
         self.rho_IJ = {}
         ## OA-ADMM Parameter
-        self.dt = 0.25
+        self.dt = 0.1
         self.d_min = 4.129
-        self.d_phi = 1.15
-        self.d_mult = 2.5
-        self.rho_base = 10
+        self.d_phi = 1.0
+        self.d_mult = 1.0
+        self.rho_base = 1
         self.phi_a = 6
-        self.mu_0 = 5/8
-        self.N = 25                     # Prediction horizon
-        self.mcN_Dist = 30              # Distance at vehicle is added to mcN
+        self.mu_0 = 0/8
+        self.N = 15                    # Prediction horizon
+        self.mcN_Dist = 60              # Distance at vehicle is added to mcN
         self.mpc = mpc.oa_mpc(self.dt,self.N,self.d_min,self.d_mult)
         self.I_xy = self.mpc.I_xy
         self.I_xyv = self.mpc.I_xyv
@@ -494,17 +494,20 @@ class OAADMM:
         (res,self.ctrl,self.x_i) = self.mpc.solveMPC_x()
         self.x_J[egoX.id] = self.x_i
 
-        # if egoX._spwnNr == 4:
+        # if egoX._spwnNr == 1:
         #     plt.figure(1)
         #     plt.gca().clear()        
         #     plt.ylim(-8,8)
-        #     plt.xlim(-5,15)
+        #     plt.xlim(-2.5,10)
         #     plt.title(str(egoX.id)+'MPC steps')
         #     plt.plot(res.x[0],res.x[1],'rx')        
+        #     plt.plot(self.x_ref[0::3],self.x_ref[1::3],'k*',markersize = 4, alpha=0.75, markerfacecolor='none')
         #     plt.plot(res.x[3:(self.N+1)*3:3],res.x[4:(self.N+1)*3:3],'bx')
-        #     plt.plot(self.x_ref[0::3],self.x_ref[1::3],'b*')
         #     for vin_j in self.mcN:
-        #         plt.plot(self.z_JI[vin_j][0::3],self.z_JI[vin_j][1::3],'bo',markersize = 1, alpha=0.5, markerfacecolor='none')
+        #         if vin_j == egoX.id:
+        #             plt.plot(self.z_JI[vin_j][0::3],self.z_JI[vin_j][1::3],'go',markersize = 4, alpha=0.5, markerfacecolor='none')
+        #         else: 
+        #             plt.plot(self.z_JI[vin_j][0::3],self.z_JI[vin_j][1::3],'ro',markersize = 4, alpha=0.5, markerfacecolor='none')
         #     plt.show(block=False)
         #     plt.pause(0.0001)
 
@@ -596,7 +599,7 @@ class OAADMM:
         # Setup a priority value for the vehicle (unused)
         self.setPriority(0)        
         if egoX.spwnid in [1,3]:
-            self.rho_base = self.rho_base*1
+            self.rho_base = self.rho_base*100
         if egoX.spwnid in [2,4]:
             self.rho_base = self.rho_base*1
             
