@@ -124,9 +124,9 @@ class oa_mpc:
         uineq = np.hstack([np.kron(np.ones(self.N+1), xmax), np.kron(np.ones(self.N), umax)])
 
         # Cost function
-        Q = sparse.diags([0.02, 0.1, 0.0001])
+        Q = sparse.diags([0.5, 2.5, 0.01])
         QN = Q*1
-        R = sparse.diags([0.01, 0.025])
+        R = sparse.diags([0.25, 3.5])
         x_ref = np.linspace([0,0,self.x0[2]],[1,1,self.v_ref],self.N+1).flatten()
 
 
@@ -145,7 +145,7 @@ class oa_mpc:
         # Create an OSQP object
         self.prob_x = osqp.OSQP()
         # Setup workspace
-        self.prob_x.setup(P, q, A, self.l, self.u, warm_start=True, polish = 1 ,verbose = 0, max_iter = 4000, scaling=100,eps_abs = 1e-10)
+        self.prob_x.setup(P, q, A, self.l, self.u, warm_start=True, polish = 1 ,verbose = 0, max_iter = 4000, scaling=20,eps_abs = 1e-10, eps_rel = 1e-5)
 
 
     def updateMPC_x(self,egoX,x_ref,z_JI,lambda_JI,rho_JI,mcN):
@@ -265,13 +265,13 @@ class oa_mpc:
         if A_data.size != 0: 
             A = sparse.csc_matrix((A_data,(self.A_rowi,self.A_coli)))
             # lower bound is minimum distance, size depends on mcN len every comb * nxc
-            l = np.ones(int((len(mcN)*(len(mcN)-1))/2)*self.N)*self.d_min*self.d_mult + K
+            l = np.ones(int((len(mcN)*(len(mcN)-1))/2)*self.N)*(self.d_min*self.d_mult)**2 + K
             # upper bound is inf
             u = np.ones(int((len(mcN)*(len(mcN)-1))/2)*self.N)*np.inf
             # Create an OSQP object
             self.prob_z = osqp.OSQP()
             # Setup workspace
-            self.prob_z.setup(P, q, A, l, u, warm_start=True, polish = 1, max_iter = 10000 ,verbose = 0, scaling=100,eps_abs = 1e-10)
+            self.prob_z.setup(P, q, A, l, u, warm_start=True, polish = 1, max_iter = 10000 ,verbose = 0, scaling=20,eps_abs = 1e-10,eps_rel = 1e-5)
         else:
             # Create an OSQP object
             self.prob_z = osqp.OSQP()
@@ -324,12 +324,12 @@ class oa_mpc:
                     x_J.get(vin_j)[i_x*2] - x_J.get(vin_i)[i_x*2],
                     x_J.get(vin_j)[i_x*2+1] - x_J.get(vin_i)[i_x*2+1]])
                     A_data = np.hstack([A_data,Ax_i])
-                    K[A_rw] = Ax_i @ x_bar
+                    K[A_rw] = 1/2*Ax_i @ x_bar
                     A_rw += 1
 
         if A_data.size != 0: 
             A = sparse.csc_matrix((A_data,(self.A_rowi,self.A_coli)))            
-            l = np.ones(int((len(mcN)*(len(mcN)-1))/2)*self.N)*self.d_min*self.d_mult + K
+            l = np.ones(int((len(mcN)*(len(mcN)-1))/2)*self.N)*(self.d_min*self.d_mult)**2 + K
             # Update workspace
             self.prob_z.update(Px = sparse.triu(P).data, Ax=A.data,q=q, l=l)
         else:

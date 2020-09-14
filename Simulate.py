@@ -200,8 +200,8 @@ def main(cr_method = "OAADMM", ctrlPolicy = "OAMPC", PriorityPolicy = "PriorityS
             kmax = 2
             totalVehicle = 16
             spwnInterval = 20
-            spwnRand = [1,2,3,4,1,2,3,4,1,3,2,4,1,2,3,4]
-            destRand = [3,4,1,2,4,1,2,3,2,4,3,1,2,3,4,1]
+            spwnRand = [1,2,3,4,1,2,3,4,1,2,3,4,1,3,2,4]
+            destRand = [2,3,4,1,3,4,1,2,4,1,2,3,2,4,3,1]
             velRand = [5,5,5,5,5,5,5,5,5,5,5,5,5,5,5,5]
         # idRand is only used for tie breaking, used to avoid odd behavior
         idRand = np.array([random.randint(100000,999999) for iter in range(totalVehicle)])

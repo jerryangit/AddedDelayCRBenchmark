@@ -392,12 +392,12 @@ class OAADMM:
         ## OA-ADMM Parameter
         self.dt = 0.1
         self.d_min = 4.129
-        self.d_phi = 1.0
-        self.d_mult = 1.0
+        self.d_phi = 1.05
+        self.d_mult = 1.5
         self.rho_base = 1
         self.phi_a = 6
-        self.mu_0 = 0/8
-        self.N = 15                         # Prediction horizon
+        self.mu_0 = 4/8
+        self.N = 25                         # Prediction horizon
         self.mcN_Dist = self.N*self.dt*10*2   # Distance at vehicle is added to mcN
         self.mpc = mpc.oa_mpc(self.dt,self.N,self.d_min,self.d_mult)
         self.I_xy = self.mpc.I_xy
@@ -498,7 +498,7 @@ class OAADMM:
         #     plt.figure(1)
         #     plt.gca().clear()        
         #     plt.ylim(-8,8)
-        #     plt.xlim(-2.5,10)
+        #     plt.xlim(-2.5,30)
         #     plt.title(str(egoX.id)+'MPC steps')
         #     plt.plot(res.x[0],res.x[1],'rx')        
         #     plt.plot(self.x_ref[0::3],self.x_ref[1::3],'k*',markersize = 4, alpha=0.75, markerfacecolor='none')
@@ -574,8 +574,8 @@ class OAADMM:
             #TODO figure out how rho works, and how to do lambda_ij vs lambda_ji
             if vin_i == egoX.id:
                 continue
-            self.rho_IJ[vin_i] = self.rho_base * ( (self.d_min*self.d_phi)/(dist2Agents(self.x_i,self.x_J[vin_i],2,self.N)) )**self.phi_a 
-            self.rho_JI[egoX.id] = self.rho_JI[egoX.id] + self.rho_IJ[vin_i]*(len(self.mcN)-1)**-1
+            self.rho_IJ[vin_i] = self.rho_base * ( (self.d_min*self.d_phi)/(dist2Agents(self.x_i,self.x_J[vin_i],2,self.N)) )**self.phi_a + 1e-3
+            self.rho_JI[egoX.id] = self.rho_JI[egoX.id] + self.rho_IJ[vin_i]*(len(self.mcN)-1)**-1 + 1e-3
 
     def outbox(self,egoX,var):
         content = {} 
@@ -599,7 +599,7 @@ class OAADMM:
         # Setup a priority value for the vehicle (unused)
         self.setPriority(0)        
         if egoX.spwnid in [1,3]:
-            self.rho_base = self.rho_base*100
+            self.rho_base = self.rho_base*1
         if egoX.spwnid in [2,4]:
             self.rho_base = self.rho_base*1
             
