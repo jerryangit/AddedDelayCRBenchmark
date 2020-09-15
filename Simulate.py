@@ -45,7 +45,7 @@ if not os.path.exists('./data'):
 # def main(cr_method = "AMPIP", ctrlPolicy = "MPIPControl", PriorityPolicy = "FCFS",totalVehicle = 128, scenario = 0, spwnInterval = 0.8, randomSeed = 469730,logging = 1):
 # def main(cr_method = "AMPIP", ctrlPolicy = "MPIPControl", PriorityPolicy = "FCFS",totalVehicle = 128, scenario = 0, spwnInterval = 1.2, randomSeed = 960489,logging = 1):
 
-def main(cr_method = "OAADMM", ctrlPolicy = "OAMPC", PriorityPolicy = "PriorityScore",totalVehicle = 1, scenario = 7, spwnInterval = 10, randomSeed = 960489, preGenRoute = 1, logging = 1, errMargin = 0.5):
+def main(cr_method = "OAADMM", ctrlPolicy = "OAMPC", PriorityPolicy = "PriorityScore",totalVehicle = 4, scenario = 8, spwnInterval = 4, randomSeed = 960489, preGenRoute = 1, logging = 1, errMargin = 0.5):
     ###############################################
     # Config
     ###############################################  
@@ -147,12 +147,12 @@ def main(cr_method = "OAADMM", ctrlPolicy = "OAMPC", PriorityPolicy = "PriorityS
             kmax = 1
             spwnRand = np.array([random.choice(laneList) for iter in range(totalVehicle)])
             destRand = np.array([random.choice(np.delete(laneList,spwnRand[iter]-1)) for iter in range(totalVehicle)])
-            velRand = np.array([8+random.uniform(-1,1) for iter in range(totalVehicle)])
+            velRand = np.array([5+random.uniform(-1,1) for iter in range(totalVehicle)])
         elif scenario == 1:
             kmax = 4
             spwnRand = np.array([[1,2,3,4] for iter in range(int(totalVehicle/4))]).flatten()
             destRand = np.array([random.choice(np.delete(laneList,spwnRand[iter]-1)) for iter in range(totalVehicle)])
-            velRand = np.array([8+random.uniform(-1,1) for iter in range(totalVehicle)])
+            velRand = np.array([5+random.uniform(-1,1) for iter in range(totalVehicle)])
         elif scenario == 2: # Artificial AMPIP example
             totalVehicle = 2
             spwnInterval = 4.5
@@ -203,6 +203,15 @@ def main(cr_method = "OAADMM", ctrlPolicy = "OAMPC", PriorityPolicy = "PriorityS
             spwnRand = [1,3,2,4,1,2,3,4,1,2,3,4,1,2,3,4]
             destRand = [2,4,3,1,2,3,4,1,3,4,1,2,4,1,2,3]
             velRand = [5,5,5,5,5,5,5,5,5,5,5,5,5,5,5,5]
+        elif scenario == 8:
+            # testing for OA-ADMM MPC Simultaneous
+            kmax = 4
+            totalVehicle = 4
+            spwnInterval = 4.5
+            spwnRand = [1,2,3,4,1,2,3,4]
+            destRand = [3,4,1,2,3,4,1,2]
+            velRand = [5,5,5,5,5,5,5,5,5,5,5,5,5,5,5,5]
+
         # idRand is only used for tie breaking, used to avoid odd behavior
         idRand = np.array([random.randint(100000,999999) for iter in range(totalVehicle)])
         spwnTime = [-spwnInterval]
