@@ -392,11 +392,11 @@ class OAADMM:
         ## OA-ADMM Parameter
         self.dt = 0.1
         self.d_min = 2 # Overwritten by self.mpc.cap_r
-        self.d_phi = 0.1
-        self.d_mult = 1.0
-        self.rho_base = 1
+        self.d_phi = 1.15
+        self.d_mult = 1.5
+        self.rho_base = 10
         self.phi_a = 6
-        self.mu_0 = 6/8 * 0.1/self.dt
+        self.mu_0 = 2/8 * 0.1/self.dt
         self.N = 20                         # Prediction horizon
         self.mcN_Dist = self.N*self.dt*10*4   # Distance at vehicle is added to mcN
         self.mpc = mpc.oa_mpc(self.dt,self.N,self.d_min,self.d_mult)
@@ -611,9 +611,9 @@ class OAADMM:
         self.routeProcess(egoX)        
          
         # Initialize the capsule size of the vehicle
-        self.mpc.cap_r = egoX.ego.bounding_box.extent.y*0.75
-        self.mpc.cap_l = egoX.ego.bounding_box.extent.x*0.5
-        self.d_min = self.mpc.cap_r*2
+        self.mpc.cap_r = egoX.ego.bounding_box.extent.y
+        self.mpc.cap_l = egoX.ego.bounding_box.extent.x
+        self.d_min = 2*(egoX.ego.bounding_box.extent.y**2+ egoX.ego.bounding_box.extent.x**2)**0.5
         # Setup the x MPC for egoX
         self.mpc.setupMPC_x(egoX)
 
