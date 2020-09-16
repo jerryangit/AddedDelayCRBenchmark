@@ -6,47 +6,46 @@ import sys
 import matplotlib.pyplot as plt
 from scipy import sparse
 
-def main():
-    dt = 0.1
-    d_min = 3.5
-    d_mult = 2.25
-    rho_base = 1
-    phi_a = 6
-    mu_0 = 0.25
-    N = 10                     # Prediction horizon
-    mcN_Dist = 25              # Distance at vehicle is added to mcN
-    mpc = oa_mpc(dt,N,d_min,d_mult)
-    egoX = egoXDummy()
-    xDestLoc = np.array([10,1,egoX.velRef])
-    x_ref =  np.linspace([0,0,egoX.velRef],xDestLoc,N+1).flatten()
-    mcN = set([1,2,3])
-    z_JI = {}
-    x_J = {}
-    lambda_JI = {}
-    rho_JI = {}
-    lambda_JI[1] = np.ones(2*N)
-    lambda_JI[2] = np.ones(2*N)
-    lambda_JI[3] = np.ones(2*N)    
-    rho_JI[1] = np.ones(2*N)
-    rho_JI[2] = np.ones(2*N)
-    rho_JI[3] = np.ones(2*N)    
-    z_JI[1] = np.linspace([0,0],xDestLoc[:2] + np.array((-4,1)),N).flatten()
-    z_JI[2] = np.linspace([0,0],xDestLoc[:2] + np.array((-4,1)),N).flatten()
-    z_JI[3] = np.linspace([0,0],xDestLoc[:2] + np.array((-4,1)),N).flatten()    
-    mpc.setupMPC_x(egoX)    
-    I_xyv = sparse.kron(np.vstack([np.zeros((1,self.N)),np.eye(self.N)]),np.array(([1., 0.], [0., 1.],[0.,0.]))) # Indicator matrix to get a vector with only XY coordinates shape of 2*N        
-    (res,ctrl,xTraj) = mpc.solveMPC_x()
-    # plt.plot(xTraj[::2])
-    # plt.plot(xTraj[1::2])    
-    # plt.plot(res.x[2:33:3])    
-    # plt.legend(('x','y','v'))
-    # plt.show()
-    x_J[1] = xTraj
-    x_J[2] = xTraj  + np.linspace([10,-2], [1,-2],N).flatten()
-    x_J[3] = xTraj   + np.linspace([-10,0], [2,0],N).flatten()
-    mpc.setupMPC_z(egoX,mcN,lambda_JI, rho_JI, x_J)    
-    # mpc.updateMPC_z(egoX,x_ref,z_JI,lambda_JI,rho_JI,mcN)
-    (res) = mpc.solveMPC_z()
+# def main():
+#     dt = 0.1
+#     d_min = 3.5
+#     d_mult = 2.25
+#     rho_base = 1
+#     phi_a = 6
+#     mu_0 = 0.25
+#     N = 10                     # Prediction horizon
+#     mcN_Dist = 25              # Distance at vehicle is added to mcN
+#     mpc = oa_mpc(dt,N,d_min,d_mult)
+#     egoX = egoXDummy()
+#     xDestLoc = np.array([10,1,egoX.velRef])
+#     x_ref =  np.linspace([0,0,egoX.velRef],xDestLoc,N+1).flatten()
+#     mcN = set([1,2,3])
+#     z_JI = {}
+#     x_J = {}
+#     lambda_JI = {}
+#     rho_JI = {}
+#     lambda_JI[1] = np.ones(2*N)
+#     lambda_JI[2] = np.ones(2*N)
+#     lambda_JI[3] = np.ones(2*N)    
+#     rho_JI[1] = np.ones(2*N)
+#     rho_JI[2] = np.ones(2*N)
+#     rho_JI[3] = np.ones(2*N)    
+#     z_JI[1] = np.linspace([0,0],xDestLoc[:2] + np.array((-4,1)),N).flatten()
+#     z_JI[2] = np.linspace([0,0],xDestLoc[:2] + np.array((-4,1)),N).flatten()
+#     z_JI[3] = np.linspace([0,0],xDestLoc[:2] + np.array((-4,1)),N).flatten()    
+#     mpc.setupMPC_x(egoX)    
+#     (res,ctrl,xTraj) = mpc.solveMPC_x()
+#     # plt.plot(xTraj[::2])
+#     # plt.plot(xTraj[1::2])    
+#     # plt.plot(res.x[2:33:3])    
+#     # plt.legend(('x','y','v'))
+#     # plt.show()
+#     x_J[1] = xTraj
+#     x_J[2] = xTraj  + np.linspace([10,-2], [1,-2],N).flatten()
+#     x_J[3] = xTraj   + np.linspace([-10,0], [2,0],N).flatten()
+#     mpc.setupMPC_z(egoX,mcN,lambda_JI, rho_JI, x_J)    
+#     # mpc.updateMPC_z(egoX,x_ref,z_JI,lambda_JI,rho_JI,mcN)
+#     (res) = mpc.solveMPC_z()
 
 
 class egoXDummy:
@@ -82,7 +81,9 @@ class oa_mpc:
         self.I_xy = sparse.kron(np.hstack((np.zeros((self.N,1)),np.eye(self.N))),np.array(([1., 0., 0.], [0., 1.,0.]))) # Indicator matrix to get a vector with only XY coordinates shape of 2*N        
         self.I_xyv = sparse.kron(np.vstack([np.zeros((1,self.N)),np.eye(self.N)]),np.array(([1., 0.], [0., 1.],[0.,0.]))) # Indicator matrix to get a vector with only XY coordinates shape of 2*N        
         self.ctrl = (1e-5,1e-5)
-
+        self.cap_l = None
+        self.cap_r = None
+        self.M = np.block([[np.eye(2),-np.eye(2)],[-np.eye(2),np.eye(2)]])
     def setupMPC_x(self,egoX):
         self.v_ref = egoX.velRef
         self.x0 = np.array((0.,0.,egoX.velRef))
@@ -212,7 +213,7 @@ class oa_mpc:
 
 
 
-    def setupMPC_z(self,egoX,mcN,lambda_JI,rho_JI,x_J):
+    def setupMPC_z(self,egoX,mcN,lambda_JI,rho_JI,x_J,theta_J):
         # lambda_JI.get(id).shape = N*2, rho_JI.get(id).shape = N*2, x_J.get(id).shape = N*2
 
         # Intialize matrix variables
@@ -224,7 +225,7 @@ class oa_mpc:
         self.A_rowi = np.array([],dtype='int')
         self.A_coli = np.array([],dtype='int')
         A_rw = 0       
-        K = np.zeros(int((len(mcN)*(len(mcN)-1))/2)*self.N)
+        K = np.zeros(int((len(mcN)*(len(mcN)-1))/2)*self.N*4)
         for cnt_i, vin_i in enumerate(mcN):
             # Cost function
             P_Rho = sparse.diags(np.hstack(( rho_JI.get(vin_i) + 1e-7)), format='csc')
@@ -237,41 +238,66 @@ class oa_mpc:
                 if cnt_j <= cnt_i:
                     # Skip values of j which are smaller or equal than i, since i will have had those already
                     continue
-                #TODO Correctly assign the data and its rows and column indices
-                #TODO Try implementing capsule based collision avoidance
+
                 for i_x in range(self.N):
-                    # x vector at linearization point
-                    x_bar = np.array([x_J.get(vin_i)[i_x*2],
-                    x_J.get(vin_i)[i_x*2+1],
-                    x_J.get(vin_j)[i_x*2],
-                    x_J.get(vin_j)[i_x*2+1]])
-                    # xTA vector at current timestep
-                    Ax_i = 2*np.array([x_J.get(vin_i)[i_x*2] - x_J.get(vin_j)[i_x*2],
-                    x_J.get(vin_i)[i_x*2+1] - x_J.get(vin_j)[i_x*2+1],
-                    x_J.get(vin_j)[i_x*2] - x_J.get(vin_i)[i_x*2],
-                    x_J.get(vin_j)[i_x*2+1] - x_J.get(vin_i)[i_x*2+1]])
-                    A_data = np.hstack([A_data,Ax_i])
-                    K[A_rw] = Ax_i @ x_bar
-                    self.A_rowi = np.hstack([self.A_rowi, A_rw, A_rw, A_rw, A_rw]) 
-                    A_rw += 1
-                    self.A_coli = np.hstack([self.A_coli, cnt_i*self.N*2+i_x*2,cnt_i*self.N*2+i_x*2+1,cnt_j*self.N*2+i_x*2,cnt_j*self.N*2+i_x*2+1]) 
-                    # A_it = sparse.hstack( [ np.zeros((1 , cnt_i*self.N*2 + i_x*2)),
-                    # x_J.get(vin_i)[i_x*2] - x_J.get(vin_j)[i_x*2],
-                    # x_J.get(vin_i)[i_x*2+1] - x_J.get(vin_j)[i_x*2+1], np.zeros((1,self.N*2*len(mcN) - ))]) + sparse.hstack([np.zeros((1, cnt_j*self.N*2 + i_x * 2)) ,
-                    # x_J.get(vin_j)[i_x*2] - x_J.get(vin_i)[i_x*2],
-                    # x_J.get(vin_j)[i_x*2+1] - x_J.get(vin_i)[i_x*2+1],
-                    # np.zeros((1,(len(mcN)-cnt_j)*self.N*2)) ],format='csc')     
+                    # Save previous values of x_i and x_j to est theta
+                    if i_x > 0:
+                        x_i_0 = x_i
+                        x_j_0 = x_j
+
+                    # Get currently planned values for x_i and x_j
+                    x_i = np.array([x_J.get(vin_i)[i_x*2], x_J.get(vin_i)[i_x*2+1]])
+                    x_j = np.array([x_J.get(vin_j)[i_x*2], x_J.get(vin_j)[i_x*2+1]])
+
+                    # Compute the linearization point for the [x_i,x_j] vector for vehicle i and j                    
+                    x_O_bar = np.hstack([x_i,x_j])
+
+                    #Estimate theta based on previous value
+                    if i_x > 0:
+                        x_i_theta = np.arctan2((x_i[1]-x_i_0[1]),(x_i[0]-x_i_0[0]))
+                        x_j_theta = np.arctan2((x_j[1]-x_j_0[1]),(x_j[0]-x_j_0[0]))
+                    else:
+                        x_i_theta = 0
+                        x_j_theta = (theta_J.get(vin_j) - egoX.cr.theta)%(np.pi*2)
+
+                    # Compute the linearization point for the vector from O to A for vehicle i and j
+                    x_OA_i_bar = np.array([self.cap_l*np.cos(x_i_theta),self.cap_l*np.sin(x_i_theta)])
+                    x_OB_i_bar = -np.array([self.cap_l*np.cos(x_i_theta),self.cap_l*np.sin(x_i_theta)])
+                    x_OA_j_bar = np.array([self.cap_l*np.cos(x_j_theta),self.cap_l*np.sin(x_j_theta)])
+                    x_OB_j_bar = -np.array([self.cap_l*np.cos(x_j_theta),self.cap_l*np.sin(x_j_theta)])
+                    # Order: Ai Aj, Ai Bj, Bi Aj, Bi Bj
+                    x_OX_bar = [np.hstack((x_OA_i_bar,x_OA_j_bar)),
+                        np.hstack((x_OA_i_bar,x_OB_j_bar)),
+                        np.hstack((x_OB_i_bar,x_OA_j_bar)),
+                        np.hstack((x_OB_i_bar,x_OB_j_bar))]
+
+                    # Add constraint for each linearized distance
+                    for i_cap in range(4):
+                        x_bar = x_O_bar + x_OX_bar[i_cap]
+
+                        # xTA vector at current timestep
+                        xM = x_bar @ self.M 
+                        
+                        A_data = np.hstack([A_data,2 * xM])
+
+                        # Compute the constant part of the linearization
+                        K[A_rw] = xM @ x_bar - 2* xM @ x_OX_bar[i_cap]
+                        self.A_rowi = np.hstack([self.A_rowi, A_rw, A_rw, A_rw, A_rw]) 
+                        self.A_coli = np.hstack([self.A_coli, cnt_i*self.N*2+i_x*2,cnt_i*self.N*2+i_x*2+1,cnt_j*self.N*2+i_x*2,cnt_j*self.N*2+i_x*2+1])                         
+                        A_rw += 1
+    
+
 
         if A_data.size != 0: 
             A = sparse.csc_matrix((A_data,(self.A_rowi,self.A_coli)))
             # lower bound is minimum distance, size depends on mcN len every comb * nxc
-            l = np.ones(int((len(mcN)*(len(mcN)-1))/2)*self.N)*(self.d_min*self.d_mult)**2 + K
+            l = np.ones(int((len(mcN)*(len(mcN)-1))/2)*self.N*4) * (self.cap_r*2*self.d_mult)**2 + K
             # upper bound is inf
-            u = np.ones(int((len(mcN)*(len(mcN)-1))/2)*self.N)*np.inf
+            u = np.ones(int((len(mcN)*(len(mcN)-1))/2)*self.N*4)*np.inf
             # Create an OSQP object
             self.prob_z = osqp.OSQP()
             # Setup workspace
-            self.prob_z.setup(P, q, A, l, u, warm_start=True, polish = 1, max_iter = 10000 ,verbose = 0, scaling=20,eps_abs = 1e-8,eps_rel = 1e-4)
+            self.prob_z.setup(P, q, A, l, u, warm_start=True, polish = 1, max_iter = 10000 ,verbose = 1, scaling=20,eps_abs = 1e-8,eps_rel = 1e-4)
         else:
             # Create an OSQP object
             self.prob_z = osqp.OSQP()
@@ -286,7 +312,7 @@ class oa_mpc:
 
 
 
-    def updateMPC_z(self,egoX,mcN,lambda_JI,rho_JI,x_J):
+    def updateMPC_z(self,egoX,mcN,lambda_JI,rho_JI,x_J,theta_J):
         # lambda_JI.get(id).shape = N*2, rho_JI.get(id).shape = N*2, x_J.get(id).shape = N*2
 
         # Intialize matrix variables
@@ -296,7 +322,7 @@ class oa_mpc:
         A = sparse.eye(0,format='csc')
         A_data = np.array([],dtype='int')
         A_rw = 0       
-        K = np.zeros(int((len(mcN)*(len(mcN)-1))/2)*self.N)
+        K = np.zeros(int((len(mcN)*(len(mcN)-1))/2)*self.N*4)
         for cnt_i, vin_i in enumerate(mcN):
             # Cost function
             if np.sum(rho_JI.get(vin_i)) == 0:
@@ -312,24 +338,55 @@ class oa_mpc:
                 if cnt_j <= cnt_i:
                     # Skip values of j which are smaller or equal than i, since i will have had those already
                     continue
+
                 for i_x in range(self.N):
-                    # x vector at linearization point
-                    x_bar = np.array([x_J.get(vin_i)[i_x*2],
-                    x_J.get(vin_i)[i_x*2+1],
-                    x_J.get(vin_j)[i_x*2],
-                    x_J.get(vin_j)[i_x*2+1]])
-                    # xTA vector at current timestep
-                    Ax_i = 2*np.array([x_J.get(vin_i)[i_x*2] - x_J.get(vin_j)[i_x*2],
-                    x_J.get(vin_i)[i_x*2+1] - x_J.get(vin_j)[i_x*2+1],
-                    x_J.get(vin_j)[i_x*2] - x_J.get(vin_i)[i_x*2],
-                    x_J.get(vin_j)[i_x*2+1] - x_J.get(vin_i)[i_x*2+1]])
-                    A_data = np.hstack([A_data,Ax_i])
-                    K[A_rw] = 1/2*Ax_i @ x_bar
-                    A_rw += 1
+                    # Save previous values of x_i and x_j to est theta
+                    if i_x > 0:
+                        x_i_0 = x_i
+                        x_j_0 = x_j
+
+                    # Get currently planned values for x_i and x_j
+                    x_i = np.array([x_J.get(vin_i)[i_x*2], x_J.get(vin_i)[i_x*2+1]])
+                    x_j = np.array([x_J.get(vin_j)[i_x*2], x_J.get(vin_j)[i_x*2+1]])
+
+                    # Compute the linearization point for the [x_i,x_j] vector for vehicle i and j                    
+                    x_O_bar = np.hstack([x_i,x_j])
+
+                    #Estimate theta based on previous value
+                    if i_x > 0:
+                        x_i_theta = np.arctan2((x_i[1]-x_i_0[1]),(x_i[0]-x_i_0[0]))
+                        x_j_theta = np.arctan2((x_j[1]-x_j_0[1]),(x_j[0]-x_j_0[0]))
+                    else:
+                        x_i_theta = 0
+                        x_j_theta = (theta_J.get(vin_j) - egoX.cr.theta)%(np.pi*2)
+
+                    # Compute the linearization point for the vector from O to A for vehicle i and j
+                    x_OA_i_bar = np.array([self.cap_l*np.cos(x_i_theta),self.cap_l*np.sin(x_i_theta)])
+                    x_OB_i_bar = -np.array([self.cap_l*np.cos(x_i_theta),self.cap_l*np.sin(x_i_theta)])
+                    x_OA_j_bar = np.array([self.cap_l*np.cos(x_j_theta),self.cap_l*np.sin(x_j_theta)])
+                    x_OB_j_bar = -np.array([self.cap_l*np.cos(x_j_theta),self.cap_l*np.sin(x_j_theta)])
+                    # Order: Ai Aj, Ai Bj, Bi Aj, Bi Bj
+                    x_OX_bar = [np.hstack((x_OA_i_bar,x_OA_j_bar)),
+                        np.hstack((x_OA_i_bar,x_OB_j_bar)),
+                        np.hstack((x_OB_i_bar,x_OA_j_bar)),
+                        np.hstack((x_OB_i_bar,x_OB_j_bar))]
+
+                    # Add constraint for each linearized distance
+                    for i_cap in range(4):
+                        x_bar = x_O_bar + x_OX_bar[i_cap]
+
+                        # xTA vector at current timestep
+                        xM = x_bar @ self.M 
+                        
+                        A_data = np.hstack([A_data,2 * xM])
+
+                        # Compute the constant part of the linearization
+                        K[A_rw] = xM @ x_bar - 2* xM @ x_OX_bar[i_cap]
+                        A_rw += 1
 
         if A_data.size != 0: 
             A = sparse.csc_matrix((A_data,(self.A_rowi,self.A_coli)))            
-            l = np.ones(int((len(mcN)*(len(mcN)-1))/2)*self.N)*(self.d_min*self.d_mult)**2 + K
+            l = np.ones(int((len(mcN)*(len(mcN)-1))/2)*self.N*4) * (self.cap_r*2*self.d_mult)**2 + K
             # Update workspace
             self.prob_z.update(Px = sparse.triu(P).data, Ax=A.data,q=q, l=l)
         else:
@@ -368,5 +425,5 @@ def toc():
         print("Toc: start time not set")
 
 
-if __name__ == '__main__':
-    main()        
+# if __name__ == '__main__':
+#     main()        

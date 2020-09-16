@@ -391,7 +391,7 @@ class OAADMM:
         self.rho_IJ = {}
         ## OA-ADMM Parameter
         self.dt = 0.1
-        self.d_min = 4.129
+        self.d_min = 2 # Overwritten by self.mpc.cap_r
         self.d_phi = 1.075
         self.d_mult = 1.35
         self.rho_base = 1
@@ -542,10 +542,10 @@ class OAADMM:
 
         if self.mcN_change == 1:
             # z-Update optimization
-            self.mpc.setupMPC_z(egoX,self.mcN,self.lambda_JI,self.rho_JI,self.x_J)
+            self.mpc.setupMPC_z(egoX,self.mcN,self.lambda_JI,self.rho_JI,self.x_J,self.theta_J)
         else:
             # Update MPC data
-            self.mpc.updateMPC_z(egoX,self.mcN,self.lambda_JI,self.rho_JI,self.x_J)
+            self.mpc.updateMPC_z(egoX,self.mcN,self.lambda_JI,self.rho_JI,self.x_J,self.theta_J)
 
         # Solve problem
         (res) = self.mpc.solveMPC_z()
@@ -610,6 +610,10 @@ class OAADMM:
         # Pre process the route of egoX
         self.routeProcess(egoX)        
          
+        # Initialize the capsule size of the vehicle
+        self.mpc.cap_r = egoX.ego.bounding_box.extent.y
+        self.mpc.cap_l = egoX.ego.bounding_box.extent.x
+        self.d_min = self.mpc.cap_r
         # Setup the x MPC for egoX
         self.mpc.setupMPC_x(egoX)
 
@@ -625,6 +629,8 @@ class OAADMM:
         
         # Initialize rho_JI of ego id with zeros        
         self.rho_JI[egoX.id] = np.zeros(self.N*2)
+
+
 
 
 def dist2Agents(x_i,x_j,nx,N):
