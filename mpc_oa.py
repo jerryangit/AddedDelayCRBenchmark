@@ -225,7 +225,7 @@ class oa_mpc:
         self.A_rowi = np.array([],dtype='int')
         self.A_coli = np.array([],dtype='int')
         A_rw = 0       
-        K = np.zeros(int((len(mcN)*(len(mcN)-1))/2)*self.N*4)
+        K = np.zeros(int((len(mcN)*(len(mcN)-1))/2)*self.N)
         for cnt_i, vin_i in enumerate(mcN):
             # Cost function
             P_Rho = sparse.diags(np.hstack(( rho_JI.get(vin_i) + 1e-7)), format='csc')
@@ -270,30 +270,36 @@ class oa_mpc:
                         np.hstack((x_OA_i_bar,x_OB_j_bar)),
                         np.hstack((x_OB_i_bar,x_OA_j_bar)),
                         np.hstack((x_OB_i_bar,x_OB_j_bar))]
+        
+                    # Check which linearized distance is closest
+                    dist_arr = np.array([(x_O_bar + x_OX_bar[0]) @ self.M @ (x_O_bar + x_OX_bar[0]),
+                    (x_O_bar + x_OX_bar[1]) @ self.M @ (x_O_bar + x_OX_bar[1]),
+                    (x_O_bar + x_OX_bar[2]) @ self.M @ (x_O_bar + x_OX_bar[2]),
+                    (x_O_bar + x_OX_bar[3]) @ self.M @ (x_O_bar + x_OX_bar[3])])
+                    
+                    # Add constraint for closest linearized distance
+                    x_OX_bar_close = x_OX_bar[np.argmin(dist_arr)]
+                    x_bar = x_O_bar + x_OX_bar_close
 
-                    # Add constraint for each linearized distance
-                    for i_cap in range(4):
-                        x_bar = x_O_bar + x_OX_bar[i_cap]
+                    # xTA vector at current timestep
+                    xM = x_bar @ self.M 
+                    
+                    A_data = np.hstack([A_data,2 * xM])
 
-                        # xTA vector at current timestep
-                        xM = x_bar @ self.M 
-                        
-                        A_data = np.hstack([A_data,2 * xM])
-
-                        # Compute the constant part of the linearization
-                        K[A_rw] = xM @ x_bar - 2* xM @ x_OX_bar[i_cap]
-                        self.A_rowi = np.hstack([self.A_rowi, A_rw, A_rw, A_rw, A_rw]) 
-                        self.A_coli = np.hstack([self.A_coli, cnt_i*self.N*2+i_x*2,cnt_i*self.N*2+i_x*2+1,cnt_j*self.N*2+i_x*2,cnt_j*self.N*2+i_x*2+1])                         
-                        A_rw += 1
+                    # Compute the constant part of the linearization
+                    K[A_rw] = xM @ x_bar - 2* xM @ x_OX_bar_close
+                    self.A_rowi = np.hstack([self.A_rowi, A_rw, A_rw, A_rw, A_rw]) 
+                    self.A_coli = np.hstack([self.A_coli, cnt_i*self.N*2+i_x*2,cnt_i*self.N*2+i_x*2+1,cnt_j*self.N*2+i_x*2,cnt_j*self.N*2+i_x*2+1])                         
+                    A_rw += 1
     
 
 
         if A_data.size != 0: 
             A = sparse.csc_matrix((A_data,(self.A_rowi,self.A_coli)))
             # lower bound is minimum distance, size depends on mcN len every comb * nxc
-            l = np.ones(int((len(mcN)*(len(mcN)-1))/2)*self.N*4) * (self.cap_r*2*self.d_mult)**2 + K
+            l = np.ones(int((len(mcN)*(len(mcN)-1))/2)*self.N) * (self.cap_r*2*self.d_mult)**2 + K
             # upper bound is inf
-            u = np.ones(int((len(mcN)*(len(mcN)-1))/2)*self.N*4)*np.inf
+            u = np.ones(int((len(mcN)*(len(mcN)-1))/2)*self.N)*np.inf
             # Create an OSQP object
             self.prob_z = osqp.OSQP()
             # Setup workspace
@@ -322,7 +328,7 @@ class oa_mpc:
         A = sparse.eye(0,format='csc')
         A_data = np.array([],dtype='int')
         A_rw = 0       
-        K = np.zeros(int((len(mcN)*(len(mcN)-1))/2)*self.N*4)
+        K = np.zeros(int((len(mcN)*(len(mcN)-1))/2)*self.N)
         for cnt_i, vin_i in enumerate(mcN):
             # Cost function
             if np.sum(rho_JI.get(vin_i)) == 0:
@@ -371,22 +377,28 @@ class oa_mpc:
                         np.hstack((x_OB_i_bar,x_OA_j_bar)),
                         np.hstack((x_OB_i_bar,x_OB_j_bar))]
 
-                    # Add constraint for each linearized distance
-                    for i_cap in range(4):
-                        x_bar = x_O_bar + x_OX_bar[i_cap]
+                    # Check which linearized distance is closest
+                    dist_arr = np.array([(x_O_bar + x_OX_bar[0]) @ self.M @ (x_O_bar + x_OX_bar[0]),
+                    (x_O_bar + x_OX_bar[1]) @ self.M @ (x_O_bar + x_OX_bar[1]),
+                    (x_O_bar + x_OX_bar[2]) @ self.M @ (x_O_bar + x_OX_bar[2]),
+                    (x_O_bar + x_OX_bar[3]) @ self.M @ (x_O_bar + x_OX_bar[3])])
+                    
+                    # Add constraint for closest linearized distance
+                    x_OX_bar_close = x_OX_bar[np.argmin(dist_arr)]
+                    x_bar = x_O_bar + x_OX_bar_close
 
-                        # xTA vector at current timestep
-                        xM = x_bar @ self.M 
-                        
-                        A_data = np.hstack([A_data,2 * xM])
+                    # xTA vector at current timestep
+                    xM = x_bar @ self.M 
+                    
+                    A_data = np.hstack([A_data,2 * xM])
 
-                        # Compute the constant part of the linearization
-                        K[A_rw] = xM @ x_bar - 2* xM @ x_OX_bar[i_cap]
-                        A_rw += 1
+                    # Compute the constant part of the linearization
+                    K[A_rw] = xM @ x_bar - 2* xM @ x_OX_bar_close
+                    A_rw += 1
 
         if A_data.size != 0: 
             A = sparse.csc_matrix((A_data,(self.A_rowi,self.A_coli)))            
-            l = np.ones(int((len(mcN)*(len(mcN)-1))/2)*self.N*4) * (self.cap_r*2*self.d_mult)**2 + K
+            l = np.ones(int((len(mcN)*(len(mcN)-1))/2)*self.N) * (self.cap_r*2*self.d_mult)**2 + K
             # Update workspace
             self.prob_z.update(Px = sparse.triu(P).data, Ax=A.data,q=q, l=l)
         else:
