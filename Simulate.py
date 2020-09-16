@@ -198,8 +198,8 @@ def main(cr_method = "OAADMM", ctrlPolicy = "OAMPC", PriorityPolicy = "PriorityS
         elif scenario == 7:
             # testing for OA-ADMM MPC
             kmax = 1
-            totalVehicle = 8
-            spwnInterval = 1
+            totalVehicle = 2
+            spwnInterval = 1.7
             spwnRand = [1,4,2,1,3,2,4,3,1,3,2,4,1,2,3,4,1,2,3,4,1,2,3,4]
             destRand = [3,3,4,4,1,1,2,2,2,4,3,1,2,3,4,1,3,4,1,2,4,1,2,3]
             velRand = [5,5,5,5,5,5,5,5,5,5,5,5,5,5,5,5]
