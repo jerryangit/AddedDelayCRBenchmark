@@ -125,15 +125,15 @@ class oa_mpc:
         uineq = np.hstack([np.kron(np.ones(self.N+1), xmax), np.kron(np.ones(self.N), umax)])
 
         # Cost function
-        Q = sparse.diags([8.5, 45.25, 3.5])
+        Q = sparse.diags([8.5, 100.5, 3.5])
         QN = Q*0.95
-        R = sparse.diags([2.5, 11.5])
+        R = sparse.diags([2.5, 13.5])
         x_ref = np.linspace([0,0,self.x0[2]],[1,1,self.v_ref],self.N+1).flatten()
 
 
         # Cast MPC problem to a QP: x = (x(0),x(1),...,x(N),u(0),...,u(N-1))
         # - quadratic objective
-        self.P_Q = sparse.block_diag([sparse.kron(sparse.diags(np.linspace(1.0,0.925,self.N+1)), Q), sparse.kron(sparse.diags(np.linspace(1.0,0.75,self.N)), R,format='csc')], format='csc') 
+        self.P_Q = sparse.block_diag([sparse.kron(sparse.diags(np.linspace(1.0,0.925,self.N+1)), Q), sparse.kron(sparse.diags(np.linspace(0.95,1.0,self.N)), R,format='csc')], format='csc') 
         P = self.P_Q        
         # - linear objective
         self.lambda_ref = np.kron(np.linspace(1.0,0.925,self.N+1), Q.diagonal())

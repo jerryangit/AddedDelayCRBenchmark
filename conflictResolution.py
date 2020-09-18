@@ -397,7 +397,7 @@ class OAADMM:
         self.d_mult = 1.75
         self.rho_base = 10
         self.phi_a = 6
-        self.mu_0 = 10/32 * 0.1/self.dt
+        self.mu_0 = 8/32 * 0.1/self.dt
         self.N = 25                         # Prediction horizon
         self.mcN_Dist = self.N*self.dt*10*2   # Distance at vehicle is added to mcN
         self.mpc = mpc.oa_mpc(self.dt,self.N,self.d_min,self.d_mult)
@@ -531,11 +531,17 @@ class OAADMM:
         if egoX.hasLeft == 1:
             return
 
+        for vin_i in self.mcN:
+            if worldX.actorDict.dict.get(vin_i) == None:
+                self.mcN.remove(vin_i)
+                self.mcN_change = 1
+            elif worldX.actorDict.dict.get(vin_i).hasLeft == 1:
+                self.mcN.remove(vin_i)
+                self.mcN_change = 1
+
+
         # Receive z_JI, lambda_JI from neighbor set
         for msg in worldX.msg.inbox[egoX.id]:
-            if msg.idSend == egoX.id:
-                print('ERROR!, if never error remove this code')
-                continue
             if msg.idSend in self.mcN:
                 self.theta_J[msg.idSend] = msg.content.get("theta")
 
@@ -580,6 +586,7 @@ class OAADMM:
             #TODO figure out how rho works, and how to do lambda_ij vs lambda_ji
             if vin_i == egoX.id:
                 continue
+            self.rho_IJ[vin_i] = self.rho_base * ( (self.d_min*self.d_phi)/(dist2AgentsCap(self.x_i,self.x_J.get(vin_i),self.theta,self.theta_J.get(vin_i),self.mpc.cap_l,self.mpc.cap_r,2,self.N)) )**self.phi_a + 1e-3
             self.rho_IJ[vin_i] = self.rho_base * ( (self.d_min*self.d_phi)/(dist2Agents(self.x_i,self.x_J[vin_i],2,self.N)) )**self.phi_a + 1e-3
             self.rho_JI[egoX.id] = self.rho_JI[egoX.id] + self.rho_IJ[vin_i]*(len(self.mcN)-1)**-1 + 1e-3
 
@@ -620,7 +627,7 @@ class OAADMM:
         self.routeProcess(egoX)        
          
         # Initialize the capsule size of the vehicle
-        self.mpc.cap_r = egoX.ego.bounding_box.extent.y*1.1225
+        self.mpc.cap_r = egoX.ego.bounding_box.extent.y*1.12
         self.mpc.cap_l = egoX.ego.bounding_box.extent.x*1.15
         self.d_min = 2*(egoX.ego.bounding_box.extent.y**2+ egoX.ego.bounding_box.extent.x**2)**0.5
         # Setup the x MPC for egoX
@@ -640,6 +647,48 @@ class OAADMM:
         self.rho_JI[egoX.id] = np.zeros(self.N*2)
 
 
+def dist2AgentsCap(x_i_vec,x_j_vec,theta_i,theta_j,cap_l,cap_r,nx,N):
+    dist = np.array([])
+    for k in range(N):
+        # Save previous values of x_i and x_j to est theta
+        if k > 0:
+            x_i_0 = x_i
+            x_j_0 = x_j
+        # Get currently planned values for x_i and x_j
+        x_i = x_i_vec[nx*k:nx*(k+1)]
+        x_j = x_j_vec[nx*k:nx*(k+1)]
+
+        # Compute the linearization point for the [x_i,x_j] vector for vehicle i and j                    
+        x_O_bar = np.hstack([x_i,x_j])
+
+        #Estimate theta based on previous value
+        if k > 0:
+            x_i_theta = np.arctan2((x_i[1]-x_i_0[1]),(x_i[0]-x_i_0[0]))
+            x_j_theta = np.arctan2((x_j[1]-x_j_0[1]),(x_j[0]-x_j_0[0]))
+        else:
+            x_i_theta = 0
+            x_j_theta = (theta_j - theta_i)%(np.pi*2)
+
+        # Compute the linearization point for the vector from O to A for vehicle i and j
+        x_OA_i_bar = np.array([cap_l*np.cos(x_i_theta),cap_l*np.sin(x_i_theta)])
+        x_OB_i_bar = -np.array([cap_l*np.cos(x_i_theta),cap_l*np.sin(x_i_theta)])
+        x_OA_j_bar = np.array([cap_l*np.cos(x_j_theta),cap_l*np.sin(x_j_theta)])
+        x_OB_j_bar = -np.array([cap_l*np.cos(x_j_theta),cap_l*np.sin(x_j_theta)])
+        # Order: Ai Aj, Ai Bj, Bi Aj, Bi Bj
+        x_OX_bar = [np.hstack((x_OA_i_bar,x_OA_j_bar)),
+            np.hstack((x_OA_i_bar,x_OB_j_bar)),
+            np.hstack((x_OB_i_bar,x_OA_j_bar)),
+            np.hstack((x_OB_i_bar,x_OB_j_bar))]
+        M = np.block([[np.eye(2),-np.eye(2)],[-np.eye(2),np.eye(2)]])
+        # Check which linearized distance is closest
+        dist_arr = np.array([(x_O_bar + x_OX_bar[0]) @ M @ (x_O_bar + x_OX_bar[0]),
+        (x_O_bar + x_OX_bar[1]) @ M @ (x_O_bar + x_OX_bar[1]),
+        (x_O_bar + x_OX_bar[2]) @ M @ (x_O_bar + x_OX_bar[2]),
+        (x_O_bar + x_OX_bar[3]) @ M @ (x_O_bar + x_OX_bar[3])])
+        
+        # Add constraint for closest linearized distance
+        dist = np.hstack([dist , np.ones(nx) * np.min(dist_arr)**0.5])
+    return dist
 
 
 def dist2Agents(x_i,x_j,nx,N):

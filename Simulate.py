@@ -48,7 +48,7 @@ if not os.path.exists('./recordings'):
 # def main(cr_method = "AMPIP", ctrlPolicy = "MPIPControl", PriorityPolicy = "FCFS",totalVehicle = 128, scenario = 0, spwnInterval = 0.8, randomSeed = 469730,logging = 1):
 # def main(cr_method = "AMPIP", ctrlPolicy = "MPIPControl", PriorityPolicy = "FCFS",totalVehicle = 128, scenario = 0, spwnInterval = 1.2, randomSeed = 960489,logging = 1):
 
-def main(cr_method = "OAADMM", ctrlPolicy = "OAMPC", PriorityPolicy = "PriorityScore",totalVehicle = 12, scenario = 0, spwnInterval = 1.5, randomSeed = 960489, preGenRoute = 1, logging = 1, errMargin = 0.5):
+def main(cr_method = "OAADMM", ctrlPolicy = "OAMPC", PriorityPolicy = "PriorityScore",totalVehicle = 12, scenario = 8, spwnInterval = 1.75, randomSeed = 960489, preGenRoute = 1, logging = 1, errMargin = 0.5):
     ###############################################
     # Config
     ###############################################  
@@ -212,11 +212,11 @@ def main(cr_method = "OAADMM", ctrlPolicy = "OAMPC", PriorityPolicy = "PriorityS
             velRand = [5,5,5,5,5,5,5,5,5,5,5,5,5,5,5,5]
         elif scenario == 8:
             # testing for OA-ADMM MPC Simultaneous
-            kmax = 4
+            kmax = 2
             totalVehicle = 4
             spwnInterval = 4.5
-            spwnRand = [1,2,3,4,1,2,3,4]
-            destRand = [3,4,1,2,3,4,1,2]
+            spwnRand = [1,3,2,4,1,2,3,4]
+            destRand = [3,1,4,2,3,4,1,2]
             velRand = [5,5,5,5,5,5,5,5,5,5,5,5,5,5,5,5]
 
         # idRand is only used for tie breaking, used to avoid odd behavior
