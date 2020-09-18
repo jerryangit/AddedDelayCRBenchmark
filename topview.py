@@ -13,24 +13,17 @@
 """
 Welcome to CARLA No-Rendering Mode Visualizer
 
-    F3          : toggle hero mode
     Mouse Wheel  : zoom in / zoom out
     Mouse Drag   : move map (map mode only)
-
-    W            : throttle
-    S            : brake
-    AD           : steer
-    Q            : toggle reverse
-    Space        : hand-brake
-    P            : toggle autopilot
-    M            : toggle manual transmission
-    ,/.          : gear up/down
 
     F1           : toggle HUD
     I            : toggle actor ids
     G            : toggle grid
     R            : toggle radius
     H/?          : toggle help
+    F4           : refresh map
+    F5           : start recording
+    F6           : stop recording
     ESC          : quit
 """
 
@@ -41,6 +34,7 @@ Welcome to CARLA No-Rendering Mode Visualizer
 import glob
 import os
 import sys
+import imageio
 
 try:
     sys.path.append(glob.glob('../carla/dist/carla-*%d.%d-%s.egg' % (
@@ -92,9 +86,17 @@ try:
     from pygame.locals import K_w
     from pygame.locals import K_g
     from pygame.locals import K_r
+    from pygame.locals import K_F4    
+    from pygame.locals import K_F5    
+    from pygame.locals import K_F6
 except ImportError:
     raise RuntimeError('cannot import pygame, make sure pygame package is installed')
-
+# ==============================================================================
+# -- Global Variable for gif export by Jerry An --------------------------------
+# ==============================================================================
+gif_dir = './gif/'
+gifFile = []
+recordNow = 0
 # ==============================================================================
 # -- Constants -----------------------------------------------------------------
 # ==============================================================================
@@ -925,9 +927,9 @@ class World(object):
     def start(self, hud, input_control):
         self.world, self.town_map = self._get_data_from_carla()
         # Disable rendering and make sim run at fixed tiemsteps
-        settings = self.world.get_settings()
-        settings.no_rendering_mode = False
-        self.world.apply_settings(settings)
+        # settings = self.world.get_settings()
+        # settings.no_rendering_mode = False
+        # self.world.apply_settings(settings)
 
         # Create Surfaces
         self.map_image = MapImage(
@@ -1086,6 +1088,16 @@ class World(object):
         self.server_clock.tick()
         self.server_fps = self.server_clock.get_fps()
         self.simulation_time = timestamp.elapsed_seconds
+        # #! << Added by JERRY AN        
+        # global gifFile
+        # global recordNow
+        # if recordNow == 1:
+        #     gifFile.append(pygame.surfarray.array3d(self.display_ss).T)
+        # # + datetime.datetime.now().strftime('%Y-%m-%d-%H-%M.csv')
+        # # print(type(self.display_ss))
+        # #! >>
+
+
 
     def _split_actors(self):
         vehicles = []
@@ -1352,6 +1364,9 @@ class World(object):
 
             display.blit(self.result_surface, (translation_offset[0] + center_offset[0],
                                                translation_offset[1]))
+            #! << ADDED BY JERRY AN
+            self.display_ss = display
+            #! >>
 
     def destroy(self):
         if self.spawned_hero is not None:
@@ -1421,6 +1436,14 @@ class InputControl(object):
                     self._hud.show_grid = not self._hud.show_grid
                 elif event.key == K_r:
                     self._hud.show_radius = not self._hud.show_radius
+                elif event.key == K_F4:
+                    self._world.start(self._hud, self)
+                elif event.key == K_F5:
+                    global recordNow
+                    recordNow = 1
+                elif event.key == K_F6:
+                    global recordStop
+                    recordNow = 0
                 elif isinstance(self.control, carla.VehicleControl):
                     if event.key == K_q:
                         self.control.gear = 1 if self.control.reverse else -1
@@ -1530,6 +1553,13 @@ def game_loop(args):
             input_control.render(display)
 
             pygame.display.flip()
+            # global gifFile
+            # global recordNow
+            # if recordNow == 0 and len(gifFile) != 0:
+            #     global gif_dir            
+            #     pathStr = gif_dir + 'record_' + datetime.datetime.now().strftime('%Y-%m-%d-%H-%M.gif')
+            #     imageio.mimsave(pathStr,gifFile,fps=50)
+            #     gifFile = []
 
     except KeyboardInterrupt:
         print('\nCancelled by user. Bye!')
@@ -1612,6 +1642,21 @@ def main():
 
     game_loop(args)
 
+def tic():
+    #Homemade version of matlab tic and toc functions
+    import time
+    global startTime_for_tictoc
+    startTime_for_tictoc = time.time()
+
+def toc():
+    import time
+    if 'startTime_for_tictoc' in globals():
+        print("Elapsed time is " + str(time.time() - startTime_for_tictoc) + " seconds.")
+    else:
+        print("Toc: start time not set")
+
 
 if __name__ == '__main__':
     main()
+
+    

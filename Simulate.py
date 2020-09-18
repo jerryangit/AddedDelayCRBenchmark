@@ -41,11 +41,14 @@ import numpy as np
 ## Create data folder
 if not os.path.exists('./data'):
     os.makedirs('./data')
+if not os.path.exists('./recordings'):
+    os.makedirs('./recordings')
+
 # def main(cr_method = "AMPIP", ctrlPolicy = "MPIPControl", PriorityPolicy = "FCFS",totalVehicle = 32, scenario = 0, spwnInterval = 0.8, randomSeed = 823182,logging = 1):
 # def main(cr_method = "AMPIP", ctrlPolicy = "MPIPControl", PriorityPolicy = "FCFS",totalVehicle = 128, scenario = 0, spwnInterval = 0.8, randomSeed = 469730,logging = 1):
 # def main(cr_method = "AMPIP", ctrlPolicy = "MPIPControl", PriorityPolicy = "FCFS",totalVehicle = 128, scenario = 0, spwnInterval = 1.2, randomSeed = 960489,logging = 1):
 
-def main(cr_method = "OAADMM", ctrlPolicy = "OAMPC", PriorityPolicy = "PriorityScore",totalVehicle = 4, scenario = 7, spwnInterval = 4, randomSeed = 960489, preGenRoute = 1, logging = 1, errMargin = 0.5):
+def main(cr_method = "OAADMM", ctrlPolicy = "OAMPC", PriorityPolicy = "PriorityScore",totalVehicle = 6, scenario = 8, spwnInterval = 1.25, randomSeed = 960489, preGenRoute = 1, logging = 1, errMargin = 0.5):
     ###############################################
     # Config
     ###############################################  
@@ -73,7 +76,7 @@ def main(cr_method = "OAADMM", ctrlPolicy = "OAMPC", PriorityPolicy = "PriorityS
     plotVel = 0                 # Whether to plot velocity or not
     plotTheta = 0               # Whether to plot theta or not
     plotLoc = 0                 # Whether to plot location or not
-
+    record = 1
 
     ###############################################
     # Other variables
@@ -112,6 +115,10 @@ def main(cr_method = "OAADMM", ctrlPolicy = "OAMPC", PriorityPolicy = "PriorityS
             tick0 = world.get_snapshot()
         else:
             tick0 = world.wait_for_tick()
+
+        if record == 1:
+            # client.start_recorder("/home/jerry/carla/PythonAPI/conflictResolutionCarla/recordings/recording01.log")
+            client.start_recorder('record_20_9_18_1.log')
         #TODO are these used?
         ts0 = tick0.timestamp
         ts0s = tick0.timestamp.elapsed_seconds
@@ -462,80 +469,83 @@ def main(cr_method = "OAADMM", ctrlPolicy = "OAMPC", PriorityPolicy = "PriorityS
             actor.destroy()
         print('done.')
         world.tick()
+        client.stop_recorder()
+        world.tick()
+
         # print("setting synchronous_mode to False")
         # settings.synchronous_mode = False
         # world.apply_settings(settings)
         # tick = world.wait_for_tick()
         
+        #! Old stuff, used for debugging controller
+        # if plot == 1:
+        #     import matplotlib.pyplot as plt
+        #     if plotTheta == 1:
+        #         for value in thetaDict.values():
+        #             t = [value[k][0] for k in range(len(value))]
+        #             theta = [value[k][1] for k in range(len(value))]
+        #             u = [value[k][2] for k in range(len(value))]
+        #             fig, (ax1, ax2) = plt.subplots(2,1,num=10)
+        #             fig.suptitle('Theta and steer input over time')
+        #             ax1.plot(t,theta)
+        #             ax2.plot(t,u)
+        #     plt.show()
 
-        if plot == 1:
-            import matplotlib.pyplot as plt
-            if plotTheta == 1:
-                for value in thetaDict.values():
-                    t = [value[k][0] for k in range(len(value))]
-                    theta = [value[k][1] for k in range(len(value))]
-                    u = [value[k][2] for k in range(len(value))]
-                    fig, (ax1, ax2) = plt.subplots(2,1,num=10)
-                    fig.suptitle('Theta and steer input over time')
-                    ax1.plot(t,theta)
-                    ax2.plot(t,u)
-            plt.show()
+        #     if plotVel == 1:
+        #         plt.figure()
+        #         i = 0
+        #         for value in velDict.values():
+        #             t = [value[k][0] for k in range(len(value))]
+        #             v = [value[k][1] for k in range(len(value))]
+        #             plt.plot(t,v)
+        #             plt.axhline(velRand[i],0,1)
+        #             i += 1
 
-            if plotVel == 1:
-                plt.figure()
-                i = 0
-                for value in velDict.values():
-                    t = [value[k][0] for k in range(len(value))]
-                    v = [value[k][1] for k in range(len(value))]
-                    plt.plot(t,v)
-                    plt.axhline(velRand[i],0,1)
-                    i += 1
+        #         for value in ctrDict.values():
+        #             t = [value[k][0] for k in range(len(value))]
+        #             throttle = [value[k][1] for k in range(len(value))]
+        #             steer = [value[k][2] for k in range(len(value))]
+        #             brake = [value[k][3] for k in range(len(value))]
+        #             gear = [value[k][4] for k in range(len(value))]
+        #             manual = [value[k][5] for k in range(len(value))]
+        #             figCtr, axCtr = plt.subplots(4,1)
+        #             axCtr[0].plot(t,throttle)
+        #             axCtr[0].set_ylim([0,1.1])
+        #             axCtr[1].plot(t,steer)
+        #             axCtr[1].set_ylim([-1,1])
+        #             axCtr[2].plot(t,brake)
+        #             axCtr[2].set_ylim([0,1.1])
+        #             axCtr[3].plot(t,gear)
+        #             axCtr[3].set_ylim([0,6])
+        #             axCtr[3].plot(t,manual)
+        #             axCtr[0].set_title('Control Inputs')
 
-                for value in ctrDict.values():
-                    t = [value[k][0] for k in range(len(value))]
-                    throttle = [value[k][1] for k in range(len(value))]
-                    steer = [value[k][2] for k in range(len(value))]
-                    brake = [value[k][3] for k in range(len(value))]
-                    gear = [value[k][4] for k in range(len(value))]
-                    manual = [value[k][5] for k in range(len(value))]
-                    figCtr, axCtr = plt.subplots(4,1)
-                    axCtr[0].plot(t,throttle)
-                    axCtr[0].set_ylim([0,1.1])
-                    axCtr[1].plot(t,steer)
-                    axCtr[1].set_ylim([-1,1])
-                    axCtr[2].plot(t,brake)
-                    axCtr[2].set_ylim([0,1.1])
-                    axCtr[3].plot(t,gear)
-                    axCtr[3].set_ylim([0,6])
-                    axCtr[3].plot(t,manual)
-                    axCtr[0].set_title('Control Inputs')
-
-                for value in aclDict.values():
-                    plt.figure()
-                    t = [value[k][0] for k in range(len(value))]
-                    a = [np.linalg.norm([value[k][1],value[k][2]]) for k in range(len(value))]
-                    plt.title('Acceleration / time (m/s^2)')
-                    p_a = plt.plot(t,a)
-                    p_v = plt.plot(t,v)
-                    p_th = plt.plot(t,throttle)
-                    p_br = plt.plot(t,brake)
-                    # ax_br.set_ylim([0,15])
-                    ax = plt.gca()
-                    ax.set_ylim([0,16])
-                    plt.legend(["Acceleration", "Velocity","Throttle","Brake"])
+        #         for value in aclDict.values():
+        #             plt.figure()
+        #             t = [value[k][0] for k in range(len(value))]
+        #             a = [np.linalg.norm([value[k][1],value[k][2]]) for k in range(len(value))]
+        #             plt.title('Acceleration / time (m/s^2)')
+        #             p_a = plt.plot(t,a)
+        #             p_v = plt.plot(t,v)
+        #             p_th = plt.plot(t,throttle)
+        #             p_br = plt.plot(t,brake)
+        #             # ax_br.set_ylim([0,15])
+        #             ax = plt.gca()
+        #             ax.set_ylim([0,16])
+        #             plt.legend(["Acceleration", "Velocity","Throttle","Brake"])
 
                     
-            if plotLoc == 1:
-                for value in locDict.values():
-                    t = [value[k][0] for k in range(len(value))]
-                    x = [value[k][1] for k in range(len(value))]
-                    y = [value[k][2] for k in range(len(value))]
-                    fig, (ax1, ax2) = plt.subplots(2)
-                    fig.suptitle('X and Y over time (m)')
-                    ax1.plot(t,x)
-                    ax2.plot(t,y)
-            plt.show()
-            pass
+        #     if plotLoc == 1:
+        #         for value in locDict.values():
+        #             t = [value[k][0] for k in range(len(value))]
+        #             x = [value[k][1] for k in range(len(value))]
+        #             y = [value[k][2] for k in range(len(value))]
+        #             fig, (ax1, ax2) = plt.subplots(2)
+        #             fig.suptitle('X and Y over time (m)')
+        #             ax1.plot(t,x)
+        #             ax2.plot(t,y)
+        #     plt.show()
+        #     pass
 
 
 

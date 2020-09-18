@@ -132,7 +132,7 @@ class actorX:
         self.acc_prev = np.array([0,0])
         self.updateStats()
         self.updateParameters(dt)
-
+        self.hasLeft = 0 
     def infoSet(self,key,value):
         self.info[key] = value
 
@@ -152,6 +152,9 @@ class actorX:
         for fnc in self.onTickList:
             fnc()
         self.aMax = 2 - (0.25 * self.velNorm - 1)**2 + 0.9
+
+        if self.sTraversed > 50:
+            self.hasLeft == 1
     def updateStats(self):
         self.accAvg = (np.array([self.ego.get_acceleration().x,self.ego.get_acceleration().y]) + self.acc_prev)/2
         self.acc_prev = copy.deepcopy(self.accAvg)

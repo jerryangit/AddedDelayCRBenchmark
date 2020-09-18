@@ -16,7 +16,7 @@ import scipy as sp
 import copy
 import matplotlib.pyplot as plt
 from scipy import sparse
-
+import random
 # try:
 #     sys.path.append(glob.glob('../carla/dist/carla-*%d.5-%s.egg' % (
 #         sys.version_info.major,
@@ -389,15 +389,16 @@ class OAADMM:
         self.lambda_IJ = {}
         self.rho_JI = {}
         self.rho_IJ = {}
+        self.firstRun = 1
         ## OA-ADMM Parameter
         self.dt = 0.1
         self.d_min = 2 # Overwritten by self.mpc.cap_r
-        self.d_phi = 1.225
+        self.d_phi = 1.25
         self.d_mult = 1.75
         self.rho_base = 10
         self.phi_a = 6
-        self.mu_0 = 9/32 * 0.1/self.dt
-        self.N = 20                         # Prediction horizon
+        self.mu_0 = 10/32 * 0.1/self.dt
+        self.N = 25                         # Prediction horizon
         self.mcN_Dist = self.N*self.dt*10*2   # Distance at vehicle is added to mcN
         self.mpc = mpc.oa_mpc(self.dt,self.N,self.d_min,self.d_mult)
         self.I_xy = self.mpc.I_xy
@@ -445,18 +446,19 @@ class OAADMM:
 
 
     def xUpdate(self,egoX,worldX):
-        mcN_copy = copy.copy(self.mcN)
+        if egoX.hasLeft == 1:
+            worldX.msg.inbox[egoX.id] = {}
+            self.mcN = [egoX.id]
 
+        mcN_copy = copy.copy(self.mcN)
         for vin_i in self.mcN:
             if worldX.actorDict.dict.get(vin_i) == None:
                 self.mcN.remove(vin_i)
+
         self.theta = ((np.pi*egoX.rotation.yaw)/180)%(2*np.pi)
         # Construct and update Neighbor set
         for msg in worldX.msg.inbox[egoX.id]:
-            #TODO Might be impossible remove
-            if egoX.id == msg.idSend:
-                continue
-            elif msg.idSend in self.mcN:
+            if msg.idSend in self.mcN:
                 if egoX.location.distance(msg.content.get("loc")) > self.mcN_Dist:
                     self.mcN.remove(msg.idSend)
                 else:
@@ -464,13 +466,12 @@ class OAADMM:
             elif 0 < egoX.location.distance(msg.content.get("loc")) <= self.mcN_Dist:
                 self.mcN.append(msg.idSend)
         # Check if the only vehicle in mcN is the ego vehicle
-        if self.mcN != [egoX.id]:
-            if mcN_copy == self.mcN:
-                self.mcN_change = 0 
-            else:
-                self.mcN_change = 1
+        if mcN_copy == self.mcN and self.firstRun != 1:
+            self.mcN_change = 0 
         else:
             self.mcN_change = 1
+            self.firstRun = 0
+
         
 
         # Receive z_JI, lambda_JI from neighbor set
@@ -525,6 +526,9 @@ class OAADMM:
 
 
     def zUpdate(self,egoX,worldX):
+        if egoX.hasLeft == 1:
+            return
+
         # Receive z_JI, lambda_JI from neighbor set
         for msg in worldX.msg.inbox[egoX.id]:
             if msg.idSend == egoX.id:
@@ -578,6 +582,9 @@ class OAADMM:
             self.rho_JI[egoX.id] = self.rho_JI[egoX.id] + self.rho_IJ[vin_i]*(len(self.mcN)-1)**-1 + 1e-3
 
     def outbox(self,egoX,var):
+        # if egoX has left the intersection, stop sending msgs
+        if egoX.hasLeft == 1:
+            return None
         content = {} 
         # OA-ADMM Specific
         content["loc"] = egoX.location
@@ -598,11 +605,11 @@ class OAADMM:
     def setup(self,egoX,worldX):
         # Setup a priority value for the vehicle (unused)
         self.setPriority(0)        
-        if egoX.spwnid in [1,3]:
-            self.rho_base = self.rho_base*1
-        if egoX.spwnid in [2,4]:
-            self.rho_base = self.rho_base*1
-            
+        # if egoX.spwnid in [1,3]:
+        #     self.rho_base = self.rho_base*1
+        # if egoX.spwnid in [2,4]:
+        #     self.rho_base = self.rho_base*1
+        self.rho_base = self.rho_base + random.uniform(-1,1)*1            
 
         # Add ego id to its own mcN list
         self.mcN.append(egoX.id)
@@ -611,8 +618,8 @@ class OAADMM:
         self.routeProcess(egoX)        
          
         # Initialize the capsule size of the vehicle
-        self.mpc.cap_r = egoX.ego.bounding_box.extent.y*1.175
-        self.mpc.cap_l = egoX.ego.bounding_box.extent.x*1.05
+        self.mpc.cap_r = egoX.ego.bounding_box.extent.y*1.155
+        self.mpc.cap_l = egoX.ego.bounding_box.extent.x*1.075
         self.d_min = 2*(egoX.ego.bounding_box.extent.y**2+ egoX.ego.bounding_box.extent.x**2)**0.5
         # Setup the x MPC for egoX
         self.mpc.setupMPC_x(egoX)

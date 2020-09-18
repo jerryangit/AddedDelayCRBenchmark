@@ -346,8 +346,8 @@ def accPID(egoX,states,aRef):
     ki = 0.1
     #* >
     a = 1*egoX.accLoc[0] + 0*states[3]
-    #* PID states <
     
+    #* PID states <
     error = aRef - a
     integral = states[1] + error * egoX.dt
     derivative = (error - states[0]) / egoX.dt
