@@ -446,13 +446,15 @@ class OAADMM:
 
 
     def xUpdate(self,egoX,worldX):
+        mcN_copy = copy.copy(self.mcN)
         if egoX.hasLeft == 1:
             worldX.msg.inbox[egoX.id] = {}
             self.mcN = [egoX.id]
 
-        mcN_copy = copy.copy(self.mcN)
         for vin_i in self.mcN:
             if worldX.actorDict.dict.get(vin_i) == None:
+                self.mcN.remove(vin_i)
+            elif worldX.actorDict.dict.get(vin_i).hasLeft == 1:
                 self.mcN.remove(vin_i)
 
         self.theta = ((np.pi*egoX.rotation.yaw)/180)%(2*np.pi)
@@ -566,10 +568,10 @@ class OAADMM:
         # Update lambda 
         for vin_i in self.mcN:
             if vin_i == egoX.id:
-                self.lambda_JI[egoX.id] = self.mu_0*self.lambda_JI.get(vin_i) + self.rho_JI.get(vin_i) @ (self.x_i - self.z_IJ.get(vin_i))
+                self.lambda_JI[egoX.id] = self.mu_0*self.lambda_JI.get(vin_i) + self.rho_JI.get(vin_i) * (self.x_i - self.z_IJ.get(vin_i))
             else:
                 if vin_i in self.lambda_IJ.keys():
-                    self.lambda_IJ[vin_i] = self.mu_0*self.lambda_IJ.get(vin_i) + self.rho_IJ.get(vin_i) @ (self.x_J0.get(vin_i) - self.z_IJ.get(vin_i))
+                    self.lambda_IJ[vin_i] = self.mu_0*self.lambda_IJ.get(vin_i) + self.rho_IJ.get(vin_i) * (self.x_J0.get(vin_i) - self.z_IJ.get(vin_i))
                 else:
                     self.lambda_IJ[vin_i] = np.zeros(self.N*2)
         # Update rho
@@ -618,8 +620,8 @@ class OAADMM:
         self.routeProcess(egoX)        
          
         # Initialize the capsule size of the vehicle
-        self.mpc.cap_r = egoX.ego.bounding_box.extent.y*1.155
-        self.mpc.cap_l = egoX.ego.bounding_box.extent.x*1.075
+        self.mpc.cap_r = egoX.ego.bounding_box.extent.y*1.1225
+        self.mpc.cap_l = egoX.ego.bounding_box.extent.x*1.15
         self.d_min = 2*(egoX.ego.bounding_box.extent.y**2+ egoX.ego.bounding_box.extent.x**2)**0.5
         # Setup the x MPC for egoX
         self.mpc.setupMPC_x(egoX)
