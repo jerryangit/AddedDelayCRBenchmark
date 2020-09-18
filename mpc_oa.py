@@ -125,7 +125,7 @@ class oa_mpc:
         uineq = np.hstack([np.kron(np.ones(self.N+1), xmax), np.kron(np.ones(self.N), umax)])
 
         # Cost function
-        Q = sparse.diags([8.5, 100.5, 3.5])
+        Q = sparse.diags([8.5, 75.5, 3.5])
         QN = Q*0.95
         R = sparse.diags([2.5, 13.5])
         x_ref = np.linspace([0,0,self.x0[2]],[1,1,self.v_ref],self.N+1).flatten()
@@ -231,7 +231,7 @@ class oa_mpc:
             P_Rho = sparse.diags(np.hstack(( rho_JI.get(vin_i) + 1e-7)), format='csc')
             P = sparse.block_diag([P , P_Rho],format='csc')
             q_rho = np.multiply(rho_JI.get(vin_i),-x_J.get(vin_i))
-            q_lambda = 1/2* lambda_JI.get(vin_i) * 0
+            q_lambda = 1/2* lambda_JI.get(vin_i) 
             q = np.hstack((q, q_rho + q_lambda))
             # Add linearized collision avoidance between vehicles
             for cnt_j, vin_j in enumerate(mcN):
