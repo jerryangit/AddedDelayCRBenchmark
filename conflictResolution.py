@@ -393,11 +393,11 @@ class OAADMM:
         ## OA-ADMM Parameter
         self.dt = 0.1
         self.d_min = 2 # Overwritten by self.mpc.cap_r
-        self.d_phi = 1.0
+        self.d_phi = 1.25
         self.d_mult = 1.75
-        self.rho_base = 10000
-        self.phi_a = 12
-        self.mu_0 = 0/32 * 0.1/self.dt
+        self.rho_base = 10
+        self.phi_a = 6
+        self.mu_0 = 28/32 * 0.1/self.dt
         self.N = 25                         # Prediction horizon
         self.mcN_Dist = self.N*self.dt*10*2   # Distance at vehicle is added to mcN
         self.mpc = mpc.oa_mpc(self.dt,self.N,self.d_min,self.d_mult)
@@ -451,7 +451,7 @@ class OAADMM:
             worldX.msg.inbox[egoX.id] = {}
             self.mcN = [egoX.id]
 
-        for vin_i in self.mcN:
+        for vin_i in self.mcN[1:]:
             if worldX.actorDict.dict.get(vin_i) == None:
                 self.mcN.remove(vin_i)
             elif worldX.actorDict.dict.get(vin_i).hasLeft == 1:
@@ -531,7 +531,7 @@ class OAADMM:
         if egoX.hasLeft == 1:
             return
 
-        for vin_i in self.mcN:
+        for vin_i in self.mcN[1:]:
             if worldX.actorDict.dict.get(vin_i) == None:
                 self.mcN.remove(vin_i)
                 self.mcN_change = 1
@@ -587,7 +587,7 @@ class OAADMM:
             if vin_i == egoX.id:
                 continue
             self.rho_IJ[vin_i] = self.rho_base * ( (self.d_min*self.d_phi)/(dist2AgentsCap(self.x_i,self.x_J.get(vin_i),self.theta,self.theta_J.get(vin_i),self.mpc.cap_l,self.mpc.cap_r,2,self.N)) )**self.phi_a + 1e-3
-            self.rho_IJ[vin_i] = self.rho_base * ( (self.d_min*self.d_phi)/(dist2Agents(self.x_i,self.x_J[vin_i],2,self.N)) )**self.phi_a + 1e-3
+            # self.rho_IJ[vin_i] = self.rho_base * ( (self.d_min*self.d_phi)/(dist2Agents(self.x_i,self.x_J[vin_i],2,self.N)) )**self.phi_a + 1e-3
             self.rho_JI[egoX.id] = self.rho_JI[egoX.id] + self.rho_IJ[vin_i]*(len(self.mcN)-1)**-1 + 1e-3
 
     def outbox(self,egoX,var):
@@ -618,7 +618,7 @@ class OAADMM:
         #     self.rho_base = self.rho_base*1
         # if egoX.spwnid in [2,4]:
         #     self.rho_base = self.rho_base*1
-        self.rho_base = self.rho_base + random.uniform(-1,1)*1            
+        self.rho_base = self.rho_base * (1+random.uniform(-1,1)*0.1)
 
         # Add ego id to its own mcN list
         self.mcN.append(egoX.id)
@@ -628,8 +628,8 @@ class OAADMM:
          
         # Initialize the capsule size of the vehicle
         self.mpc.cap_r = egoX.ego.bounding_box.extent.y*1.0
-        self.mpc.cap_l = egoX.ego.bounding_box.extent.x*1.05
-        self.d_min = 2*(egoX.ego.bounding_box.extent.y**2+ egoX.ego.bounding_box.extent.x**2)**0.5
+        self.mpc.cap_l = egoX.ego.bounding_box.extent.x*1.0
+        self.d_min = 2*self.mpc.cap_r
         # Setup the x MPC for egoX
         self.mpc.setupMPC_x(egoX)
 

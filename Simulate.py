@@ -102,7 +102,6 @@ def main(cr_method = "OAADMM", ctrlPolicy = "OAMPC", PriorityPolicy = "PriorityS
             client.reload_world()
         world = client.get_world()
         world.get_spectator().set_transform(carla.Transform(carla.Location(x=-135.0, y=-22.50, z=20.), carla.Rotation(yaw=180))) 
-        client.set_timeout(2.0)
         world.set_weather(weather)
         if syncmode == 1: 
             settings = world.get_settings()
@@ -205,14 +204,15 @@ def main(cr_method = "OAADMM", ctrlPolicy = "OAMPC", PriorityPolicy = "PriorityS
         elif scenario == 7:
             # testing for OA-ADMM MPC
             kmax = 1
-            totalVehicle = 2
-            spwnInterval = 1.7
-            spwnRand = [1,4,2,1,3,2,4,3,1,3,2,4,1,2,3,4,1,2,3,4,1,2,3,4]
-            destRand = [3,3,4,4,1,1,2,2,2,4,3,1,2,3,4,1,3,4,1,2,4,1,2,3]
-            velRand = [5,5,5,5,5,5,5,5,5,5,5,5,5,5,5,5]
+            totalVehicle = 8
+            spwnInterval = 1.5
+            spwnRand = [1,1,1,4,2,1,3,2,4,3,1,3,2,4,1,2,3,4,1,2,3,4,1,2,3,4]
+            destRand = [3,3,3,3,4,4,1,1,2,2,2,4,3,1,2,3,4,1,3,4,1,2,4,1,2,3]
+            velRand = np.array([5+0.5*random.uniform(-1,1) for iter in range(totalVehicle)])
+
         elif scenario == 8:
             # testing for OA-ADMM MPC Simultaneous
-            kmax = 2
+            kmax = 4
             totalVehicle = 4
             spwnInterval = 4.5
             spwnRand = [1,3,2,4,1,2,3,4]
@@ -328,7 +328,7 @@ def main(cr_method = "OAADMM", ctrlPolicy = "OAMPC", PriorityPolicy = "PriorityS
                             spwnTime.append(ts.elapsed_seconds-ts0s)
 
                             # Set vehicle velocity to its reference
-                            vel3D = proj3D(velRand[i],np.radians(spwnLoc[spwnRand[i]].rotation.yaw))
+                            vel3D = proj3D(velRand[0],np.radians(spwnLoc[spwnRand[i]].rotation.yaw))
                             spwn.set_velocity(vel3D)
                             justSpwn.append((spwnX,vel3D))
 
@@ -430,7 +430,7 @@ def main(cr_method = "OAADMM", ctrlPolicy = "OAMPC", PriorityPolicy = "PriorityS
 
             #* Set vehicle velocity to reference velocity for its first second
             for actorX,vel3D in justSpwn:
-                if ts.elapsed_seconds-ts0s - actorX.spwnTime > 1.2:
+                if ts.elapsed_seconds-ts0s - actorX.spwnTime > 1.0:
                     justSpwn.remove((actorX,vel3D))
                     continue
                 actorX.ego.set_velocity(vel3D)
