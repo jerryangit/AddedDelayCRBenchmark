@@ -394,10 +394,10 @@ class OAADMM:
         self.dt = 0.1
         self.d_min = 2 # Overwritten by self.mpc.cap_r
         self.d_phi = 1.25
-        self.d_mult = 1.75
-        self.rho_base = 10
-        self.phi_a = 6
-        self.mu_0 = 28/32 * 0.1/self.dt
+        self.d_mult = 1.5
+        self.rho_base = 1
+        self.phi_a = 4
+        self.mu_0 = 10/32 * 0.1/self.dt
         self.N = 25                         # Prediction horizon
         self.mcN_Dist = self.N*self.dt*10*2   # Distance at vehicle is added to mcN
         self.mpc = mpc.oa_mpc(self.dt,self.N,self.d_min,self.d_mult)
@@ -618,7 +618,7 @@ class OAADMM:
         #     self.rho_base = self.rho_base*1
         # if egoX.spwnid in [2,4]:
         #     self.rho_base = self.rho_base*1
-        self.rho_base = self.rho_base * (1+random.uniform(-1,1)*0.1)
+        self.rho_base = self.rho_base * (1+random.uniform(-1,1)*0)
 
         # Add ego id to its own mcN list
         self.mcN.append(egoX.id)
