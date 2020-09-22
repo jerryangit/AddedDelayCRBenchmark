@@ -397,7 +397,7 @@ class OAADMM:
         self.d_mult = 1.75
         self.rho_base = 10
         self.phi_a = 4
-        self.mu_0 = 18/32 * 0.1/self.dt
+        self.mu_0 = 28/32 * 0.1/self.dt
         self.N = 25                         # Prediction horizon
         self.mcN_Dist = self.N*self.dt*10*2   # Distance at vehicle is added to mcN
         self.mpc = mpc.oa_mpc(self.dt,self.N,self.d_min,self.d_mult)
@@ -574,10 +574,10 @@ class OAADMM:
         # Update lambda 
         for vin_i in self.mcN:
             if vin_i == egoX.id:
-                self.lambda_JI[egoX.id] = self.mu_0*self.lambda_JI.get(vin_i) + self.rho_JI.get(vin_i) * (self.x_i - self.z_IJ.get(vin_i))
+                self.lambda_JI[egoX.id] = np.mean(np.divide(self.rho_JI.get(egoX.id),self.rho_base))*self.mu_0*self.lambda_JI.get(vin_i) + self.rho_JI.get(vin_i) * (self.x_i - self.z_IJ.get(vin_i))
             else:
                 if vin_i in self.lambda_IJ.keys():
-                    self.lambda_IJ[vin_i] = self.mu_0*self.lambda_IJ.get(vin_i) + self.rho_IJ.get(vin_i) * (self.x_J0.get(vin_i) - self.z_IJ.get(vin_i))
+                    self.lambda_IJ[vin_i] = np.mean(np.divide(self.rho_JI.get(egoX.id),self.rho_base))*self.mu_0*self.lambda_IJ.get(vin_i) + self.rho_IJ.get(vin_i) * (self.x_J0.get(vin_i) - self.z_IJ.get(vin_i))
                 else:
                     self.lambda_IJ[vin_i] = np.zeros(self.N*2)
         # Update rho
