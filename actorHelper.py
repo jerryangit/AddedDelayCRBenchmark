@@ -153,7 +153,7 @@ class actorX:
             fnc()
         self.aMax = 2 - (0.25 * self.velNorm - 1)**2 + 0.9
 
-        if self.sTraversed > 47:
+        if self.sTraversed > 55:
             self.hasLeft = 1
     def updateStats(self):
         self.accAvg = (np.array([self.ego.get_acceleration().x,self.ego.get_acceleration().y]) + self.acc_prev)/2

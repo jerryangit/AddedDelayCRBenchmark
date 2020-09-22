@@ -204,8 +204,8 @@ def main(cr_method = "OAADMM", ctrlPolicy = "OAMPC", PriorityPolicy = "PriorityS
         elif scenario == 7:
             # testing for OA-ADMM MPC
             kmax = 1
-            totalVehicle = 2
-            spwnInterval = 0.75
+            totalVehicle = 8
+            spwnInterval = 1.3
             spwnRand = [1,4,1,4,2,1,3,2,4,3,1,3,2,4,1,2,3,4,1,2,3,4,1,2,3,4]
             destRand = [3,2,3,3,4,4,1,1,2,2,2,4,3,1,2,3,4,1,3,4,1,2,4,1,2,3]
             velRand = np.array([5+0.5*random.uniform(-1,1) for iter in range(totalVehicle)])
