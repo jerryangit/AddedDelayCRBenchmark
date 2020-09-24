@@ -339,7 +339,7 @@ def main(cr_method = "OAADMM", ctrlPolicy = "OAMPC", PriorityPolicy = "PriorityS
                             # spwn.apply_control(carla.VehicleControl(manual_gear_shift=False))
                             # Print out to console
                             if logging == 1:
-                                print('[%d,%d] created %s at %d with dest %d, elapsed time: %d s' % (i,spwn.id,spwn.type_id,spwnRand[i],destRand[i],spwnTime[i+1]))
+                                print('[%d,%d] created %s at %d with dest %d, elapsed time: %.2f s' % (i,spwn.id,spwn.type_id,spwnRand[i],destRand[i],spwnTime[i+1]))
                             i += 1
 
                             if plot == 1:

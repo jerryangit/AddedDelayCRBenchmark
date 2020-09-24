@@ -125,15 +125,15 @@ class oa_mpc:
         uineq = np.hstack([np.kron(np.ones(self.N+1), xmax), np.kron(np.ones(self.N), umax)])
 
         # Cost function
-        Q = sparse.diags([1.0, 25.0, 0.125])
+        Q = sparse.diags([1.5, 30.0, 5.0])
         QN = Q*0.95
-        R = sparse.diags([5.0, 35.5])
+        R = sparse.diags([5.0, 30.0])
         x_ref = np.linspace([0,0,self.x0[2]],[1,1,self.v_ref],self.N+1).flatten()
 
 
         # Cast MPC problem to a QP: x = (x(0),x(1),...,x(N),u(0),...,u(N-1))
         # - quadratic objective
-        self.P_Q = sparse.block_diag([sparse.kron(sparse.diags(np.linspace(0.9,1.1,self.N+1)), Q), sparse.kron(sparse.diags(np.linspace(0.25,1.5,self.N)), R,format='csc')], format='csc') 
+        self.P_Q = sparse.block_diag([sparse.kron(sparse.diags(np.linspace(0.9,1.1,self.N+1)), Q), sparse.kron(sparse.diags(np.linspace(0.75,1.25,self.N)), R,format='csc')], format='csc') 
         P = self.P_Q        
         # - linear objective
         self.lambda_ref = np.kron(np.linspace(0.9,1.1,self.N+1), Q.diagonal())
@@ -303,7 +303,7 @@ class oa_mpc:
             # Create an OSQP object
             self.prob_z = osqp.OSQP()
             # Setup workspace
-            self.prob_z.setup(P, q, A, l, u, warm_start=True, polish = 1, max_iter = 50000 ,verbose = 0, scaling=100,eps_abs = 1e-10,eps_rel = 1e-5)
+            self.prob_z.setup(P, q, A, l, u, warm_start=True, polish = 1, max_iter = 50000 ,verbose = 0, scaling= 25,eps_abs = 1e-12,eps_rel = 1e-6)
         else:
             # Create an OSQP object
             self.prob_z = osqp.OSQP()
