@@ -288,7 +288,7 @@ class OAMPC:
 
         (u_a,self.aPIDStates) = accPID(egoX,self.aPIDStates,a)
         u_a = 0.5*u_a+0.5*self.u_a0
-        u_delta_ratio = 0.5
+        u_delta_ratio = 0.45
         u_delta = u_delta_ratio*u_delta+(1-u_delta_ratio)*self.u_delta0/((4*np.pi)/9)
 
         u_a = np.clip(u_a,-1,1)
@@ -298,7 +298,7 @@ class OAMPC:
         elif u_a <= 0.05 and u_a > -0.25:
             egoX.ego.apply_control(carla.VehicleControl(throttle=0, steer=u_delta,brake = 0,manual_gear_shift=True,gear=1))            
         elif egoX.velLoc[0] <= 0.25:
-            egoX.ego.apply_control(carla.VehicleControl(throttle=-u_a*1.5, steer=u_delta,brake = 0,manual_gear_shift=True,gear=-1))
+            egoX.ego.apply_control(carla.VehicleControl(throttle=-u_a*1, steer=u_delta,brake = 0,manual_gear_shift=True,gear=-1))
         else:
             egoX.ego.apply_control(carla.VehicleControl(throttle=0, steer=u_delta,brake = -u_a,manual_gear_shift=True,gear=1))
         self.u_a0 = u_a

@@ -125,18 +125,18 @@ class oa_mpc:
         uineq = np.hstack([np.kron(np.ones(self.N+1), xmax), np.kron(np.ones(self.N), umax)])
 
         # Cost function
-        Q = sparse.diags([1.5, 30.0, 5.0])
+        Q = sparse.diags([1.0, 75.0, 5.0])
         QN = Q*0.95
-        R = sparse.diags([5.0, 30.0])
+        R = sparse.diags([25.0, 75.0])
         x_ref = np.linspace([0,0,self.x0[2]],[1,1,self.v_ref],self.N+1).flatten()
 
 
         # Cast MPC problem to a QP: x = (x(0),x(1),...,x(N),u(0),...,u(N-1))
         # - quadratic objective
-        self.P_Q = sparse.block_diag([sparse.kron(sparse.diags(np.linspace(0.9,1.1,self.N+1)), Q), sparse.kron(sparse.diags(np.linspace(0.75,1.25,self.N)), R,format='csc')], format='csc') 
+        self.P_Q = sparse.block_diag([sparse.kron(sparse.diags(np.linspace(0.85,1.25,self.N+1)), Q), sparse.kron(sparse.diags(np.linspace(1,1.25,self.N)), R,format='csc')], format='csc') 
         P = self.P_Q        
         # - linear objective
-        self.lambda_ref = np.kron(np.linspace(0.9,1.1,self.N+1), Q.diagonal())
+        self.lambda_ref = np.kron(np.linspace(0.85,1.25,self.N+1), Q.diagonal())
         q = np.hstack([np.multiply(self.lambda_ref,-x_ref), self.nucZ])         
 
         A = sparse.vstack([Aeq, Aineq], format='csc')
@@ -146,7 +146,7 @@ class oa_mpc:
         # Create an OSQP object
         self.prob_x = osqp.OSQP()
         # Setup workspace
-        self.prob_x.setup(P, q, A, self.l, self.u, warm_start=True, polish = 1 ,verbose = 0, max_iter = 50000, scaling=500,eps_abs = 1e-9, eps_rel = 1e-5)
+        self.prob_x.setup(P, q, A, self.l, self.u, warm_start=True, polish = 1 ,verbose = 0, max_iter = 50000, scaling=500,eps_abs = 1e-10, eps_rel = 1e-6)
 
 
     def updateMPC_x(self,egoX,x_ref,z_JI,lambda_JI,rho_JI,mcN):
