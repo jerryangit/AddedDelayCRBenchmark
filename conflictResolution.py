@@ -393,7 +393,7 @@ class OAADMM:
         ## OA-ADMM Parameter
         self.dt = 0.2
         self.d_min = 2 # Overwritten by self.mpc.cap_r
-        self.d_phi = 1.05
+        self.d_phi = 1.1
         self.d_mult = 2
         self.rho_base = 15
         self.phi_a = 5.5
@@ -497,11 +497,11 @@ class OAADMM:
         (res,self.ctrl,self.x_i) = self.mpc.solveMPC_x()
         self.x_J[egoX.id] = self.x_i
 
-        # if egoX._spwnNr == 2:
+        # if egoX._spwnNr == 5:
         #     plt.figure(1)
         #     plt.gca().clear()        
-        #     plt.ylim(-4,4)
-        #     plt.xlim(-2.5,12.5)
+        #     plt.ylim(-7,5,7.5)
+        #     plt.xlim(-2.5,17.5)
         #     plt.title(str(egoX.id)+'MPC steps')
         #     plt.plot(res.x[0],res.x[1],'rx')        
         #     plt.plot(self.x_ref[0::3],self.x_ref[1::3],'k*',markersize = 4, alpha=0.75, markerfacecolor='none')
