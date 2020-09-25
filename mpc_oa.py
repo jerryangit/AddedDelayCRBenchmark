@@ -125,18 +125,18 @@ class oa_mpc:
         uineq = np.hstack([np.kron(np.ones(self.N+1), xmax), np.kron(np.ones(self.N), umax)])
 
         # Cost function
-        Q = sparse.diags([2.5, 150.0, 1.5])
+        Q = sparse.diags([1.0, 150.0, 1.25])
         QN = Q*0.95
-        R = sparse.diags([35.0, 95.0])
+        R = sparse.diags([32.5, 95.0])
         x_ref = np.linspace([0,0,self.x0[2]],[1,1,self.v_ref],self.N+1).flatten()
 
 
         # Cast MPC problem to a QP: x = (x(0),x(1),...,x(N),u(0),...,u(N-1))
         # - quadratic objective
-        self.P_Q = sparse.block_diag([sparse.kron(sparse.diags(np.linspace(1,1,self.N+1)), Q), sparse.kron(sparse.diags(np.linspace(1,2,self.N)), R,format='csc')], format='csc') 
+        self.P_Q = sparse.block_diag([sparse.kron(sparse.diags(np.linspace(1,1.05,self.N+1)), Q), sparse.kron(sparse.diags(np.linspace(1,2,self.N)), R,format='csc')], format='csc') 
         P = self.P_Q        
         # - linear objective
-        self.lambda_ref = np.kron(np.linspace(1,1,self.N+1), Q.diagonal())
+        self.lambda_ref = np.kron(np.linspace(1,1.05,self.N+1), Q.diagonal())
         q = np.hstack([np.multiply(self.lambda_ref,-x_ref), self.nucZ])         
 
         A = sparse.vstack([Aeq, Aineq], format='csc')
@@ -251,9 +251,6 @@ class oa_mpc:
                     x_i = np.array([x_J.get(vin_i)[i_x*2], x_J.get(vin_i)[i_x*2+1]])
                     x_j = np.array([x_J.get(vin_j)[i_x*2], x_J.get(vin_j)[i_x*2+1]])
 
-                    # Compute the linearization point for the [x_i,x_j] vector for vehicle i and j                    
-                    x_O_bar = np.hstack([x_i,x_j])
-
                     #Estimate theta based on previous value
                     if i_x > 0:
                         x_i_theta = np.arctan2((x_i[1]-x_i_0[1]),(x_i[0]-x_i_0[0]))
@@ -262,26 +259,45 @@ class oa_mpc:
                         x_i_theta = 0
                         x_j_theta = (theta_J.get(vin_j) - egoX.cr.theta)%(np.pi*2)
 
-                    # Compute the linearization point for the vector from O to A for vehicle i and j
-                    x_OA_i_bar = np.array([self.cap_l*np.cos(x_i_theta),self.cap_l*np.sin(x_i_theta)])
-                    x_OB_i_bar = -np.array([self.cap_l*np.cos(x_i_theta),self.cap_l*np.sin(x_i_theta)])
-                    x_OA_j_bar = np.array([self.cap_l*np.cos(x_j_theta),self.cap_l*np.sin(x_j_theta)])
-                    x_OB_j_bar = -np.array([self.cap_l*np.cos(x_j_theta),self.cap_l*np.sin(x_j_theta)])
-                    # Order: Ai Aj, Ai Bj, Bi Aj, Bi Bj
-                    x_OX_bar = [np.hstack((x_OA_i_bar,x_OA_j_bar)),
-                        np.hstack((x_OA_i_bar,x_OB_j_bar)),
-                        np.hstack((x_OB_i_bar,x_OA_j_bar)),
-                        np.hstack((x_OB_i_bar,x_OB_j_bar))]
-        
-                    # Check which linearized distance is closest
-                    dist_arr = np.array([(x_O_bar + x_OX_bar[0]) @ self.M @ (x_O_bar + x_OX_bar[0]),
-                    (x_O_bar + x_OX_bar[1]) @ self.M @ (x_O_bar + x_OX_bar[1]),
-                    (x_O_bar + x_OX_bar[2]) @ self.M @ (x_O_bar + x_OX_bar[2]),
-                    (x_O_bar + x_OX_bar[3]) @ self.M @ (x_O_bar + x_OX_bar[3])])
+                    # Calulate vectors to all points, pAi = point A of vehicle i, A is front, B is back
+                    pAi = x_i + np.array([self.cap_l*np.cos(x_i_theta),self.cap_l*np.sin(x_i_theta)])
+                    pBi = x_i - np.array([self.cap_l*np.cos(x_i_theta),self.cap_l*np.sin(x_i_theta)])
+                    pAj = x_j + np.array([self.cap_l*np.cos(x_j_theta),self.cap_l*np.sin(x_j_theta)])
+                    pBj = x_j - np.array([self.cap_l*np.cos(x_j_theta),self.cap_l*np.sin(x_j_theta)])
+            
+                    # Calculate vector for all line segments, lABi = line segment from Ai to Bi, i.e. lABi = pBi-pAi
+                    lABi = -np.array([2*self.cap_l*np.cos(x_i_theta),2*self.cap_l*np.sin(x_i_theta)])
+                    lABj = -np.array([2*self.cap_l*np.cos(x_j_theta),2*self.cap_l*np.sin(x_j_theta)])
+
+                    # Calculate intersecting point, ipAi is intersecting point from Ai to ABj
+                    ipAi = (lABj @ (pAi - pAj)) / (lABj@lABj)
+                    ipBi = (lABj @ (pBi - pAj)) / (lABj@lABj)
+                    ipAj = (lABi @ (pAj - pAi)) / (lABi@lABi)
+                    ipBj = (lABi @ (pBj - pAi)) / (lABi@lABi)
+
+                    # Save points, vectors in list, ordered such that cnt can get the correct value
+                    pList = [pAi,pBi,pAj,pBj]
+                    p2List = [[pAj,pBj],[pAj,pBj],[pAi,pBi],[pAi,pBi]]
+                    lList = [lABj,lABj,lABi,lABi] 
+                    ipList = [ipAi,ipBi,ipAj,ipBj]
+
+                    # Calculate distances depending on ipAi value, dAi is shortest distance from A to lABj
+                    dList = []        
+                    x_barList = []
+                    #TODO clean up, leave only norms
+                    for cnt,ipXi in enumerate(ipList):
+                        if ipXi <= 0:
+                            dList.append( np.linalg.norm( pList[cnt] - p2List[cnt][0] ) )
+                            x_barList.append( np.hstack([ pList[cnt],p2List[cnt][0] ]) )
+                        elif ipXi < 1:
+                            dList.append( np.linalg.norm( pList[cnt] - (p2List[cnt][0] + ipXi * lList[cnt]) ) )
+                            x_barList.append( np.hstack([ pList[cnt],(p2List[cnt][0] + ipXi * lList[cnt]) ]) )
+                        else:
+                            dList.append( np.linalg.norm(pList[cnt] - p2List[cnt][1]) )
+                            x_barList.append( np.hstack([ pList[cnt],p2List[cnt][1] ]) )
                     
                     # Add constraint for closest linearized distance
-                    x_OX_bar_close = x_OX_bar[np.argmin(dist_arr)]
-                    x_bar = x_O_bar + x_OX_bar_close
+                    x_bar = x_barList[np.argmin(dList)]
 
                     # xTA vector at current timestep
                     xM = x_bar @ self.M 
@@ -289,7 +305,7 @@ class oa_mpc:
                     A_data = np.hstack([A_data,2 * xM])
 
                     # Compute the constant part of the linearization
-                    K[A_rw] = xM @ x_bar - 2* xM @ x_OX_bar_close
+                    K[A_rw] = xM @ x_bar - 2* xM @ (x_bar-np.hstack([x_i,x_j]))
                     self.A_rowi = np.hstack([self.A_rowi, A_rw, A_rw, A_rw, A_rw]) 
                     self.A_coli = np.hstack([self.A_coli, cnt_i*self.N*2+i_x*2,cnt_i*self.N*2+i_x*2+1,cnt_j*self.N*2+i_x*2,cnt_j*self.N*2+i_x*2+1])                         
                     A_rw += 1
@@ -366,26 +382,45 @@ class oa_mpc:
                         x_i_theta = 0
                         x_j_theta = (theta_J.get(vin_j) - egoX.cr.theta)%(np.pi*2)
 
-                    # Compute the linearization point for the vector from O to A for vehicle i and j
-                    x_OA_i_bar = np.array([self.cap_l*np.cos(x_i_theta),self.cap_l*np.sin(x_i_theta)])
-                    x_OB_i_bar = -np.array([self.cap_l*np.cos(x_i_theta),self.cap_l*np.sin(x_i_theta)])
-                    x_OA_j_bar = np.array([self.cap_l*np.cos(x_j_theta),self.cap_l*np.sin(x_j_theta)])
-                    x_OB_j_bar = -np.array([self.cap_l*np.cos(x_j_theta),self.cap_l*np.sin(x_j_theta)])
-                    # Order: Ai Aj, Ai Bj, Bi Aj, Bi Bj
-                    x_OX_bar = [np.hstack((x_OA_i_bar,x_OA_j_bar)),
-                        np.hstack((x_OA_i_bar,x_OB_j_bar)),
-                        np.hstack((x_OB_i_bar,x_OA_j_bar)),
-                        np.hstack((x_OB_i_bar,x_OB_j_bar))]
+                    # Calulate vectors to all points, pAi = point A of vehicle i, A is front, B is back
+                    pAi = x_i + np.array([self.cap_l*np.cos(x_i_theta),self.cap_l*np.sin(x_i_theta)])
+                    pBi = x_i - np.array([self.cap_l*np.cos(x_i_theta),self.cap_l*np.sin(x_i_theta)])
+                    pAj = x_j + np.array([self.cap_l*np.cos(x_j_theta),self.cap_l*np.sin(x_j_theta)])
+                    pBj = x_j - np.array([self.cap_l*np.cos(x_j_theta),self.cap_l*np.sin(x_j_theta)])
+            
+                    # Calculate vector for all line segments, lABi = line segment from Ai to Bi, i.e. lABi = pBi-pAi
+                    lABi = -np.array([2*self.cap_l*np.cos(x_i_theta),2*self.cap_l*np.sin(x_i_theta)])
+                    lABj = -np.array([2*self.cap_l*np.cos(x_j_theta),2*self.cap_l*np.sin(x_j_theta)])
 
-                    # Check which linearized distance is closest
-                    dist_arr = np.array([(x_O_bar + x_OX_bar[0]) @ self.M @ (x_O_bar + x_OX_bar[0]),
-                    (x_O_bar + x_OX_bar[1]) @ self.M @ (x_O_bar + x_OX_bar[1]),
-                    (x_O_bar + x_OX_bar[2]) @ self.M @ (x_O_bar + x_OX_bar[2]),
-                    (x_O_bar + x_OX_bar[3]) @ self.M @ (x_O_bar + x_OX_bar[3])])
+                    # Calculate intersecting point, ipAi is intersecting point from Ai to ABj
+                    ipAi = (lABj @ (pAi - pAj)) / (lABj@lABj)
+                    ipBi = (lABj @ (pBi - pAj)) / (lABj@lABj)
+                    ipAj = (lABi @ (pAj - pAi)) / (lABi@lABi)
+                    ipBj = (lABi @ (pBj - pAi)) / (lABi@lABi)
+
+                    # Save points, vectors in list, ordered such that cnt can get the correct value
+                    pList = [pAi,pBi,pAj,pBj]
+                    p2List = [[pAj,pBj],[pAj,pBj],[pAi,pBi],[pAi,pBi]]
+                    lList = [lABj,lABj,lABi,lABi] 
+                    ipList = [ipAi,ipBi,ipAj,ipBj]
+
+                    # Calculate distances depending on ipAi value, dAi is shortest distance from A to lABj
+                    dList = []        
+                    x_barList = []
+                    #TODO clean up, leave only norms
+                    for cnt,ipXi in enumerate(ipList):
+                        if ipXi <= 0:
+                            dList.append( np.linalg.norm( pList[cnt] - p2List[cnt][0] ) )
+                            x_barList.append( np.hstack([ pList[cnt],p2List[cnt][0] ]) )
+                        elif ipXi < 1:
+                            dList.append( np.linalg.norm( pList[cnt] - (p2List[cnt][0] + ipXi * lList[cnt]) ) )
+                            x_barList.append( np.hstack([ pList[cnt],(p2List[cnt][0] + ipXi * lList[cnt]) ]) )
+                        else:
+                            dList.append( np.linalg.norm(pList[cnt] - p2List[cnt][1]) )
+                            x_barList.append( np.hstack([ pList[cnt],p2List[cnt][1] ]) )
                     
                     # Add constraint for closest linearized distance
-                    x_OX_bar_close = x_OX_bar[np.argmin(dist_arr)]
-                    x_bar = x_O_bar + x_OX_bar_close
+                    x_bar = x_barList[np.argmin(dList)]
 
                     # xTA vector at current timestep
                     xM = x_bar @ self.M 
@@ -393,7 +428,7 @@ class oa_mpc:
                     A_data = np.hstack([A_data,2 * xM])
 
                     # Compute the constant part of the linearization
-                    K[A_rw] = xM @ x_bar - 2* xM @ x_OX_bar_close
+                    K[A_rw] = xM @ x_bar - 2* xM @ (x_bar-np.hstack([x_i,x_j]))
                     A_rw += 1
 
         if A_data.size != 0: 

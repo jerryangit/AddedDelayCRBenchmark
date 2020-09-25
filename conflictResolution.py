@@ -393,10 +393,10 @@ class OAADMM:
         ## OA-ADMM Parameter
         self.dt = 0.15
         self.d_min = 2 # Overwritten by self.mpc.cap_r
-        self.d_phi = 1.265
-        self.d_mult = 1.725
-        self.rho_base = 10
-        self.phi_a = 5.5
+        self.d_phi = 1.05
+        self.d_mult = 1.825
+        self.rho_base = 20
+        self.phi_a = 5.15
         self.mu_0 = 32/32 * 0.1/self.dt
         self.N = 20                         # Prediction horizon
         self.mcN_Dist = self.N*self.dt*5*2   # Distance at vehicle is added to mcN
@@ -628,7 +628,7 @@ class OAADMM:
         self.routeProcess(egoX)        
          
         # Initialize the capsule size of the vehicle
-        self.mpc.cap_r = egoX.ego.bounding_box.extent.y*1.1
+        self.mpc.cap_r = egoX.ego.bounding_box.extent.y*1.0
         self.mpc.cap_l = egoX.ego.bounding_box.extent.x*1.0
         self.d_min = 2*self.mpc.cap_r
         # Setup the x MPC for egoX
@@ -659,9 +659,6 @@ def dist2AgentsCap(x_i_vec,x_j_vec,theta_i,theta_j,cap_l,cap_r,nx,N):
         x_i = x_i_vec[nx*k:nx*(k+1)]
         x_j = x_j_vec[nx*k:nx*(k+1)]
 
-        # Compute the linearization point for the [x_i,x_j] vector for vehicle i and j                    
-        x_O_bar = np.hstack([x_i,x_j])
-
         #Estimate theta based on previous value
         if k > 0:
             x_i_theta = np.arctan2((x_i[1]-x_i_0[1]),(x_i[0]-x_i_0[0]))
@@ -670,25 +667,40 @@ def dist2AgentsCap(x_i_vec,x_j_vec,theta_i,theta_j,cap_l,cap_r,nx,N):
             x_i_theta = 0
             x_j_theta = (theta_j - theta_i)%(np.pi*2)
 
-        # Compute the linearization point for the vector from O to A for vehicle i and j
-        x_OA_i_bar = np.array([cap_l*np.cos(x_i_theta),cap_l*np.sin(x_i_theta)])
-        x_OB_i_bar = -np.array([cap_l*np.cos(x_i_theta),cap_l*np.sin(x_i_theta)])
-        x_OA_j_bar = np.array([cap_l*np.cos(x_j_theta),cap_l*np.sin(x_j_theta)])
-        x_OB_j_bar = -np.array([cap_l*np.cos(x_j_theta),cap_l*np.sin(x_j_theta)])
-        # Order: Ai Aj, Ai Bj, Bi Aj, Bi Bj
-        x_OX_bar = [np.hstack((x_OA_i_bar,x_OA_j_bar)),
-            np.hstack((x_OA_i_bar,x_OB_j_bar)),
-            np.hstack((x_OB_i_bar,x_OA_j_bar)),
-            np.hstack((x_OB_i_bar,x_OB_j_bar))]
-        M = np.block([[np.eye(2),-np.eye(2)],[-np.eye(2),np.eye(2)]])
-        # Check which linearized distance is closest
-        dist_arr = np.array([(x_O_bar + x_OX_bar[0]) @ M @ (x_O_bar + x_OX_bar[0]),
-        (x_O_bar + x_OX_bar[1]) @ M @ (x_O_bar + x_OX_bar[1]),
-        (x_O_bar + x_OX_bar[2]) @ M @ (x_O_bar + x_OX_bar[2]),
-        (x_O_bar + x_OX_bar[3]) @ M @ (x_O_bar + x_OX_bar[3])])
-        
-        # Add constraint for closest linearized distance
-        dist = np.hstack([dist , np.ones(nx) * np.min(dist_arr)**0.5])
+        # Calulate vectors to all points, pAi = point A of vehicle i, A is front, B is back
+        pAi = x_i + np.array([cap_l*np.cos(x_i_theta),cap_l*np.sin(x_i_theta)])
+        pBi = x_i - np.array([cap_l*np.cos(x_i_theta),cap_l*np.sin(x_i_theta)])
+        pAj = x_j + np.array([cap_l*np.cos(x_j_theta),cap_l*np.sin(x_j_theta)])
+        pBj = x_j - np.array([cap_l*np.cos(x_j_theta),cap_l*np.sin(x_j_theta)])
+ 
+        # Calculate vector for all line segments, lABi = line segment from Ai to Bi, i.e. lABi = pBi-pAi
+        lABi = -np.array([2*cap_l*np.cos(x_i_theta),2*cap_l*np.sin(x_i_theta)])
+        lABj = -np.array([2*cap_l*np.cos(x_j_theta),2*cap_l*np.sin(x_j_theta)])
+
+        # Calculate intersecting point, ipAi is intersecting point from Ai to ABj
+        ipAi = (lABj @ (pAi - pAj)) / (lABj@lABj)
+        ipBi = (lABj @ (pBi - pAj)) / (lABj@lABj)
+        ipAj = (lABi @ (pAj - pAi)) / (lABi@lABi)
+        ipBj = (lABi @ (pBj - pAi)) / (lABi@lABi)
+
+        # Save points, vectors in list, ordered such that cnt can get the correct value
+        pList = [pAi,pBi,pAj,pBj]
+        p2List = [[pAj,pBj],[pAj,pBj],[pAi,pBi],[pAi,pBi]]
+        lList = [lABj,lABj,lABi,lABi] 
+        ipList = [ipAi,ipBi,ipAj,ipBj]
+
+        # Calculate distances depending on ipAi value, dAi is shortest distance from A to lABj
+        dList = []        
+        for cnt,ipXi in enumerate(ipList):
+            if ipXi <= 0:
+                dList.append( np.linalg.norm( pList[cnt] - p2List[cnt][0] ) ) 
+            elif ipXi < 1:
+                dList.append( np.linalg.norm( pList[cnt] - (p2List[cnt][0] + ipXi * lList[cnt]) ) ) 
+            else:
+                dList.append( np.linalg.norm(pList[cnt] - p2List[cnt][1]) )                 
+
+        dist = np.hstack([dist , np.ones(nx) * np.min(dList)**0.5])
+
     return dist
 
 

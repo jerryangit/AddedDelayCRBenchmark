@@ -431,7 +431,7 @@ def main(cr_method = "OAADMM", ctrlPolicy = "OAMPC", PriorityPolicy = "PriorityS
 
             #* Set vehicle velocity to reference velocity for its first second
             for actorX,vel3D in justSpwn:
-                if ts.elapsed_seconds-ts0s - actorX.spwnTime > 1.20:
+                if ts.elapsed_seconds-ts0s - actorX.spwnTime > 1.25:
                     justSpwn.remove((actorX,vel3D))
                     continue
                 actorX.ego.set_velocity(vel3D)
