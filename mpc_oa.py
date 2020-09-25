@@ -363,8 +363,7 @@ class oa_mpc:
             P_Rho = sparse.diags(np.hstack(( rho_JI.get(vin_i))), format='csc')
             P = sparse.block_diag([P , P_Rho],format='csc')
             q_rho = np.multiply(rho_JI.get(vin_i),-x_J.get(vin_i))
-            #! REMOVE * 0 when debugged
-            q_lambda = 1/2* lambda_JI.get(vin_i)* 0
+            q_lambda = 1/2* lambda_JI.get(vin_i)
             q = np.hstack((q, q_rho + q_lambda))
             for cnt_j, vin_j in enumerate(mcN):
                 if cnt_j <= cnt_i:

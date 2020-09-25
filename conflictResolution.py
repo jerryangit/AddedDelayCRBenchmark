@@ -394,9 +394,9 @@ class OAADMM:
         self.dt = 0.15
         self.d_min = 2 # Overwritten by self.mpc.cap_r
         self.d_phi = 1.25
-        self.d_mult = 1.5
-        self.rho_base = 1
-        self.phi_a = 5
+        self.d_mult = 1.75
+        self.rho_base = 20
+        self.phi_a = 5.15
         self.mu_0 = 32/32 * 0.1/self.dt
         self.N = 15                         # Prediction horizon
         self.mcN_Dist = self.N*self.dt*5*2.5   # Distance at vehicle is added to mcN
