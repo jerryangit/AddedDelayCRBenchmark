@@ -391,15 +391,15 @@ class OAADMM:
         self.rho_IJ = {}
         self.firstRun = 1
         ## OA-ADMM Parameter
-        self.dt = 0.2
+        self.dt = 0.15
         self.d_min = 2 # Overwritten by self.mpc.cap_r
-        self.d_phi = 1.1
-        self.d_mult = 2
-        self.rho_base = 15
+        self.d_phi = 1.265
+        self.d_mult = 1.725
+        self.rho_base = 10
         self.phi_a = 5.5
-        self.mu_0 = 8/32 * 0.1/self.dt
-        self.N = 15                         # Prediction horizon
-        self.mcN_Dist = self.N*self.dt*10*2   # Distance at vehicle is added to mcN
+        self.mu_0 = 32/32 * 0.1/self.dt
+        self.N = 20                         # Prediction horizon
+        self.mcN_Dist = self.N*self.dt*5*2   # Distance at vehicle is added to mcN
         self.mpc = mpc.oa_mpc(self.dt,self.N,self.d_min,self.d_mult)
         self.I_xy = self.mpc.I_xy
         self.I_xyv = self.mpc.I_xyv
@@ -485,7 +485,6 @@ class OAADMM:
                     self.lambda_JI[msg.idSend] = msg.content.get("lambda_IJ").get(egoX.id)
                     self.rho_JI[msg.idSend] =  msg.content.get("rho_IJ").get(egoX.id)
                 else:
-                    #TODO intialize x_i to avoid missing
                     self.z_JI[msg.idSend] = self.I_xyv @ self.x_i
                     self.lambda_JI[msg.idSend] = np.zeros(self.N*2)
                     self.rho_JI[msg.idSend] = np.zeros(self.N*2)
@@ -497,11 +496,11 @@ class OAADMM:
         (res,self.ctrl,self.x_i) = self.mpc.solveMPC_x()
         self.x_J[egoX.id] = self.x_i
 
-        # if egoX._spwnNr == 5:
+        # if egoX._spwnNr == 3:
         #     plt.figure(1)
         #     plt.gca().clear()        
-        #     plt.ylim(-7,5,7.5)
-        #     plt.xlim(-2.5,17.5)
+        #     plt.ylim(-15,15)
+        #     plt.xlim(-2.5,25.5)
         #     plt.title(str(egoX.id)+'MPC steps')
         #     plt.plot(res.x[0],res.x[1],'rx')        
         #     plt.plot(self.x_ref[0::3],self.x_ref[1::3],'k*',markersize = 4, alpha=0.75, markerfacecolor='none')
@@ -511,6 +510,8 @@ class OAADMM:
         #             plt.plot(self.z_JI[vin_j][0::3],self.z_JI[vin_j][1::3],'go',markersize = 4, alpha=0.5, markerfacecolor='none')
         #         else: 
         #             plt.plot(self.z_JI[vin_j][0::3],self.z_JI[vin_j][1::3],'ro',markersize = 4, alpha=0.5, markerfacecolor='none')
+        #             if vin_j in self.x_J.keys():
+        #                 plt.plot(self.x_J[vin_j][0::2],self.x_J[vin_j][1::2],'rx',markersize = 4, alpha=0.5, markerfacecolor='none')                    
         #     plt.show(block=False)
         #     plt.pause(0.0001)
 
@@ -574,21 +575,21 @@ class OAADMM:
         # Update lambda 
         for vin_i in self.mcN:
             if vin_i == egoX.id:
-                self.lambda_JI[egoX.id] = np.mean(np.divide(self.rho_JI.get(egoX.id),self.rho_base))*self.mu_0*self.lambda_JI.get(vin_i) + self.rho_JI.get(vin_i) * (self.x_i - self.z_IJ.get(vin_i))
+                self.lambda_JI[egoX.id] = np.minimum(np.mean(np.divide(self.rho_JI.get(egoX.id),self.rho_base))*self.mu_0,1)*self.lambda_JI.get(vin_i) + self.rho_JI.get(vin_i) * (self.x_i - self.z_IJ.get(vin_i))
             else:
                 if vin_i in self.lambda_IJ.keys():
-                    self.lambda_IJ[vin_i] = np.mean(np.divide(self.rho_JI.get(egoX.id),self.rho_base))*self.mu_0*self.lambda_IJ.get(vin_i) + self.rho_IJ.get(vin_i) * (self.x_J0.get(vin_i) - self.z_IJ.get(vin_i))
+                    self.lambda_IJ[vin_i] = np.minimum(np.mean(np.divide(self.rho_JI.get(egoX.id),self.rho_base))*self.mu_0,1)*self.lambda_IJ.get(vin_i) + self.rho_IJ.get(vin_i) * (self.x_J0.get(vin_i) - self.z_IJ.get(vin_i))
                 else:
-                    self.lambda_IJ[vin_i] = np.ones(self.N*2)
+                    self.lambda_IJ[vin_i] = np.zeros(self.N*2)
+
         # Update rho
         self.rho_JI[egoX.id] = np.zeros(self.N*2)
         for vin_i in self.mcN:
-            #TODO figure out how rho works, and how to do lambda_ij vs lambda_ji
             if vin_i == egoX.id:
                 continue
-            self.rho_IJ[vin_i] = self.rho_base * ( (self.d_min*self.d_phi)/(dist2AgentsCap(self.x_i,self.x_J.get(vin_i),self.theta,self.theta_J.get(vin_i),self.mpc.cap_l,self.mpc.cap_r,2,self.N)) )**self.phi_a + 1e-3
+            self.rho_IJ[vin_i] = np.minimum( np.maximum(self.rho_base * ( (self.d_min*self.d_phi)/(dist2AgentsCap(self.x_i,self.x_J.get(vin_i),self.theta,self.theta_J.get(vin_i),self.mpc.cap_l,self.mpc.cap_r,2,self.N)) )**self.phi_a, np.ones(self.N*2)*1e-3), np.ones(self.N*2)*1e3)
             # self.rho_IJ[vin_i] = self.rho_base * ( (self.d_min*self.d_phi)/(dist2Agents(self.x_i,self.x_J[vin_i],2,self.N)) )**self.phi_a + 1e-3
-            self.rho_JI[egoX.id] = self.rho_JI[egoX.id] + self.rho_IJ[vin_i]*(len(self.mcN)-1)**-1 + 1e-3
+            self.rho_JI[egoX.id] = self.rho_JI[egoX.id] + self.rho_IJ[vin_i]*(len(self.mcN)-1)**-1
 
     def outbox(self,egoX,var):
         # if egoX has left the intersection, stop sending msgs
@@ -627,7 +628,7 @@ class OAADMM:
         self.routeProcess(egoX)        
          
         # Initialize the capsule size of the vehicle
-        self.mpc.cap_r = egoX.ego.bounding_box.extent.y*1.0
+        self.mpc.cap_r = egoX.ego.bounding_box.extent.y*1.1
         self.mpc.cap_l = egoX.ego.bounding_box.extent.x*1.0
         self.d_min = 2*self.mpc.cap_r
         # Setup the x MPC for egoX
@@ -640,8 +641,8 @@ class OAADMM:
         # Initialize z_JI of ego id with x_ref
         self.z_JI[egoX.id] = self.x_ref
 
-        # Initialize lambda_JI of ego id with one
-        self.lambda_JI[egoX.id] = np.ones(self.N*2)
+        # Initialize lambda_JI of ego id with zeros
+        self.lambda_JI[egoX.id] = np.zeros(self.N*2)
         
         # Initialize rho_JI of ego id with ones        
         self.rho_JI[egoX.id] = np.ones(self.N*2)

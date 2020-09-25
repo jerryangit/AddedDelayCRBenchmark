@@ -341,9 +341,9 @@ class OAMPC:
 
 
 def accPID(egoX,states,aRef):
-    kp = 0.2
+    kp = 0.225
     kd = 0.0
-    ki = 0.1
+    ki = 0.275
     #* >
     a = 1*egoX.accLoc[0] + 0*states[3]
     
@@ -355,7 +355,7 @@ def accPID(egoX,states,aRef):
     u_a = kp*(error) + ki*(integral) + kd*(derivative) 
     v = np.linalg.norm([egoX.ego.get_velocity().x,egoX.ego.get_velocity().y])
     if  v > 1:
-        u_a += 0.115+0.0936*v+-0.00345*v**2 # quadractic approximation of throttle to overcome friction
+        u_a += 0.1151+0.093675*v+-0.003435*v**2 # quadractic approximation of throttle to overcome friction
     else:
         u_a += 0.1+0.11*v # quadractic approximation of throttle to overcome friction
         

@@ -53,9 +53,9 @@ def main(cr_method = "OAADMM", ctrlPolicy = "OAMPC", PriorityPolicy = "PriorityS
     # Config
     ###############################################  
     syncmode = 1                # Whether ticks are synced
-    freqSimulation = 100        # [HZ] The frequency at which the simulation is ran 
-    freqOnBoard = 10            # [HZ] The frequency at which vehicle on board controller is simulated
-    freqControl = 25           # [Hz] The frequency at which the low level control is performed
+    freqSimulation = 80        # [HZ] The frequency at which the simulation is ran 
+    freqOnBoard = 20            # [HZ] The frequency at which vehicle on board controller is simulated
+    freqControl = 40           # [Hz] The frequency at which the low level control is performed
     random.seed(randomSeed)     # Random seed
     maxVehicle = 24             # Max simultaneous vehicle
     # preGenRoute 
@@ -117,7 +117,7 @@ def main(cr_method = "OAADMM", ctrlPolicy = "OAMPC", PriorityPolicy = "PriorityS
 
         if record == 1:
             # client.start_recorder("/home/jerry/carla/PythonAPI/conflictResolutionCarla/recordings/recording01.log")
-            client.start_recorder('record_20_9_18_1.log')
+            client.start_recorder('record_20_9_25_1.log')
         #TODO are these used?
         ts0 = tick0.timestamp
         ts0s = tick0.timestamp.elapsed_seconds
@@ -204,10 +204,10 @@ def main(cr_method = "OAADMM", ctrlPolicy = "OAMPC", PriorityPolicy = "PriorityS
         elif scenario == 7:
             # testing for OA-ADMM MPC
             kmax = 1
-            totalVehicle = 8
+            totalVehicle = 24
             spwnInterval = 1.3
-            spwnRand = [1,4,1,4,2,1,3,2,4,3,1,3,2,4,1,2,3,4,1,2,3,4,1,2,3,4]
-            destRand = [3,2,3,3,4,4,1,1,2,2,2,4,3,1,2,3,4,1,3,4,1,2,4,1,2,3]
+            spwnRand = [2,1,4,1,4,2,1,3,2,4,3,1,3,2,4,1,2,3,4,1,2,3,4,1,2,3,4]
+            destRand = [4,3,3,3,3,4,4,1,1,2,2,2,4,3,1,2,3,4,1,3,4,1,2,4,1,2,3]
             velRand = np.array([5+0.5*random.uniform(-1,1) for iter in range(totalVehicle)])
 
         elif scenario == 8:
@@ -232,7 +232,7 @@ def main(cr_method = "OAADMM", ctrlPolicy = "OAMPC", PriorityPolicy = "PriorityS
         # southSpawn = carla.Transform(carla.Location(x=-148.49, y=0.0, z=0.31), carla.Rotation(yaw=-90))
         # westSpawn = carla.Transform(carla.Location(x=-185.0, y=-33.3, z=0.01), carla.Rotation(yaw=0))
         northSpawn = carla.Transform(carla.Location(x=-151.49, y=-70.0, z=0.271), carla.Rotation(yaw=90))
-        eastSpawn = carla.Transform(carla.Location(x=-115.05, y=-36.4, z=0.264), carla.Rotation(yaw=-180))
+        eastSpawn = carla.Transform(carla.Location(x=-115.05, y=-36.4, z=0.104), carla.Rotation(yaw=-180))
         southSpawn = carla.Transform(carla.Location(x=-149.05, y=00.0, z=0.305), carla.Rotation(yaw=-90))
         westSpawn = carla.Transform(carla.Location(x=-184.0, y=-33.7, z=0.0112), carla.Rotation(yaw=0))
 
@@ -278,6 +278,7 @@ def main(cr_method = "OAADMM", ctrlPolicy = "OAMPC", PriorityPolicy = "PriorityS
         notComplete = 1
         while notComplete: 
             if syncmode == 1: 
+                time.sleep(1/25)
                 world.tick()
                 tick = world.get_snapshot()
             else:
@@ -430,7 +431,7 @@ def main(cr_method = "OAADMM", ctrlPolicy = "OAMPC", PriorityPolicy = "PriorityS
 
             #* Set vehicle velocity to reference velocity for its first second
             for actorX,vel3D in justSpwn:
-                if ts.elapsed_seconds-ts0s - actorX.spwnTime > 1.0:
+                if ts.elapsed_seconds-ts0s - actorX.spwnTime > 1.20:
                     justSpwn.remove((actorX,vel3D))
                     continue
                 actorX.ego.set_velocity(vel3D)
