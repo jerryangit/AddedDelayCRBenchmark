@@ -125,9 +125,9 @@ class oa_mpc:
         uineq = np.hstack([np.kron(np.ones(self.N+1), xmax), np.kron(np.ones(self.N), umax)])
 
         # Cost function
-        Q = sparse.diags([1.0, 150.0, 1.25])
+        Q = sparse.diags([1.0, 120.0, 1.25])
         QN = Q*0.95
-        R = sparse.diags([15.5, 55.0])
+        R = sparse.diags([10.5, 55.0])
         x_ref = np.linspace([0,0,self.x0[2]],[1,1,self.v_ref],self.N+1).flatten()
 
 

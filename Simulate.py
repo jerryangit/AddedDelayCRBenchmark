@@ -117,7 +117,7 @@ def main(cr_method = "OAADMM", ctrlPolicy = "OAMPC", PriorityPolicy = "PriorityS
 
         if record == 1:
             # client.start_recorder("/home/jerry/carla/PythonAPI/conflictResolutionCarla/recordings/recording01.log")
-            client.start_recorder('record_20_9_25_1.log')
+            client.start_recorder('record_20_9_25_2.log')
         #TODO are these used?
         ts0 = tick0.timestamp
         ts0s = tick0.timestamp.elapsed_seconds
