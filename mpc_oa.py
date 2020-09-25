@@ -127,13 +127,13 @@ class oa_mpc:
         # Cost function
         Q = sparse.diags([1.0, 150.0, 1.25])
         QN = Q*0.95
-        R = sparse.diags([32.5, 95.0])
+        R = sparse.diags([15.5, 55.0])
         x_ref = np.linspace([0,0,self.x0[2]],[1,1,self.v_ref],self.N+1).flatten()
 
 
         # Cast MPC problem to a QP: x = (x(0),x(1),...,x(N),u(0),...,u(N-1))
         # - quadratic objective
-        self.P_Q = sparse.block_diag([sparse.kron(sparse.diags(np.linspace(1,1.05,self.N+1)), Q), sparse.kron(sparse.diags(np.linspace(1,2,self.N)), R,format='csc')], format='csc') 
+        self.P_Q = sparse.block_diag([sparse.kron(sparse.diags(np.linspace(1,1.05,self.N+1)), Q), sparse.kron(sparse.diags(np.linspace(1,1.5,self.N)), R,format='csc')], format='csc') 
         P = self.P_Q        
         # - linear objective
         self.lambda_ref = np.kron(np.linspace(1,1.05,self.N+1), Q.diagonal())
@@ -284,6 +284,7 @@ class oa_mpc:
                     # Calculate distances depending on ipAi value, dAi is shortest distance from A to lABj
                     dList = []        
                     x_barList = []
+                    xOXList = []
                     #TODO clean up, leave only norms
                     for cnt,ipXi in enumerate(ipList):
                         if ipXi <= 0:
@@ -295,19 +296,27 @@ class oa_mpc:
                         else:
                             dList.append( np.linalg.norm(pList[cnt] - p2List[cnt][1]) )
                             x_barList.append( np.hstack([ pList[cnt],p2List[cnt][1] ]) )
-                    
-                    # Add constraint for closest linearized distance
-                    x_bar = x_barList[np.argmin(dList)]
 
+                    # Add constraint for closest linearized distance
+                    nr = np.argmin(dList)
+                    if nr < 2:
+                        x_bar = x_barList[nr]
+                    else:
+                        x_bar = np.hstack([ x_barList[nr][2:],x_barList[nr][:2] ])
+
+                    xOX = x_bar - np.hstack([x_i,x_j])
                     # xTA vector at current timestep
                     xM = x_bar @ self.M 
                     
                     A_data = np.hstack([A_data,2 * xM])
 
                     # Compute the constant part of the linearization
-                    K[A_rw] = xM @ x_bar - 2* xM @ (x_bar-np.hstack([x_i,x_j]))
+                    K[A_rw] = xM @ x_bar - 2* xM @ xOX
+                    # K = x_bar @ M @ x_bar - 2 * x_bar @ M @ xOA
+
                     self.A_rowi = np.hstack([self.A_rowi, A_rw, A_rw, A_rw, A_rw]) 
-                    self.A_coli = np.hstack([self.A_coli, cnt_i*self.N*2+i_x*2,cnt_i*self.N*2+i_x*2+1,cnt_j*self.N*2+i_x*2,cnt_j*self.N*2+i_x*2+1])                         
+                    # Assign the indices of z_i and z_j
+                    self.A_coli = np.hstack([self.A_coli, cnt_i*self.N*2+i_x*2,cnt_i*self.N*2+i_x*2+1,cnt_j*self.N*2+i_x*2,cnt_j*self.N*2+i_x*2+1])
                     A_rw += 1
     
 
@@ -354,7 +363,8 @@ class oa_mpc:
             P_Rho = sparse.diags(np.hstack(( rho_JI.get(vin_i))), format='csc')
             P = sparse.block_diag([P , P_Rho],format='csc')
             q_rho = np.multiply(rho_JI.get(vin_i),-x_J.get(vin_i))
-            q_lambda = 1/2* lambda_JI.get(vin_i)
+            #! REMOVE * 0 when debugged
+            q_lambda = 1/2* lambda_JI.get(vin_i)* 0
             q = np.hstack((q, q_rho + q_lambda))
             for cnt_j, vin_j in enumerate(mcN):
                 if cnt_j <= cnt_i:
@@ -370,9 +380,6 @@ class oa_mpc:
                     # Get currently planned values for x_i and x_j
                     x_i = np.array([x_J.get(vin_i)[i_x*2], x_J.get(vin_i)[i_x*2+1]])
                     x_j = np.array([x_J.get(vin_j)[i_x*2], x_J.get(vin_j)[i_x*2+1]])
-
-                    # Compute the linearization point for the [x_i,x_j] vector for vehicle i and j                    
-                    x_O_bar = np.hstack([x_i,x_j])
 
                     #Estimate theta based on previous value
                     if i_x > 0:
@@ -407,7 +414,6 @@ class oa_mpc:
                     # Calculate distances depending on ipAi value, dAi is shortest distance from A to lABj
                     dList = []        
                     x_barList = []
-                    #TODO clean up, leave only norms
                     for cnt,ipXi in enumerate(ipList):
                         if ipXi <= 0:
                             dList.append( np.linalg.norm( pList[cnt] - p2List[cnt][0] ) )
@@ -420,7 +426,14 @@ class oa_mpc:
                             x_barList.append( np.hstack([ pList[cnt],p2List[cnt][1] ]) )
                     
                     # Add constraint for closest linearized distance
-                    x_bar = x_barList[np.argmin(dList)]
+                    nr = np.argmin(dList)
+                    # If closest is a point from x_j, then flip x_bar back 
+                    if nr < 2:
+                        x_bar = x_barList[nr]
+                    else:
+                        x_bar = np.hstack([ x_barList[nr][2:],x_barList[nr][:2] ])
+
+                    xOX = x_bar - np.hstack([x_i,x_j])
 
                     # xTA vector at current timestep
                     xM = x_bar @ self.M 
@@ -428,11 +441,14 @@ class oa_mpc:
                     A_data = np.hstack([A_data,2 * xM])
 
                     # Compute the constant part of the linearization
-                    K[A_rw] = xM @ x_bar - 2* xM @ (x_bar-np.hstack([x_i,x_j]))
+                    # 2 * x_bar @ M @ x - x_bar @ M @ x_bar + 2 * x_bar @ M @ xOA
+                    # K = x_bar @ M @ x_bar - 2 * x_bar @ M @ xOA
+
+                    K[A_rw] = xM @ x_bar - 2* xM @ xOX
                     A_rw += 1
 
         if A_data.size != 0: 
-            A = sparse.csc_matrix((A_data,(self.A_rowi,self.A_coli)))            
+            A = sparse.csc_matrix((A_data,(self.A_rowi,self.A_coli)))
             l = np.ones(int((len(mcN)*(len(mcN)-1))/2)*self.N) * (self.cap_r*2*self.d_mult)**2 + K
             # Update workspace
             self.prob_z.update(Px = sparse.triu(P).data, Ax=A.data,q=q, l=l)
@@ -440,7 +456,10 @@ class oa_mpc:
             # Update workspace
             self.prob_z.update(Px = sparse.triu(P).data, q=q)
 
-
+        # res = self.prob_z.solve()
+        # #Check solver status
+        # if res.info.status == 'primal infeasible':
+        #     print(A-l)
         # res = self.prob_z.solve()
         # #Check solver status
         # if res.info.status != 'solved':

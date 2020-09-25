@@ -393,13 +393,13 @@ class OAADMM:
         ## OA-ADMM Parameter
         self.dt = 0.15
         self.d_min = 2 # Overwritten by self.mpc.cap_r
-        self.d_phi = 1.05
-        self.d_mult = 1.825
-        self.rho_base = 20
-        self.phi_a = 5.15
+        self.d_phi = 1.25
+        self.d_mult = 1.5
+        self.rho_base = 1
+        self.phi_a = 5
         self.mu_0 = 32/32 * 0.1/self.dt
-        self.N = 20                         # Prediction horizon
-        self.mcN_Dist = self.N*self.dt*5*2   # Distance at vehicle is added to mcN
+        self.N = 15                         # Prediction horizon
+        self.mcN_Dist = self.N*self.dt*5*2.5   # Distance at vehicle is added to mcN
         self.mpc = mpc.oa_mpc(self.dt,self.N,self.d_min,self.d_mult)
         self.I_xy = self.mpc.I_xy
         self.I_xyv = self.mpc.I_xyv
@@ -496,7 +496,7 @@ class OAADMM:
         (res,self.ctrl,self.x_i) = self.mpc.solveMPC_x()
         self.x_J[egoX.id] = self.x_i
 
-        # if egoX._spwnNr == 3:
+        # if egoX._spwnNr == 0:
         #     plt.figure(1)
         #     plt.gca().clear()        
         #     plt.ylim(-15,15)
@@ -587,7 +587,7 @@ class OAADMM:
         for vin_i in self.mcN:
             if vin_i == egoX.id:
                 continue
-            self.rho_IJ[vin_i] = np.minimum( np.maximum(self.rho_base * ( (self.d_min*self.d_phi)/(dist2AgentsCap(self.x_i,self.x_J.get(vin_i),self.theta,self.theta_J.get(vin_i),self.mpc.cap_l,self.mpc.cap_r,2,self.N)) )**self.phi_a, np.ones(self.N*2)*1e-3), np.ones(self.N*2)*1e3)
+            self.rho_IJ[vin_i] = np.minimum( np.maximum(self.rho_base * ( (self.d_min*self.d_phi)/(dist2AgentsCap(self.x_i,self.x_J.get(vin_i),self.theta,self.theta_J.get(vin_i),self.mpc.cap_l,self.mpc.cap_r,2,self.N)) )**self.phi_a, np.ones(self.N*2)*5e-3), np.ones(self.N*2)*5e2)
             # self.rho_IJ[vin_i] = self.rho_base * ( (self.d_min*self.d_phi)/(dist2Agents(self.x_i,self.x_J[vin_i],2,self.N)) )**self.phi_a + 1e-3
             self.rho_JI[egoX.id] = self.rho_JI[egoX.id] + self.rho_IJ[vin_i]*(len(self.mcN)-1)**-1
 
@@ -699,7 +699,7 @@ def dist2AgentsCap(x_i_vec,x_j_vec,theta_i,theta_j,cap_l,cap_r,nx,N):
             else:
                 dList.append( np.linalg.norm(pList[cnt] - p2List[cnt][1]) )                 
 
-        dist = np.hstack([dist , np.ones(nx) * np.min(dList)**0.5])
+        dist = np.hstack([dist , np.ones(nx) * np.min(dList)])
 
     return dist
 

@@ -204,11 +204,11 @@ def main(cr_method = "OAADMM", ctrlPolicy = "OAMPC", PriorityPolicy = "PriorityS
         elif scenario == 7:
             # testing for OA-ADMM MPC
             kmax = 1
-            totalVehicle = 24
+            totalVehicle = 2
             spwnInterval = 1.3
-            spwnRand = [2,1,4,1,4,2,1,3,2,4,3,1,3,2,4,1,2,3,4,1,2,3,4,1,2,3,4]
-            destRand = [4,3,3,3,3,4,4,1,1,2,2,2,4,3,1,2,3,4,1,3,4,1,2,4,1,2,3]
-            velRand = np.array([5+0.5*random.uniform(-1,1) for iter in range(totalVehicle)])
+            spwnRand = [1,4,1,4,2,1,3,2,4,3,1,3,2,4,1,2,3,4,1,2,3,4,1,2,3,4]
+            destRand = [3,2,3,3,4,4,1,1,2,2,2,4,3,1,2,3,4,1,3,4,1,2,4,1,2,3]
+            velRand = np.array([5+0.35*random.uniform(-1,1) for iter in range(totalVehicle)])
 
         elif scenario == 8:
             # testing for OA-ADMM MPC Simultaneous
@@ -431,7 +431,7 @@ def main(cr_method = "OAADMM", ctrlPolicy = "OAMPC", PriorityPolicy = "PriorityS
 
             #* Set vehicle velocity to reference velocity for its first second
             for actorX,vel3D in justSpwn:
-                if ts.elapsed_seconds-ts0s - actorX.spwnTime > 1.25:
+                if ts.elapsed_seconds-ts0s - actorX.spwnTime > 0.25:
                     justSpwn.remove((actorX,vel3D))
                     continue
                 actorX.ego.set_velocity(vel3D)

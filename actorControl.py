@@ -343,7 +343,7 @@ class OAMPC:
 def accPID(egoX,states,aRef):
     kp = 0.225
     kd = 0.0
-    ki = 0.275
+    ki = 0.375
     #* >
     a = 1*egoX.accLoc[0] + 0*states[3]
     
