@@ -38,9 +38,9 @@ try:
     # client.replay_file("/home/jerry/carla/PythonAPI/conflictResolutionCarla/recordings/recording01.log", 0, 0, 0)
     # print(client.show_recorder_file_info("record_20_9_18_1.log",show_all = 0))
     # client.replay_file("record_20_9_18_1.log", 0, 0, 0)   
-    client.replay_file("record_20_9_25_2.log", 0, 0, 0)   
+    client.replay_file("record_20_10_01_1.log", 0, 0, 0)   
 
-    client.set_replayer_time_factor(1.0)    
+    client.set_replayer_time_factor(10.0)    
     while True:
         world.tick()
         time.sleep(0.01)

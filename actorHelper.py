@@ -133,6 +133,19 @@ class actorX:
         self.updateStats()
         self.updateParameters(dt)
         self.hasLeft = 0 
+        self.checkAction()
+    def checkAction(self):        
+        noTurn = [(1,3),(2,4),(3,1),(4,2)]
+        leftTurn = [(1,2),(2,3),(3,4),(4,1)]
+        rightTurn = [(1,4),(2,1),(3,2),(4,3)]
+        if (self.spwnid,self.destid) in noTurn:
+            self.action = "S"
+        elif (self.spwnid,self.destid) in leftTurn:
+            self.action = "L"
+        elif (self.spwnid,self.destid) in rightTurn:
+            self.action = "R"
+        else:
+            self.action = None
     def infoSet(self,key,value):
         self.info[key] = value
 

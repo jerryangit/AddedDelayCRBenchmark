@@ -48,7 +48,7 @@ if not os.path.exists('./recordings'):
 # def main(cr_method = "AMPIP", ctrlPolicy = "MPIPControl", PriorityPolicy = "FCFS",totalVehicle = 128, scenario = 0, spwnInterval = 0.8, randomSeed = 469730,logging = 1):
 # def main(cr_method = "AMPIP", ctrlPolicy = "MPIPControl", PriorityPolicy = "FCFS",totalVehicle = 128, scenario = 0, spwnInterval = 1.2, randomSeed = 960489,logging = 1):
 
-def main(cr_method = "OAADMM", ctrlPolicy = "OAMPC", PriorityPolicy = "PriorityScore",totalVehicle = 12, scenario = 7, spwnInterval = 1.75, randomSeed = 960489, preGenRoute = 1, logging = 1, errMargin = 0.5):
+def main(cr_method = "OAADMM", ctrlPolicy = "OAMPC", PriorityPolicy = "PriorityScore",totalVehicle = 16, scenario = 8, spwnInterval = 2, randomSeed = 960489, preGenRoute = 1, logging = 1, errMargin = 0.5, recordName = 'record_OAADMM_20_10_05_1.log'):
     ###############################################
     # Config
     ###############################################  
@@ -117,7 +117,7 @@ def main(cr_method = "OAADMM", ctrlPolicy = "OAMPC", PriorityPolicy = "PriorityS
 
         if record == 1:
             # client.start_recorder("/home/jerry/carla/PythonAPI/conflictResolutionCarla/recordings/recording01.log")
-            client.start_recorder('record_20_9_25_2.log')
+            client.start_recorder(recordName)
         #TODO are these used?
         ts0 = tick0.timestamp
         ts0s = tick0.timestamp.elapsed_seconds
@@ -153,12 +153,12 @@ def main(cr_method = "OAADMM", ctrlPolicy = "OAMPC", PriorityPolicy = "PriorityS
             kmax = 1
             spwnRand = np.array([random.choice(laneList) for iter in range(totalVehicle)])
             destRand = np.array([random.choice(np.delete(laneList,spwnRand[iter]-1)) for iter in range(totalVehicle)])
-            velRand = np.array([5+random.uniform(-1,1) for iter in range(totalVehicle)])
+            velRand = np.array([4+random.uniform(-1,1)*0.1 for iter in range(totalVehicle)])
         elif scenario == 1:
             kmax = 4
             spwnRand = np.array([[1,2,3,4] for iter in range(int(totalVehicle/4))]).flatten()
             destRand = np.array([random.choice(np.delete(laneList,spwnRand[iter]-1)) for iter in range(totalVehicle)])
-            velRand = np.array([5+random.uniform(-1,1) for iter in range(totalVehicle)])
+            velRand = np.array([4+random.uniform(-1,1)*0.1 for iter in range(totalVehicle)])
         elif scenario == 2: # Artificial AMPIP example
             totalVehicle = 2
             spwnInterval = 4.5
@@ -205,19 +205,28 @@ def main(cr_method = "OAADMM", ctrlPolicy = "OAMPC", PriorityPolicy = "PriorityS
             # testing for OA-ADMM MPC
             kmax = 1
             totalVehicle = 16
-            spwnInterval = 1.3
+            spwnInterval = 1.5
             spwnRand = [1,4,1,4,2,1,3,2,4,3,1,3,2,4,1,2,3,4,1,2,3,4,1,2,3,4]
             destRand = [3,2,3,3,4,4,1,1,2,2,2,4,3,1,2,3,4,1,3,4,1,2,4,1,2,3]
-            velRand = np.array([5+0.35*random.uniform(-1,1) for iter in range(totalVehicle)])
-
+            velRand = np.array([4.5+0.15*random.uniform(-1,1) for iter in range(totalVehicle)])
         elif scenario == 8:
             # testing for OA-ADMM MPC Simultaneous
+            spwnRand = []
+            destRand = []
+            for i_in in [1]:
+                for i_out in [2,3,4]:
+                    for j_in in [2,3,4]:
+                        for j_out in [1,2,3,4]:
+                            if j_in == j_out:
+                                continue
+                            spwnRand.append(i_in)
+                            destRand.append(i_out)
+                            spwnRand.append(j_in) 
+                            destRand.append(j_out)
             kmax = 2
-            totalVehicle = 2
-            spwnInterval = 4.5
-            spwnRand = [1,3,2,4,1,2,3,4]
-            destRand = [3,1,4,2,3,4,1,2]
-            velRand = [5,5,5,5,5,5,5,5,5,5,5,5,5,5,5,5]
+            totalVehicle = np.minimum(len(destRand),1000)
+            spwnInterval = 30
+            velRand = np.array([5+0.15*random.uniform(-1,1) for iter in range(totalVehicle)])
 
         # idRand is only used for tie breaking, used to avoid odd behavior
         idRand = np.array([random.randint(100000,999999) for iter in range(totalVehicle)])
@@ -278,8 +287,8 @@ def main(cr_method = "OAADMM", ctrlPolicy = "OAMPC", PriorityPolicy = "PriorityS
         notComplete = 1
         while notComplete: 
             if syncmode == 1: 
-                time.sleep(1/25)
                 world.tick()
+                time.sleep(0.0025)
                 tick = world.get_snapshot()
             else:
                 tick = world.wait_for_tick()

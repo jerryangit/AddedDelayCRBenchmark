@@ -293,12 +293,12 @@ class OAMPC:
 
         u_a = np.clip(u_a,-1,1)
         u_delta = np.clip(u_delta,-1,1)
-        if u_a > 0.05:
+        if u_a > 0.:
             egoX.ego.apply_control(carla.VehicleControl(throttle=u_a, steer=u_delta,brake = 0,manual_gear_shift=True,gear=1))
-        elif u_a <= 0.05 and u_a > -0.25:
+        elif u_a <= 0.0 and u_a > -0.25:
             egoX.ego.apply_control(carla.VehicleControl(throttle=0, steer=u_delta,brake = 0,manual_gear_shift=True,gear=1))            
-        elif egoX.velLoc[0] <= 0.25:
-            egoX.ego.apply_control(carla.VehicleControl(throttle=-u_a*1, steer=u_delta,brake = 0,manual_gear_shift=True,gear=-1))
+        # elif egoX.velLoc[0] <= 0.25:
+        #     egoX.ego.apply_control(carla.VehicleControl(throttle=-u_a*1, steer=u_delta,brake = 0,manual_gear_shift=True,gear=-1))
         else:
             egoX.ego.apply_control(carla.VehicleControl(throttle=0, steer=u_delta,brake = -u_a,manual_gear_shift=True,gear=1))
         self.u_a0 = u_a
@@ -341,11 +341,11 @@ class OAMPC:
 
 
 def accPID(egoX,states,aRef):
-    kp = 0.225
+    kp = 0.01
     kd = 0.0
-    ki = 0.375
+    ki = 0.2
     #* >
-    a = 1*egoX.accLoc[0] + 0*states[3]
+    a = 0.66*egoX.accLoc[0] + 0.33*states[3]
     
     #* PID states <
     error = aRef - a
@@ -354,10 +354,7 @@ def accPID(egoX,states,aRef):
     #* >
     u_a = kp*(error) + ki*(integral) + kd*(derivative) 
     v = np.linalg.norm([egoX.ego.get_velocity().x,egoX.ego.get_velocity().y])
-    if  v > 1:
-        u_a += 0.1151+0.093675*v+-0.003435*v**2 # quadractic approximation of throttle to overcome friction
-    else:
-        u_a += 0.1+0.11*v # quadractic approximation of throttle to overcome friction
+    u_a += 0.11425+0.09368*v+-0.00345*v**2 # quadractic approximation of throttle to overcome friction
         
     states = (error,integral,derivative,a)
     return (u_a,states)

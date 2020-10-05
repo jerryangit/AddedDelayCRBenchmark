@@ -385,24 +385,27 @@ class OAADMM:
         self.theta_J = {}
         self.z_IJ = {}
         self.z_JI = {}
+        self.z_IJ_loc = {}
         self.lambda_JI = {}
         self.lambda_IJ = {}
         self.rho_JI = {}
         self.rho_IJ = {}
         self.firstRun = 1
         ## OA-ADMM Parameter
-        self.dt = 0.15
+        self.dt = 0.1
         self.d_min = 2 # Overwritten by self.mpc.cap_r
-        self.d_phi = 1.5
-        self.d_mult = 1.75
-        self.rho_base = 25
-        self.phi_a = 6
-        self.mu_0 = 32/32 * 0.1/self.dt
-        self.N = 15                         # Prediction horizon
-        self.mcN_Dist = self.N*self.dt*5*2.5   # Distance at vehicle is added to mcN
+        self.d_phi = 1.195
+        self.d_mult = 1.195
+        self.rho_base = 1
+        self.phi_a = 1.25
+        self.mu_0 = 32/32
+        self.N = 20                        # Prediction horizon
+        self.mcN_Dist = self.N*self.dt*5*3   # Distance at vehicle is added to mcN
         self.mpc = mpc.oa_mpc(self.dt,self.N,self.d_min,self.d_mult)
         self.I_xy = self.mpc.I_xy
         self.I_xyv = self.mpc.I_xyv
+        self.mu_Vec = np.ones(self.N*2)
+
     def routeProcess(self,egoX):        
         wp_0 = egoX.route[0][0]
         self.route_s = [0]
@@ -496,37 +499,81 @@ class OAADMM:
         (res,self.ctrl,self.x_i) = self.mpc.solveMPC_x()
         self.x_J[egoX.id] = self.x_i
 
-        # if egoX._spwnNr == 0:
-        #     plt.figure(1)
-        #     plt.gca().clear()        
-        #     plt.ylim(-15,15)
-        #     plt.xlim(-2.5,25.5)
-        #     plt.title(str(egoX.id)+'MPC steps')
-        #     plt.plot(res.x[0],res.x[1],'rx')        
-        #     plt.plot(self.x_ref[0::3],self.x_ref[1::3],'k*',markersize = 4, alpha=0.75, markerfacecolor='none')
-        #     plt.plot(res.x[3:(self.N+1)*3:3],res.x[4:(self.N+1)*3:3],'bx')
-        #     for vin_j in self.mcN:
-        #         if vin_j == egoX.id:
-        #             plt.plot(self.z_JI[vin_j][0::3],self.z_JI[vin_j][1::3],'go',markersize = 4, alpha=0.5, markerfacecolor='none')
-        #         else: 
-        #             plt.plot(self.z_JI[vin_j][0::3],self.z_JI[vin_j][1::3],'ro',markersize = 4, alpha=0.5, markerfacecolor='none')
-        #             if vin_j in self.x_J.keys():
-        #                 plt.plot(self.x_J[vin_j][0::2],self.x_J[vin_j][1::2],'rx',markersize = 4, alpha=0.5, markerfacecolor='none')                    
-        #     plt.show(block=False)
-        #     plt.pause(0.0001)
+        # Plot vehicle nr x if True
+        if egoX._spwnNr == 10 and False:
+            plt.figure(1)
+            plt.gca().clear()        
+            plt.title(str(egoX.id)+'MPC steps')
 
-        #     plt.figure(2)
-        #     plt.gca().clear()        
-        #     plt.ylim(-3,8)
-        #     plt.plot(egoX.ego.get_control().throttle,'ro',markerfacecolor='none')  # Throttle
-        #     plt.plot(egoX.accLoc[0],'r*')                   # Local Acc
-        #     plt.plot(res.x[2:(self.N+1)*3:3],'b.')          # Planned velocity
-        #     plt.plot(res.x[(self.N+1)*3::2],'r.')           # Planned Acc
-        #     plt.plot(res.x[(self.N+1)*3+1::2],'g.')         # Planned delta
-        #     plt.show(block=False)
-        #     plt.pause(0.0009)
-
-
+            # True = x on xaxis, y flipped, False = x on y axis, y on x axis and flip
+            if False:
+                plt.ylim(-15,15)                
+                plt.gca().invert_yaxis()
+                plt.xlim(-2.5,25.5)
+                plt.plot(res.x[0],res.x[1],'rx')        
+                plt.plot(self.x_ref[0::3],self.x_ref[1::3],'k*',markersize = 4, alpha=0.75, markerfacecolor='none')
+                plt.plot(res.x[3:(self.N+1)*3:3],res.x[4:(self.N+1)*3:3],'bx')
+                for vin_j in self.mcN:
+                    if vin_j == egoX.id:
+                        plt.plot(self.z_JI[vin_j][0::3],self.z_JI[vin_j][1::3],'go',markersize = 4, alpha=0.5, markerfacecolor='none')
+                    else: 
+                        plt.plot(self.z_JI[vin_j][0::3],self.z_JI[vin_j][1::3],'ro',markersize = 4, alpha=0.5, markerfacecolor='none')
+                        if vin_j in self.x_J.keys():
+                            plt.plot(self.x_J[vin_j][0::2],self.x_J[vin_j][1::2],'rx',markersize = 4, alpha=0.5, markerfacecolor='none')                    
+            else:
+                plt.xlim(-15,15)                
+                plt.ylim(-2.5,25.5)
+                plt.plot(res.x[1],res.x[0],'rx')    
+                plt.plot(self.x_ref[1::3],self.x_ref[0::3],'k*',markersize = 4, alpha=0.75, markerfacecolor='none')
+                plt.plot(res.x[4:(self.N+1)*3:3],res.x[3:(self.N+1)*3:3],'bx')
+                for vin_j in self.mcN:
+                    if vin_j == egoX.id:
+                        plt.plot(self.z_JI[vin_j][1::3],self.z_JI[vin_j][0::3],'go',markersize = 4, alpha=0.5, markerfacecolor='none')
+                    else: 
+                        plt.plot(self.z_JI[vin_j][1::3],self.z_JI[vin_j][0::3],'ro',markersize = 4, alpha=0.5, markerfacecolor='none')
+                        if vin_j in self.x_J.keys():
+                            plt.plot(self.x_J[vin_j][1::2],self.x_J[vin_j][0::2],'rx',markersize = 4, alpha=0.5, markerfacecolor='none')                    
+            plt.show(block=False)
+            plt.pause(0.00001)
+            if False:
+                plt.figure(2)
+                plt.gca().clear()        
+                plt.ylim(-3,8)
+                plt.plot(egoX.ego.get_control().throttle,'ro',markerfacecolor='none')  # Throttle
+                plt.plot(egoX.accLoc[0],'r*')                   # Local Acc
+                plt.plot(res.x[2:(self.N+1)*3:3],'b.')          # Planned velocity
+                plt.plot(res.x[(self.N+1)*3::2],'r.')           # Planned Acc
+                plt.plot(res.x[(self.N+1)*3+1::2],'g.')         # Planned delta
+                plt.show(block=False)
+                plt.pause(0.00001)
+            if True:
+                plt.figure(3)
+                plt.gca().clear()        
+                for vin_j in self.mcN:
+                    if vin_j == egoX.id:
+                        plt.plot(self.lambda_JI[vin_j],'k.')                   # Local Acc
+                    else:
+                        plt.plot(self.lambda_JI[vin_j],'r.')                   # Local Acc
+                plt.plot(self.rho_JI[egoX.id],'b.')                   # Local Acc
+                plt.show(block=False)
+                plt.pause(0.00001)
+            if True:
+                plt.figure(4)
+                plt.gca().clear()        
+                plt.xlim(-15,15)                
+                plt.ylim(-2.5,25.5)
+                plt.plot(res.x[1:(self.N+1)*3:3],res.x[0:(self.N+1)*3:3],'gx')
+                for vin_j in self.mcN:
+                    if vin_j == egoX.id:
+                        plt.plot(self.z_JI[vin_j][1::3],self.z_JI[vin_j][0::3],'go',markersize = 4, alpha=0.5, markerfacecolor='none')
+                    else: 
+                        if vin_j in self.z_IJ.keys():
+                            plt.plot(self.z_IJ_loc[vin_j][1::2],self.z_IJ_loc[vin_j][0::2],'ro',markersize = 4, alpha=0.5, markerfacecolor='none')
+                        if vin_j in self.x_J.keys():
+                            plt.plot(self.x_J[vin_j][1::2],self.x_J[vin_j][0::2],'rx',markersize = 3, alpha=0.5, markerfacecolor='none')                    
+                plt.show(block=False)
+                plt.pause(0.00001)
+            plt.pause(0.0009) 
 
     def zUpdate(self,egoX,worldX):
         if egoX.hasLeft == 1:
@@ -569,16 +616,21 @@ class OAADMM:
                 self.z_JI[vin_i] = self.I_xyv @ self.z_IJ.get(vin_i)
             else:
                 z_ij_loc = res.x[cnt_i*self.N*2:(cnt_i+1)*self.N*2]
+                self.z_IJ_loc[vin_i] = z_ij_loc
                 Tps_ij = rMatrix(-self.theta) @ np.array([worldX.actorDict.dict.get(vin_i).location.x-egoX.location.x,worldX.actorDict.dict.get(vin_i).location.y-egoX.location.y])
                 self.z_IJ[vin_i] = (np.kron( np.eye(self.N) , rMatrixAB( self.theta,self.theta_J.get(vin_i) )  ) ) @ ( z_ij_loc - np.kron(np.ones((self.N)),Tps_ij) )
-
+        
+        # Update Mu:
+        self.mu_Vec = (0.75*self.mu_Vec + 0.25*np.minimum(np.divide(self.rho_JI.get(egoX.id),self.rho_base)*self.mu_0,1))
         # Update lambda 
         for vin_i in self.mcN:
             if vin_i == egoX.id:
-                self.lambda_JI[egoX.id] = np.minimum(np.mean(np.divide(self.rho_JI.get(egoX.id),self.rho_base))*self.mu_0,1)*self.lambda_JI.get(vin_i) + self.rho_JI.get(vin_i) * (self.x_i - self.z_IJ.get(vin_i))
+                self.lambda_JI[egoX.id] = self.mu_Vec*self.lambda_JI.get(vin_i) + self.rho_JI.get(vin_i) * (self.x_i - self.z_IJ.get(vin_i))
+                self.lambda_JI[egoX.id] = np.hstack([self.lambda_JI[egoX.id][2:],self.lambda_JI[egoX.id][-2:]])                
             else:
                 if vin_i in self.lambda_IJ.keys():
-                    self.lambda_IJ[vin_i] = np.minimum(np.mean(np.divide(self.rho_JI.get(egoX.id),self.rho_base))*self.mu_0,1)*self.lambda_IJ.get(vin_i) + self.rho_IJ.get(vin_i) * (self.x_J0.get(vin_i) - self.z_IJ.get(vin_i))
+                    self.lambda_IJ[vin_i] = self.mu_Vec*self.lambda_IJ.get(vin_i) + self.rho_IJ.get(vin_i) * (self.x_J0.get(vin_i) - self.z_IJ.get(vin_i))
+                    self.lambda_IJ[vin_i] = np.hstack([self.lambda_IJ[vin_i][2:],self.lambda_IJ[vin_i][-2:]])
                 else:
                     self.lambda_IJ[vin_i] = np.zeros(self.N*2)
 
@@ -587,8 +639,8 @@ class OAADMM:
         for vin_i in self.mcN:
             if vin_i == egoX.id:
                 continue
-            self.rho_IJ[vin_i] = np.minimum( np.maximum(self.rho_base * ( (self.d_min*self.d_phi)/(dist2AgentsCap(self.x_i,self.x_J.get(vin_i),self.theta,self.theta_J.get(vin_i),self.mpc.cap_l,self.mpc.cap_r,2,self.N)) )**self.phi_a, np.ones(self.N*2)*5e-3), np.ones(self.N*2)*5e2)
-            # self.rho_IJ[vin_i] = self.rho_base * ( (self.d_min*self.d_phi)/(dist2Agents(self.x_i,self.x_J[vin_i],2,self.N)) )**self.phi_a + 1e-3
+            self.rho_IJ[vin_i] = self.rho_base * np.minimum( np.maximum( ( (self.d_min*self.d_phi)/(dist2AgentsCap(self.x_i,self.x_J.get(vin_i),self.theta,self.theta_J.get(vin_i),self.mpc.cap_l,self.mpc.cap_r,2,self.N)) )**self.phi_a, np.ones(self.N*2)*0.01), np.ones(self.N*2)*2)
+            self.rho_IJ[vin_i] = np.hstack([self.rho_IJ[vin_i][2:],self.rho_IJ[vin_i][-2:]])
             self.rho_JI[egoX.id] = self.rho_JI[egoX.id] + self.rho_IJ[vin_i]*(len(self.mcN)-1)**-1
 
     def outbox(self,egoX,var):
@@ -615,12 +667,15 @@ class OAADMM:
     def setup(self,egoX,worldX):
         # Setup a priority value for the vehicle (unused)
         self.setPriority(0)        
-        # if egoX.spwnid in [1,3]:
-        #     self.rho_base = self.rho_base*1
-        # if egoX.spwnid in [2,4]:
-        #     self.rho_base = self.rho_base*1
-        self.rho_base = self.rho_base * (1+random.uniform(-1,1)*0)
-
+        # self.rho_base = self.rho_base * (1+random.uniform(-1,1)*0.0)
+        if egoX.spwnid == 1:
+            self.rho_base = self.rho_base*1.5
+        if egoX.action == "S":
+            self.rho_base = self.rho_base * (2+random.uniform(-1,1)*0.0)            
+        elif egoX.action == "R":
+            self.rho_base = self.rho_base * (1+random.uniform(-1,1)*0.0)                        
+        elif egoX.action == "L":
+            self.rho_base = self.rho_base * (0.5+random.uniform(-1,1)*0.0)            
         # Add ego id to its own mcN list
         self.mcN.append(egoX.id)
          
@@ -628,7 +683,7 @@ class OAADMM:
         self.routeProcess(egoX)        
          
         # Initialize the capsule size of the vehicle
-        self.mpc.cap_r = egoX.ego.bounding_box.extent.y*1.0
+        self.mpc.cap_r = egoX.ego.bounding_box.extent.y*1.05
         self.mpc.cap_l = egoX.ego.bounding_box.extent.x*1.0
         self.d_min = 2*self.mpc.cap_r
         # Setup the x MPC for egoX
