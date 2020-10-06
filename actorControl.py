@@ -30,6 +30,7 @@ def actorControl(arg,para=[]):
     cases = {
         "TEPControl": TEPControl,
         "MPIPControl": MPIPControl,
+        "MPIPMPCControl":MPIPMPCControl,
         "DCRControl": DCRControl,
         "OAMPC": OAMPC,
     }
@@ -232,8 +233,9 @@ class MPIPMPCControl:
                         if smpList[0] < 5:
                             velDes = 0
                         else:
-                            velDes = min((smpList[0]/2,velDes))
-
+                            (sol,u0) = qpMPC(x0,egoX.dt*4,egoX.velRef,[],egoX.id,N)
+                            velDes = min(egoX.velNorm+u0[0]*1.3,velDes)
+  
         (u_v,self.vPIDStates) = velocityPID(egoX,self.vPIDStates,velDes)
         #* PID Control
 
@@ -453,9 +455,9 @@ def velocityPID(egoX,states,velDes=None):
     if u_v < 0: 
         u_v = u_v * 1.1
     if v > 1:
-        u_v += 0.115+0.0936*v+-0.00345*v**2 # quadractic approximation of throttle to overcome friction
+        u_v += 0.115+0.0934*v+-0.00345*v**2 # quadractic approximation of throttle to overcome friction
     else:
-        u_v += 0.1+0.10*v # quadractic approximation of throttle to overcome friction
+        u_v += 0.1+0.11*v # quadractic approximation of throttle to overcome friction
         
     states = (error,integral,derivative)
     return (u_v,states)

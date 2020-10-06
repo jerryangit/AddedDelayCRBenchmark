@@ -33,6 +33,7 @@ except IndexError:
 import carla
 from agents.navigation.global_route_planner_dao import GlobalRoutePlannerDAO
 from agents.navigation.global_route_planner import GlobalRoutePlanner
+import matplotlib.pyplot as plt
 
 import random
 import time
@@ -48,14 +49,14 @@ if not os.path.exists('./recordings'):
 # def main(cr_method = "AMPIP", ctrlPolicy = "MPIPControl", PriorityPolicy = "FCFS",totalVehicle = 128, scenario = 0, spwnInterval = 0.8, randomSeed = 469730,logging = 1):
 # def main(cr_method = "AMPIP", ctrlPolicy = "MPIPControl", PriorityPolicy = "FCFS",totalVehicle = 128, scenario = 0, spwnInterval = 1.2, randomSeed = 960489,logging = 1):
 
-def main(cr_method = "OAADMM", ctrlPolicy = "OAMPC", PriorityPolicy = "PriorityScore",totalVehicle = 16, scenario = 8, spwnInterval = 30, randomSeed = 885441, preGenRoute = 1, logging = 1, errMargin = 0.5, recordName = 'record_OAADMM_20_10_05_1.log'):
+def main(cr_method = "OAADMM", ctrlPolicy = "OAMPC", PriorityPolicy = "PriorityScore",totalVehicle = 16, scenario = 8, spwnInterval = 30, randomSeed = 885441, preGenRoute = 1, logging = 1, errMargin = 0.5, recordName = 'record_OAADMM_20_10_05_1.log', parg = None):
     ###############################################
     # Config
     ###############################################  
     syncmode = 1                # Whether ticks are synced
     freqSimulation = 160        # [HZ] The frequency at which the simulation is ran 
     freqOnBoard = 20            # [HZ] The frequency at which vehicle on board controller is simulated
-    freqControl = 40           # [Hz] The frequency at which the low level control is performed
+    freqControl = 40            # [Hz] The frequency at which the low level control is performed
     random.seed(randomSeed)     # Random seed
     maxVehicle = 24             # Max simultaneous vehicle
     # preGenRoute 
@@ -66,12 +67,12 @@ def main(cr_method = "OAADMM", ctrlPolicy = "OAMPC", PriorityPolicy = "PriorityS
     # cr_method = "DCR"                   # Which conflict resolution method is used
     # ctrlPolicy = "DCRControl"           # Which control policy is used
     # PriorityPolicy = "PriorityScore"    # Which priorityPolicy is used
-    # cr_method = "MPIP"         # Which conflict resolution method is used
-    # ctrlPolicy = "MPIPControl" # Which control policy is used
-    # PriorityPolicy = "FCFS"    # Which priorityPolicy is used
+    # cr_method = "MPIP"          # Which conflict resolution method is used
+    # ctrlPolicy = "MPIPControl"  # Which control policy is used
+    # PriorityPolicy = "FCFS"     # Which priorityPolicy is used
     ###############################################
     # Plotting Config
-    ###############################################  
+    ###############################################
     plot = 0                    # Whether to plot figures afterwards or not
     plotVel = 0                 # Whether to plot velocity or not
     plotTheta = 0               # Whether to plot theta or not
@@ -211,8 +212,8 @@ def main(cr_method = "OAADMM", ctrlPolicy = "OAMPC", PriorityPolicy = "PriorityS
             velRand = np.array([4.5+0.15*random.uniform(-1,1) for iter in range(totalVehicle)])
         elif scenario == 8:
             # testing for OA-ADMM MPC Simultaneous
-            spwnRand = [1,2,1,3,1,2]
-            destRand = [2,4,2,4,2,3]
+            spwnRand = []
+            destRand = []
             for i_in in [1]:
                 for i_out in [2,3,4]:
                     for j_in in [2,3,4]:
@@ -224,9 +225,9 @@ def main(cr_method = "OAADMM", ctrlPolicy = "OAMPC", PriorityPolicy = "PriorityS
                             spwnRand.append(j_in) 
                             destRand.append(j_out)
             kmax = 2
-            totalVehicle = np.minimum(len(destRand),1000)
+            totalVehicle = np.minimum(len(destRand),totalVehicle)
             # spwnInterval = 30
-            velRand = np.array([5+0.15*random.uniform(-1,1) for iter in range(totalVehicle)])
+            velRand = np.array([4+0.15*random.uniform(-1,1) for iter in range(totalVehicle)])
         elif scenario == 9:
             # testing for OA-ADMM MPC Simultaneous
             spwnRand = []
@@ -242,8 +243,8 @@ def main(cr_method = "OAADMM", ctrlPolicy = "OAMPC", PriorityPolicy = "PriorityS
                             spwnRand.append(j_in) 
                             destRand.append(j_out)
             kmax = 1
-            totalVehicle = np.minimum(len(destRand),1000)
-            velRand = np.array([5+0.15*random.uniform(-1,1) for iter in range(totalVehicle)])
+            totalVehicle = np.minimum(len(destRand),totalVehicle)
+            velRand = np.array([4+0.15*random.uniform(-1,1) for iter in range(totalVehicle)])
 
         # idRand is only used for tie breaking, used to avoid odd behavior
         idRand = np.array([random.randint(100000,999999) for iter in range(totalVehicle)])
@@ -257,7 +258,7 @@ def main(cr_method = "OAADMM", ctrlPolicy = "OAMPC", PriorityPolicy = "PriorityS
         # eastSpawn = carla.Transform(carla.Location(x=-115.0, y=-36.6, z=0.265), carla.Rotation(yaw=-180))
         # southSpawn = carla.Transform(carla.Location(x=-148.49, y=0.0, z=0.31), carla.Rotation(yaw=-90))
         # westSpawn = carla.Transform(carla.Location(x=-185.0, y=-33.3, z=0.01), carla.Rotation(yaw=0))
-        northSpawn = carla.Transform(carla.Location(x=-151.49, y=-69.5, z=0.271), carla.Rotation(yaw=90))
+        northSpawn = carla.Transform(carla.Location(x=-151.49, y=-69.7, z=0.271), carla.Rotation(yaw=90))
         eastSpawn = carla.Transform(carla.Location(x=-115.05, y=-36.4, z=0.104), carla.Rotation(yaw=-180))
         southSpawn = carla.Transform(carla.Location(x=-149.05, y=00.0, z=0.305), carla.Rotation(yaw=-90))
         westSpawn = carla.Transform(carla.Location(x=-184.0, y=-33.7, z=0.0112), carla.Rotation(yaw=0))
@@ -343,7 +344,7 @@ def main(cr_method = "OAADMM", ctrlPolicy = "OAMPC", PriorityPolicy = "PriorityS
                             spwnX.cr = cr.conflictResolution(cr_method,[errMargin,PriorityPolicy]).obj
 
                             # Setup conflict resolution using egoX and worldX
-                            spwnX.cr.setup(spwnX,worldX_obj)
+                            spwnX.cr.setup(spwnX,worldX_obj,parg)
 
                             # Create control object and save it
                             spwnX.co = ac.actorControl(ctrlPolicy)
@@ -396,6 +397,7 @@ def main(cr_method = "OAADMM", ctrlPolicy = "OAMPC", PriorityPolicy = "PriorityS
             for actorX in actorDict_obj.dict.values():
                 actorX.updateStats()
 
+
             #* Code to enforce a different freq for on board calculations and simulation
 
 
@@ -413,6 +415,7 @@ def main(cr_method = "OAADMM", ctrlPolicy = "OAMPC", PriorityPolicy = "PriorityS
                 for actorX in actorDict_obj.dict.values():
                     worldX_obj.msg.receive(actorX)
                     actorX.updateParameters(dt_ob)
+
 
                 worldX_obj.msg.clearCloud()
                 #* Loop to resolve conflicts 
@@ -468,6 +471,7 @@ def main(cr_method = "OAADMM", ctrlPolicy = "OAMPC", PriorityPolicy = "PriorityS
                 notComplete = 0
             # if logging == 1:
             #     worldX_obj0 = copy.copy(worldX_obj)
+            
     finally:
         print("Ended with Method:",cr_method,", Control Policy: ", ctrlPolicy, ", Total Vehicles: ", totalVehicle, "Scenario: ",scenario, "Spawn Interval: ",spwnInterval, "Random Seed: ",randomSeed)
 

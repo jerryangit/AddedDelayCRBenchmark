@@ -12,7 +12,7 @@ def main():
     qpMPC(x0,dt,v_des,CellList,1)
 
 
-def qpMPC(x0,dt,v_des,CellList,ID,N=20, inputCosts = 3.5*5, devCosts = 2):
+def qpMPC(x0,dt,v_des,CellList,ID,N=20, inputCosts = 3.5*2.5, devCosts = 100):
     #TODO fix bug, always uses max input?
     #TODO make into class and separate into setup and optimize and reuse some matrices
     # Finite horizon
@@ -26,8 +26,8 @@ def qpMPC(x0,dt,v_des,CellList,ID,N=20, inputCosts = 3.5*5, devCosts = 2):
     ss_A = np.array([[1,dt],[0,1]])
     ss_B = np.array([[0],[1]])
     #* Constraints
-    a_max = 2 + x0[1][0]/8 # Make maximum acceleration dependent on current velocity, if standstill acceleration is lower than if already moving fast due to RPM issues.
-    a_min = 9
+    a_max = 2.25 + x0[1][0]/8 # Make maximum acceleration dependent on current velocity, if standstill acceleration is lower than if already moving fast due to RPM issues.
+    a_min = 10
     u_max = a_max*dt # Maximum acceleration 
     u_min = a_min*dt # Maximum deceleration
     v_max = 10 # Maximum velocity
@@ -93,7 +93,7 @@ def qpMPC(x0,dt,v_des,CellList,ID,N=20, inputCosts = 3.5*5, devCosts = 2):
         # If the entry has been violated already, extend it to avoid further acceleration without causing script to crash.
         if tIn == 0 and x0[0] > sIn:
             tIn = 1 
-            sIn = x0[0][0] + x0[1][0] * dt * 1.05 
+            sIn = x0[0][0] + x0[1][0] * dt * 1.025 
         # If tIn is in the future, and within finite horizon add it as a constraint
         if tIn > 0 and tIn < N*dt:           
             tIndex = int(np.floor(tIn/dt))
@@ -103,11 +103,13 @@ def qpMPC(x0,dt,v_des,CellList,ID,N=20, inputCosts = 3.5*5, devCosts = 2):
         # If no displacement constraints have been added
         elif tIn <= 0 and tIndex == None:
             tIndex = 0
-    if tIndex == None:
+    if tIndex == None and len(CellList) > 0:
         tIndex = N-1
-        # If none of the cells are within finite horizon, add a constraint at last timestep for interpolated distance, to avoid speeding through.
-        # sIn at first (ds/t)*(N*dt), average velocity needed to reach tIn* time at end of finite horizon
-        sIn = x0[0][0]+(CellList[0][0]-x0[0][0])/(CellList[0][1])*((N-1)*dt)  #+0.125 !REMOVED FOR NOW Relaxed with some time in order to prevent tIn increasing itself perpetually
+        # If none of the cells are within finite horizon, add a constraint at last timestep for interpolated distance, to avoid speeding through.        
+        # Fix this
+        sIn = x0[0][0] + v_des*((N-1)*dt)*1.05
+        # sIn = x0[0][0]+(CellList[0][0]-x0[0][0])/(CellList[0][1])*((N-1)*dt)  #+0.125 !REMOVED FOR NOW Relaxed with some time in order to prevent tIn increasing itself perpetually
+        # sIn at first (ds/t)*(N*dt), average velocity needed to reach tIn* time at end of finite horizon        
         Aieq_st = np.concatenate( (Aieq_st,np.concatenate( (np.zeros((1, states*(tIndex))), np.array([[1, 0]]), np.zeros((1,N_tot-(tIndex+1)*states-(N_slack-slackIndex))),np.ones((1,1)),np.zeros((1,N_slack - 1 - slackIndex)) ), axis = 1)) , axis = 0)
         bieq_st = np.concatenate( (bieq_st,np.array([[sIn]]) ), axis = 0)
 

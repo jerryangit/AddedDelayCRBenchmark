@@ -24,13 +24,15 @@ def paraGen(benchmark):
     paraList = []
     if benchmark == "default":
         random.seed(0)
-        logging = 1
+        logging = 0
         repetitions = 1
-        errMargin = 1
+        errMargin = 0.25
         scenarioList = [8]
-        throughputList = [1.25,1,5/6,2/3,1/2,1/3] # vehicles per seconds
-        totalVehicleList = [0]
+        throughputList = [1] # vehicles per seconds
+        totalVehicleList = [100]
         preGenRoute = 1
+        parg = None
+
         for rep in range(repetitions):
             for totalVehicle in totalVehicleList:
                 for throughput in throughputList:
@@ -48,26 +50,40 @@ def paraGen(benchmark):
                         cr_method = "OAADMM"
                         ctrlPolicy = "OAMPC"
                         PriorityPolicy ="PriorityScore"
-                        recordName = 'record_NoConflict_20_10_05_1.log'
-                        paraList.append((cr_method, ctrlPolicy, PriorityPolicy,totalVehicle, 9, spwnInterval, randomSeed, preGenRoute, logging, errMargin, recordName))
+                        recordName = 'NoConflict_20_10_06.log'
+                        paraList.append((cr_method, ctrlPolicy, PriorityPolicy,totalVehicle, 9, spwnInterval, randomSeed, preGenRoute, logging, errMargin, recordName,parg))
 
                         cr_method = "AMPIP"
-                        ctrlPolicy = "MPIPMPCControl"
+                        ctrlPolicy = "MPIPControl"
                         PriorityPolicy ="FCFS"
-                        recordName = 'record_AMPIP_20_10_05_1.log'
-                        paraList.append((cr_method, ctrlPolicy, PriorityPolicy,totalVehicle, scenario, spwnInterval, randomSeed, preGenRoute, errMargin, logging))
+                        recordName = 'AMPIP_20_10_06_low.log'                        
+                        parg = 'gridLow'
+                        paraList.append((cr_method, ctrlPolicy, PriorityPolicy,totalVehicle, scenario, spwnInterval, randomSeed, preGenRoute, logging, errMargin, recordName,parg))                        
+                        recordName = 'AMPIP_20_10_06_med.log'
+                        parg = None
+                        paraList.append((cr_method, ctrlPolicy, PriorityPolicy,totalVehicle, scenario, spwnInterval, randomSeed, preGenRoute, logging, errMargin, recordName,parg))                        
+                        recordName = 'AMPIP_20_10_06_high.log'                        
+                        parg = 'gridHigh'
+                        paraList.append((cr_method, ctrlPolicy, PriorityPolicy,totalVehicle, scenario, spwnInterval, randomSeed, preGenRoute, logging, errMargin, recordName,parg))                        
 
-                        # cr_method = "DCR"
-                        # ctrlPolicy = "DCRControl"
-                        # PriorityPolicy ="PriorityScore"
-                        # recordName = 'record_DCR_20_10_05_1.log'
-                        # paraList.append((cr_method, ctrlPolicy, PriorityPolicy,totalVehicle, scenario, spwnInterval, randomSeed, preGenRoute, errMargin, logging))
+                        cr_method = "DCR"
+                        ctrlPolicy = "DCRControl"
+                        PriorityPolicy ="PriorityScore"
+                        recordName = 'DCR_20_10_06_low.log'
+                        parg = 'gridLow'
+                        paraList.append((cr_method, ctrlPolicy, PriorityPolicy,totalVehicle, scenario, spwnInterval, randomSeed, preGenRoute, logging, errMargin, recordName,parg))
+                        recordName = 'DCR_20_10_06_med.log'
+                        parg = None
+                        paraList.append((cr_method, ctrlPolicy, PriorityPolicy,totalVehicle, scenario, spwnInterval, randomSeed, preGenRoute, logging, errMargin, recordName,parg))                        
+                        recordName = 'DCR_20_10_06_high.log'
+                        parg = 'gridHigh'
+                        paraList.append((cr_method, ctrlPolicy, PriorityPolicy,totalVehicle, scenario, spwnInterval, randomSeed, preGenRoute, logging, errMargin, recordName,parg))                        
 
                         cr_method = "OAADMM"
                         ctrlPolicy = "OAMPC"
                         PriorityPolicy ="PriorityScore"
-                        recordName = 'record_OAADMM_20_10_05_1.log'
-                        paraList.append((cr_method, ctrlPolicy, PriorityPolicy,totalVehicle, scenario, spwnInterval, randomSeed, preGenRoute, logging, errMargin, recordName))
+                        recordName = 'OAADMM_20_10_06.log'
+                        paraList.append((cr_method, ctrlPolicy, PriorityPolicy,totalVehicle, scenario, spwnInterval, randomSeed, preGenRoute, logging, errMargin, recordName, parg))
     return paraList
 if __name__ == "__main__":
     main()

@@ -68,7 +68,7 @@ class oa_mpc:
         # Vehicle porperties
         self.deltaMax = (np.pi*4)/9
         self.ddeltaMax = self.deltaMax*1 # (self.dt/0.125)   # Maximum steering angle change per step, number is amount of seconds per full rotation
-        self.w_prev = 1 # Penalty term for deviating from previous result
+        self.w_prev = 5 # Penalty term for deviating from previous result
         # Not configurable
         self.nx = 3                     # Number of states
         self.nu = 2                     # Number of inputs
@@ -131,15 +131,15 @@ class oa_mpc:
             umin_vec[1::2] = np.linspace(0.75,3,self.N) * umin[1]
             umax_vec[0::2] = np.ones(self.N) * umax[0]
             umax_vec[1::2] = np.linspace(0.75,3,self.N) * umax[1]
-            Q = sparse.diags([35.0, 225.0, 6.5])
-            R = sparse.diags([2.5, 5.0])
+            Q = sparse.diags([35.0, 150.0, 35.0])
+            R = sparse.diags([2.5, 55.0])
         else:   
             umin_vec[0::2] = np.ones(self.N) * umin[0]
-            umin_vec[1::2] = np.linspace(0.75,1.25,self.N) * umin[1]
+            umin_vec[1::2] = np.linspace(0.75,1.,self.N) * umin[1]
             umax_vec[0::2] = np.ones(self.N) * umax[0]
-            umax_vec[1::2] = np.linspace(0.75,1.25,self.N) * umax[1]
-            Q = sparse.diags([5.0, 200.0, 7.5])
-            R = sparse.diags([1.25, 25.0])
+            umax_vec[1::2] = np.linspace(0.75,1.,self.N) * umax[1]
+            Q = sparse.diags([25.0, 150.0, 50.0])
+            R = sparse.diags([1.25, 75.0])
         lineq = np.hstack([np.kron(np.ones(self.N+1), xmin), umin_vec])
         uineq = np.hstack([np.kron(np.ones(self.N+1), xmax), umax_vec])
         # Cost function
@@ -349,7 +349,7 @@ class oa_mpc:
             # Create an OSQP object
             self.prob_z = osqp.OSQP()
             # Setup workspace
-            self.prob_z.setup(P, q, A, l, u, warm_start=True, polish = 1, max_iter = 100000 ,verbose = 0, scaling= 25,eps_abs = 1e-12,eps_rel = 1e-8)
+            self.prob_z.setup(P, q, A, l, u, warm_start=True, polish = 1, max_iter = 150000 ,verbose = 0, scaling= 25,eps_abs = 1e-12,eps_rel = 1e-8)
         else:
             # Create an OSQP object
             self.prob_z = osqp.OSQP()

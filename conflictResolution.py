@@ -167,8 +167,11 @@ class MPIP:
             msg_obj = msg(actorX.id,"EXIT")
             return msg_obj
 
-    def setup(self,egoX,worldX):
-        self.cd = cd.conflictDetection("gridCell",[worldX.inter_location,4,18,self.errMargin]).obj
+    def setup(self,egoX,worldX,parg):
+        if parg == 'gridInaccurate':
+            self.cd = cd.conflictDetection("gridCell",[worldX.inter_location,1,18,self.errMargin]).obj
+        else:
+            self.cd = cd.conflictDetection("gridCell",[worldX.inter_location,4,18,self.errMargin]).obj            
         self.cd.setup(egoX,worldX)
 
 class AMPIP:
@@ -227,8 +230,13 @@ class AMPIP:
             msg_obj = msg(egoX.id,"EXIT")
             return msg_obj
 
-    def setup(self,egoX,worldX):
-        self.cd = cd.conflictDetection("gridCell",[worldX.inter_location,4,18,self.errMargin]).obj
+    def setup(self,egoX,worldX,parg):
+        if parg == 'gridLow':
+            self.cd = cd.conflictDetection("gridCell",[worldX.inter_location,1,18,self.errMargin]).obj
+        elif parg == 'gridHigh':
+            self.cd = cd.conflictDetection("gridCell",[worldX.inter_location,8,18,self.errMargin]).obj
+        else:
+            self.cd = cd.conflictDetection("gridCell",[worldX.inter_location,4,18,self.errMargin]).obj            
         self.cd.setup(egoX,worldX)
 
 class DCR:
@@ -367,8 +375,13 @@ class DCR:
         self.priorityScore = score
 
 
-    def setup(self,egoX,worldX):
-        self.cd = cd.conflictDetection("conflictZones",[worldX.inter_location,2,8,self.errMargin]).obj
+    def setup(self,egoX,worldX,parg):
+        if parg == 'gridLow':
+            self.cd = cd.conflictDetection("conflictZones",[worldX.inter_location,1,18,self.errMargin]).obj
+        elif parg == 'gridHigh':
+            self.cd = cd.conflictDetection("conflictZones",[worldX.inter_location,8,18,self.errMargin]).obj
+        else:
+            self.cd = cd.conflictDetection("conflictZones",[worldX.inter_location,4,18,self.errMargin]).obj
         self.cd.setup(egoX,worldX)
         self.setPriority(0)
 
@@ -394,13 +407,13 @@ class OAADMM:
         ## OA-ADMM Parameter
         self.dt = 0.1
         self.d_min = 2 # Overwritten by self.mpc.cap_r
-        self.d_phi = 1.15
-        self.d_mult = 1.075
+        self.d_phi = 1.25
+        self.d_mult = 1.25
         self.rho_base = 1
-        self.phi_a = 1.7
+        self.phi_a = 1.6
         self.mu_0 = 32/32
-        self.N = 15                         # Prediction horizon
-        self.mcN_Dist = self.N*self.dt*5*3  # Distance at vehicle is added to mcN
+        self.N = 20                         # Prediction horizon
+        self.mcN_Dist = self.N*self.dt*4*2  # Distance at vehicle is added to mcN
         self.mpc = mpc.oa_mpc(self.dt,self.N,self.d_min,self.d_mult)
         self.I_xy = self.mpc.I_xy
         self.I_xyv = self.mpc.I_xyv
@@ -500,7 +513,7 @@ class OAADMM:
         self.x_J[egoX.id] = self.x_i
 
         # Plot vehicle nr x if True
-        if egoX._spwnNr == 4 and False:
+        if False and egoX._spwnNr == 2:
             plt.figure(1)
             plt.gca().clear()        
             plt.title(str(egoX.id)+'MPC steps')
@@ -548,13 +561,20 @@ class OAADMM:
                 plt.pause(0.00001)
             if True:
                 plt.figure(3)
-                plt.gca().clear()        
+                plt.gca().clear()     
+                p1 = p2 = p3 = p4 = p5 = p6 = None
                 for vin_j in self.mcN:
                     if vin_j == egoX.id:
-                        plt.plot(self.lambda_JI[vin_j],'k.')                   # Local Acc
+                        p1, = plt.plot(self.lambda_JI[vin_j],'k.',markersize = 4, alpha=0.5)
+                        p2, = plt.plot(self.rho_JI[vin_j],'ko',markersize = 4, alpha=0.5, markerfacecolor='none')                        
                     else:
-                        plt.plot(self.lambda_JI[vin_j],'r.')                   # Local Acc
-                plt.plot(self.rho_JI[egoX.id],'b.')                   # Local Acc
+                        p3, = plt.plot(self.lambda_JI[vin_j],'r.',markersize = 4, alpha=0.5)
+                        p4, = plt.plot(self.rho_JI[vin_j],'ro',markersize = 4, alpha=0.5, markerfacecolor='none')                        
+                        if vin_j in self.lambda_IJ.keys():
+                            p5, = plt.plot(self.lambda_IJ[vin_j],'b.',markersize = 4, alpha=0.5)
+                        if vin_j in self.rho_IJ.keys():                            
+                            p6, = plt.plot(self.rho_IJ[vin_j],'bo',markersize = 4, alpha=0.5, markerfacecolor='none')
+                plt.legend((p1,p2,p3,p4,p5,p6), ('lambda_ii', 'rho_ii', 'lambda_ji', 'rho_ji', 'lambda_ij','rho_ij'))
                 plt.show(block=False)
                 plt.pause(0.00001)
             if True:
@@ -569,6 +589,8 @@ class OAADMM:
                     else: 
                         if vin_j in self.z_IJ.keys():
                             plt.plot(self.z_IJ_loc[vin_j][1::2],self.z_IJ_loc[vin_j][0::2],'ro',markersize = 4, alpha=0.5, markerfacecolor='none')
+                        if vin_j in self.z_JI.keys():
+                            plt.plot(self.z_JI[vin_j][1::3],self.z_JI[vin_j][0::3],'ro',markersize = 4, alpha=0.5, markerfacecolor='none')
                         if vin_j in self.x_J.keys():
                             plt.plot(self.x_J[vin_j][1::2],self.x_J[vin_j][0::2],'rx',markersize = 3, alpha=0.5, markerfacecolor='none')                    
                 plt.show(block=False)
@@ -621,7 +643,7 @@ class OAADMM:
                 self.z_IJ[vin_i] = (np.kron( np.eye(self.N) , rMatrixAB( self.theta,self.theta_J.get(vin_i) )  ) ) @ ( z_ij_loc - np.kron(np.ones((self.N)),Tps_ij) )
         
         # Update Mu:
-        self.mu_Vec = (0.8*self.mu_Vec + 0.2*np.minimum(np.divide(self.rho_JI.get(egoX.id),self.rho_base)*self.mu_0,1))
+        self.mu_Vec = (0.5*self.mu_Vec + 0.5*np.minimum(np.divide(self.rho_JI.get(egoX.id),self.rho_base)*self.mu_0,1))
         # Update lambda 
         for vin_i in self.mcN:
             if vin_i == egoX.id:
@@ -629,7 +651,8 @@ class OAADMM:
                 self.lambda_JI[egoX.id] = np.hstack([self.lambda_JI[egoX.id][2:],self.lambda_JI[egoX.id][-2:]])
             else:
                 if vin_i in self.lambda_IJ.keys():
-                    self.lambda_IJ[vin_i] = self.mu_Vec*self.lambda_IJ.get(vin_i) + self.rho_IJ.get(vin_i) * (-self.x_J0.get(vin_i) + self.z_IJ.get(vin_i))
+                    # self.lambda_IJ[vin_i] = self.mu_Vec*self.lambda_IJ.get(vin_i) + self.rho_IJ.get(vin_i) * (-self.x_J0.get(vin_i) + self.z_IJ.get(vin_i))
+                    self.lambda_IJ[vin_i] = self.mu_Vec*self.lambda_IJ.get(vin_i) + self.rho_IJ.get(vin_i) * (self.x_J0.get(vin_i) - self.z_IJ.get(vin_i))                    
                     self.lambda_IJ[vin_i] = np.hstack([self.lambda_IJ[vin_i][2:],self.lambda_IJ[vin_i][-2:]])
                 else:
                     self.lambda_IJ[vin_i] = np.zeros(self.N*2)
@@ -664,16 +687,16 @@ class OAADMM:
     def setPriority(self,score):
         self.priorityScore = score
 
-    def setup(self,egoX,worldX):
+    def setup(self,egoX,worldX,parg):
         # Setup a priority value for the vehicle (unused)
         self.setPriority(0)        
         # self.rho_base = self.rho_base * (1+random.uniform(-1,1)*0.0)
         if egoX.spwnid == 1:
-            self.rho_base = self.rho_base*1.4
+            self.rho_base = self.rho_base*2
         if egoX.action == "S":
-            self.rho_base = self.rho_base * (1.0+random.uniform(-1,1)*0.0)            
+            self.rho_base = self.rho_base * (2.0+random.uniform(-1,1)*0.0)            
         elif egoX.action == "R":
-            self.rho_base = self.rho_base * (0.75+random.uniform(-1,1)*0.0)                        
+            self.rho_base = self.rho_base * (1.25+random.uniform(-1,1)*0.0)                        
         elif egoX.action == "L":
             self.rho_base = self.rho_base * (0.5+random.uniform(-1,1)*0.0)            
         # Add ego id to its own mcN list
