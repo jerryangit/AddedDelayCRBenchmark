@@ -394,13 +394,13 @@ class OAADMM:
         ## OA-ADMM Parameter
         self.dt = 0.1
         self.d_min = 2 # Overwritten by self.mpc.cap_r
-        self.d_phi = 1.195
-        self.d_mult = 1.195
+        self.d_phi = 1.15
+        self.d_mult = 1.075
         self.rho_base = 1
-        self.phi_a = 1.25
+        self.phi_a = 1.7
         self.mu_0 = 32/32
-        self.N = 20                        # Prediction horizon
-        self.mcN_Dist = self.N*self.dt*5*3   # Distance at vehicle is added to mcN
+        self.N = 15                         # Prediction horizon
+        self.mcN_Dist = self.N*self.dt*5*3  # Distance at vehicle is added to mcN
         self.mpc = mpc.oa_mpc(self.dt,self.N,self.d_min,self.d_mult)
         self.I_xy = self.mpc.I_xy
         self.I_xyv = self.mpc.I_xyv
@@ -500,7 +500,7 @@ class OAADMM:
         self.x_J[egoX.id] = self.x_i
 
         # Plot vehicle nr x if True
-        if egoX._spwnNr == 10 and False:
+        if egoX._spwnNr == 4 and False:
             plt.figure(1)
             plt.gca().clear()        
             plt.title(str(egoX.id)+'MPC steps')
@@ -535,7 +535,7 @@ class OAADMM:
                             plt.plot(self.x_J[vin_j][1::2],self.x_J[vin_j][0::2],'rx',markersize = 4, alpha=0.5, markerfacecolor='none')                    
             plt.show(block=False)
             plt.pause(0.00001)
-            if False:
+            if True:
                 plt.figure(2)
                 plt.gca().clear()        
                 plt.ylim(-3,8)
@@ -621,15 +621,15 @@ class OAADMM:
                 self.z_IJ[vin_i] = (np.kron( np.eye(self.N) , rMatrixAB( self.theta,self.theta_J.get(vin_i) )  ) ) @ ( z_ij_loc - np.kron(np.ones((self.N)),Tps_ij) )
         
         # Update Mu:
-        self.mu_Vec = (0.75*self.mu_Vec + 0.25*np.minimum(np.divide(self.rho_JI.get(egoX.id),self.rho_base)*self.mu_0,1))
+        self.mu_Vec = (0.8*self.mu_Vec + 0.2*np.minimum(np.divide(self.rho_JI.get(egoX.id),self.rho_base)*self.mu_0,1))
         # Update lambda 
         for vin_i in self.mcN:
             if vin_i == egoX.id:
                 self.lambda_JI[egoX.id] = self.mu_Vec*self.lambda_JI.get(vin_i) + self.rho_JI.get(vin_i) * (self.x_i - self.z_IJ.get(vin_i))
-                self.lambda_JI[egoX.id] = np.hstack([self.lambda_JI[egoX.id][2:],self.lambda_JI[egoX.id][-2:]])                
+                self.lambda_JI[egoX.id] = np.hstack([self.lambda_JI[egoX.id][2:],self.lambda_JI[egoX.id][-2:]])
             else:
                 if vin_i in self.lambda_IJ.keys():
-                    self.lambda_IJ[vin_i] = self.mu_Vec*self.lambda_IJ.get(vin_i) + self.rho_IJ.get(vin_i) * (self.x_J0.get(vin_i) - self.z_IJ.get(vin_i))
+                    self.lambda_IJ[vin_i] = self.mu_Vec*self.lambda_IJ.get(vin_i) + self.rho_IJ.get(vin_i) * (-self.x_J0.get(vin_i) + self.z_IJ.get(vin_i))
                     self.lambda_IJ[vin_i] = np.hstack([self.lambda_IJ[vin_i][2:],self.lambda_IJ[vin_i][-2:]])
                 else:
                     self.lambda_IJ[vin_i] = np.zeros(self.N*2)
@@ -669,11 +669,11 @@ class OAADMM:
         self.setPriority(0)        
         # self.rho_base = self.rho_base * (1+random.uniform(-1,1)*0.0)
         if egoX.spwnid == 1:
-            self.rho_base = self.rho_base*1.5
+            self.rho_base = self.rho_base*1.4
         if egoX.action == "S":
-            self.rho_base = self.rho_base * (2+random.uniform(-1,1)*0.0)            
+            self.rho_base = self.rho_base * (1.0+random.uniform(-1,1)*0.0)            
         elif egoX.action == "R":
-            self.rho_base = self.rho_base * (1+random.uniform(-1,1)*0.0)                        
+            self.rho_base = self.rho_base * (0.75+random.uniform(-1,1)*0.0)                        
         elif egoX.action == "L":
             self.rho_base = self.rho_base * (0.5+random.uniform(-1,1)*0.0)            
         # Add ego id to its own mcN list
@@ -683,8 +683,8 @@ class OAADMM:
         self.routeProcess(egoX)        
          
         # Initialize the capsule size of the vehicle
-        self.mpc.cap_r = egoX.ego.bounding_box.extent.y*1.05
-        self.mpc.cap_l = egoX.ego.bounding_box.extent.x*1.0
+        self.mpc.cap_r = egoX.ego.bounding_box.extent.y*1.025
+        self.mpc.cap_l = egoX.ego.bounding_box.extent.x*0.975
         self.d_min = 2*self.mpc.cap_r
         # Setup the x MPC for egoX
         self.mpc.setupMPC_x(egoX)

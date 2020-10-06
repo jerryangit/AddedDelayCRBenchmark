@@ -190,6 +190,76 @@ class MPIPControl:
         egoX.discreteState(state)
         return state
 
+class MPIPMPCControl:
+    def __init__(self):
+        self.vPIDStates = (0,0,0)
+        self.thetaPIDStates = (0,0,0)
+        self.cd_obj = cd.conflictDetection("coneDetect",[3.5,0.1*np.pi,5]).obj
+
+    def control(self,egoX,worldX):
+        ego = egoX.ego
+        if egoX.location == carla.Location(0,0,0):
+            return "NAN"
+
+        #* MPC velocity control:
+        x0 = np.array([[egoX.sTraversed],[egoX.velNorm]])
+        # cell = (sInCell,TinCell)
+        # From egoX T received as time from current timestep
+        N = 30
+
+        velDes = egoX.velRef
+
+        if len(egoX.cr.wait) > 0:
+            for cell in egoX.cr.wait.values():
+                if cell in egoX.cr.cd.sTCL.keys():
+                    sIn = egoX.cr.cd.sTCL.get(cell)[0]
+                    dist = sIn - egoX.sTraversed
+                    if dist < 0:
+                        velDes = 0
+                        print(egoX.id," crossed line by:", np.abs(dist),"m, adjust breaking please")
+                    elif dist < 0.275:
+                        velDes = 0
+                    elif dist < 10:
+                        velDes = min((dist/1.5 - egoX.velNorm/(egoX.aMin)*0.15,velDes))
+                        if velDes < 0:
+                            velDes = 0
+                            
+        if egoX.state == "ENTER":
+            for actor in worldX.actorDict.actor_list:
+                if ego.id != actor.id and carla.Location.distance ( ego.get_location() , actor.get_location() ) < 10 : 
+                    cd_bool,smpList = self.cd_obj.detect(ego,actor,1)
+                    if cd_bool == 1:
+                        if smpList[0] < 5:
+                            velDes = 0
+                        else:
+                            velDes = min((smpList[0]/2,velDes))
+
+        (u_v,self.vPIDStates) = velocityPID(egoX,self.vPIDStates,velDes)
+        #* PID Control
+
+        (u_theta,self.thetaPIDStates)  = anglePID(egoX,worldX,self.thetaPIDStates)
+        u_v = np.clip(u_v,-1,1)
+
+        if u_v >= 0:
+            ego.apply_control(carla.VehicleControl(throttle=u_v, steer=u_theta,brake = 0,manual_gear_shift=True,gear=1))
+        elif u_v < 0:
+            ego.apply_control(carla.VehicleControl(throttle=0, steer=u_theta,brake = - u_v*1.2,manual_gear_shift=True,gear=1))
+
+        state = egoX.state
+        if egoX.state == "NAN":
+            state = "ENTER"
+        elif egoX.state == "ENTER" and egoX.sTraversed > egoX.cr.cd.sArrival - 1:
+            if egoX.cr.cd.arr[0] != 1:
+                egoX.cr.cd.arr = [1,egoX.cr.cd.arrivalTime]
+            state = "CROSS"
+        elif egoX.state == "CROSS" and egoX.sTraversed > egoX.cr.cd.sExit:
+            if egoX.cr.cd.ext[0] != 1:
+                egoX.cr.cd.ext = [1,egoX.cr.cd.exitTime]
+            state = "EXIT"
+        egoX.discreteState(state)
+        return state
+
+
 class DCRControl:
     def __init__(self):
         self.vPIDStates = (0,0,0)
@@ -341,9 +411,9 @@ class OAMPC:
 
 
 def accPID(egoX,states,aRef):
-    kp = 0.01
+    kp = 0.0075
     kd = 0.0
-    ki = 0.2
+    ki = 0.05
     #* >
     a = 0.66*egoX.accLoc[0] + 0.33*states[3]
     
@@ -354,7 +424,11 @@ def accPID(egoX,states,aRef):
     #* >
     u_a = kp*(error) + ki*(integral) + kd*(derivative) 
     v = np.linalg.norm([egoX.ego.get_velocity().x,egoX.ego.get_velocity().y])
-    u_a += 0.11425+0.09368*v+-0.00345*v**2 # quadractic approximation of throttle to overcome friction
+    if v > 1:
+        u_a += 0.11425+0.09368*v+-0.00345*v**2 # quadractic approximation of throttle to overcome friction        
+        # u_v += 0.115+0.0936*v+-0.00345*v**2 # quadractic approximation of throttle to overcome friction
+    else:
+        u_a += 0.1+0.11*v # quadractic approximation of throttle to overcome friction
         
     states = (error,integral,derivative,a)
     return (u_a,states)
@@ -381,7 +455,7 @@ def velocityPID(egoX,states,velDes=None):
     if v > 1:
         u_v += 0.115+0.0936*v+-0.00345*v**2 # quadractic approximation of throttle to overcome friction
     else:
-        u_v += 0.1+0.11*v # quadractic approximation of throttle to overcome friction
+        u_v += 0.1+0.10*v # quadractic approximation of throttle to overcome friction
         
     states = (error,integral,derivative)
     return (u_v,states)

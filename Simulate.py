@@ -48,12 +48,12 @@ if not os.path.exists('./recordings'):
 # def main(cr_method = "AMPIP", ctrlPolicy = "MPIPControl", PriorityPolicy = "FCFS",totalVehicle = 128, scenario = 0, spwnInterval = 0.8, randomSeed = 469730,logging = 1):
 # def main(cr_method = "AMPIP", ctrlPolicy = "MPIPControl", PriorityPolicy = "FCFS",totalVehicle = 128, scenario = 0, spwnInterval = 1.2, randomSeed = 960489,logging = 1):
 
-def main(cr_method = "OAADMM", ctrlPolicy = "OAMPC", PriorityPolicy = "PriorityScore",totalVehicle = 16, scenario = 8, spwnInterval = 2, randomSeed = 960489, preGenRoute = 1, logging = 1, errMargin = 0.5, recordName = 'record_OAADMM_20_10_05_1.log'):
+def main(cr_method = "OAADMM", ctrlPolicy = "OAMPC", PriorityPolicy = "PriorityScore",totalVehicle = 16, scenario = 8, spwnInterval = 30, randomSeed = 885441, preGenRoute = 1, logging = 1, errMargin = 0.5, recordName = 'record_OAADMM_20_10_05_1.log'):
     ###############################################
     # Config
     ###############################################  
     syncmode = 1                # Whether ticks are synced
-    freqSimulation = 80        # [HZ] The frequency at which the simulation is ran 
+    freqSimulation = 160        # [HZ] The frequency at which the simulation is ran 
     freqOnBoard = 20            # [HZ] The frequency at which vehicle on board controller is simulated
     freqControl = 40           # [Hz] The frequency at which the low level control is performed
     random.seed(randomSeed)     # Random seed
@@ -207,9 +207,27 @@ def main(cr_method = "OAADMM", ctrlPolicy = "OAMPC", PriorityPolicy = "PriorityS
             totalVehicle = 16
             spwnInterval = 1.5
             spwnRand = [1,4,1,4,2,1,3,2,4,3,1,3,2,4,1,2,3,4,1,2,3,4,1,2,3,4]
-            destRand = [3,2,3,3,4,4,1,1,2,2,2,4,3,1,2,3,4,1,3,4,1,2,4,1,2,3]
+            destRand = [3,2,3,3,4,4,1,1,2,2,2,4,3,1,2,3,4,1,3,4,1,2,4,1,2,63]
             velRand = np.array([4.5+0.15*random.uniform(-1,1) for iter in range(totalVehicle)])
         elif scenario == 8:
+            # testing for OA-ADMM MPC Simultaneous
+            spwnRand = [1,2,1,3,1,2]
+            destRand = [2,4,2,4,2,3]
+            for i_in in [1]:
+                for i_out in [2,3,4]:
+                    for j_in in [2,3,4]:
+                        for j_out in [1,2,3,4]:
+                            if j_in == j_out:
+                                continue
+                            spwnRand.append(i_in)
+                            destRand.append(i_out)
+                            spwnRand.append(j_in) 
+                            destRand.append(j_out)
+            kmax = 2
+            totalVehicle = np.minimum(len(destRand),1000)
+            # spwnInterval = 30
+            velRand = np.array([5+0.15*random.uniform(-1,1) for iter in range(totalVehicle)])
+        elif scenario == 9:
             # testing for OA-ADMM MPC Simultaneous
             spwnRand = []
             destRand = []
@@ -223,9 +241,8 @@ def main(cr_method = "OAADMM", ctrlPolicy = "OAMPC", PriorityPolicy = "PriorityS
                             destRand.append(i_out)
                             spwnRand.append(j_in) 
                             destRand.append(j_out)
-            kmax = 2
+            kmax = 1
             totalVehicle = np.minimum(len(destRand),1000)
-            spwnInterval = 30
             velRand = np.array([5+0.15*random.uniform(-1,1) for iter in range(totalVehicle)])
 
         # idRand is only used for tie breaking, used to avoid odd behavior
@@ -240,7 +257,7 @@ def main(cr_method = "OAADMM", ctrlPolicy = "OAMPC", PriorityPolicy = "PriorityS
         # eastSpawn = carla.Transform(carla.Location(x=-115.0, y=-36.6, z=0.265), carla.Rotation(yaw=-180))
         # southSpawn = carla.Transform(carla.Location(x=-148.49, y=0.0, z=0.31), carla.Rotation(yaw=-90))
         # westSpawn = carla.Transform(carla.Location(x=-185.0, y=-33.3, z=0.01), carla.Rotation(yaw=0))
-        northSpawn = carla.Transform(carla.Location(x=-151.49, y=-70.0, z=0.271), carla.Rotation(yaw=90))
+        northSpawn = carla.Transform(carla.Location(x=-151.49, y=-69.5, z=0.271), carla.Rotation(yaw=90))
         eastSpawn = carla.Transform(carla.Location(x=-115.05, y=-36.4, z=0.104), carla.Rotation(yaw=-180))
         southSpawn = carla.Transform(carla.Location(x=-149.05, y=00.0, z=0.305), carla.Rotation(yaw=-90))
         westSpawn = carla.Transform(carla.Location(x=-184.0, y=-33.7, z=0.0112), carla.Rotation(yaw=0))
@@ -288,7 +305,7 @@ def main(cr_method = "OAADMM", ctrlPolicy = "OAMPC", PriorityPolicy = "PriorityS
         while notComplete: 
             if syncmode == 1: 
                 world.tick()
-                time.sleep(0.0025)
+                time.sleep(0.00125)
                 tick = world.get_snapshot()
             else:
                 tick = world.wait_for_tick()
@@ -349,7 +366,7 @@ def main(cr_method = "OAADMM", ctrlPolicy = "OAMPC", PriorityPolicy = "PriorityS
                             # spwn.apply_control(carla.VehicleControl(manual_gear_shift=False))
                             # Print out to console
                             if logging == 1:
-                                print('[%d,%d] created %s at %d with dest %d, elapsed time: %.2f s' % (i,spwn.id,spwn.type_id,spwnRand[i],destRand[i],spwnTime[i+1]))
+                                print('[%d,%d] created %s at %d with dest %d, simulation time: %.2f s' % (i,spwn.id,spwn.type_id,spwnRand[i],destRand[i],spwnTime[i+1]))
                             i += 1
 
                             if plot == 1:
@@ -369,7 +386,7 @@ def main(cr_method = "OAADMM", ctrlPolicy = "OAMPC", PriorityPolicy = "PriorityS
             for actor in actorDict_obj.actor_list:
                 if actor.get_location().distance(carla.Location(x=-150, y=-35, z=0.3)) > 38 and actor.get_location().distance(carla.Location(x=0, y=0, z=0)) > 5:
                     if logging == 1:
-                        print('[',actorDict_obj.dict.get(actor.id)._spwnNr,',',actor.id,'] left the area at (', round(actor.get_location().x,2),', ',round(actor.get_location().y,2), '), elapsed time: ', round(ts.elapsed_seconds-ts0s), "s",sep='')
+                        print('[',actorDict_obj.dict.get(actor.id)._spwnNr,',',actor.id,'] left the area at (', round(actor.get_location().x,2),', ',round(actor.get_location().y,2), '), simulation time: ', round(ts.elapsed_seconds-ts0s,2), 's, travel time: ',round(ts.elapsed_seconds-ts0s - spwnTime[actorDict_obj.dict.get(actor.id)._spwnNr+1],2), sep='')
                     destTime.append(ts.elapsed_seconds-ts0s)
                     actorDict_obj.actor_list.remove(actor)
                     del actorDict_obj.dict[actor.id]
@@ -459,6 +476,9 @@ def main(cr_method = "OAADMM", ctrlPolicy = "OAMPC", PriorityPolicy = "PriorityS
         spwnTime.remove(-spwnInterval)
         destTime.remove(-1)
         data = zip(spwnRand,destRand,spwnTime,destTime)
+        if scenario == 9:
+            cr_method == 'No'
+            ctrlPolicy == 'Conflict'
         filename = str(cr_method) + "_" + str(ctrlPolicy) + "_" + str(totalVehicle).zfill(3) + "_" + str(scenario) + "_" + str(spwnInterval)+ "_" + str(randomSeed).zfill(6) + "_" + f'{errMargin:.1f}'.zfill(2) + "_" + datetime.datetime.now().strftime('%Y-%m-%d-%H-%M.csv')
         dirname = './data/'
         with open(dirname+filename, 'w') as log:

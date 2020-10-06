@@ -66,9 +66,9 @@ class oa_mpc:
         self.d_min = d_min
         self.d_mult = d_mult
         # Vehicle porperties
-        self.deltaMax = (np.pi*4)/9*1
+        self.deltaMax = (np.pi*4)/9
         self.ddeltaMax = self.deltaMax*1 # (self.dt/0.125)   # Maximum steering angle change per step, number is amount of seconds per full rotation
-        self.w_prev = 2.5 # Penalty term for deviating from previous result
+        self.w_prev = 1 # Penalty term for deviating from previous result
         # Not configurable
         self.nx = 3                     # Number of states
         self.nu = 2                     # Number of inputs
@@ -116,26 +116,40 @@ class oa_mpc:
         ueq = leq
 
         # Input constraints 
-        umin = np.array([-5, -self.deltaMax])
-        umax = np.array([2, self.deltaMax])
+        umin = np.array([-4, -self.deltaMax])
+        umax = np.array([2.25, self.deltaMax])
         # Ineq constraints, collision avoidance
         xmin = np.array([-np.inf,-np.inf,-0.1])
-        xmax = np.array([np.inf,np.inf,9.5])
+        xmax = np.array([np.inf,np.inf,9.25])
         Aineq = sparse.eye((self.N+1)*self.nx + self.N*self.nu)
-        lineq = np.hstack([np.kron(np.ones(self.N+1), xmin), np.kron(np.ones(self.N), umin)])
-        uineq = np.hstack([np.kron(np.ones(self.N+1), xmax), np.kron(np.ones(self.N), umax)])
 
+        umin_vec = np.empty(self.N*2)
+        umax_vec = np.empty(self.N*2)
+        # Assign different weight depending on action
+        if egoX.action in ['R','L']:
+            umin_vec[0::2] = np.ones(self.N) * umin[0]
+            umin_vec[1::2] = np.linspace(0.75,3,self.N) * umin[1]
+            umax_vec[0::2] = np.ones(self.N) * umax[0]
+            umax_vec[1::2] = np.linspace(0.75,3,self.N) * umax[1]
+            Q = sparse.diags([35.0, 225.0, 6.5])
+            R = sparse.diags([2.5, 5.0])
+        else:   
+            umin_vec[0::2] = np.ones(self.N) * umin[0]
+            umin_vec[1::2] = np.linspace(0.75,1.25,self.N) * umin[1]
+            umax_vec[0::2] = np.ones(self.N) * umax[0]
+            umax_vec[1::2] = np.linspace(0.75,1.25,self.N) * umax[1]
+            Q = sparse.diags([5.0, 200.0, 7.5])
+            R = sparse.diags([1.25, 25.0])
+        lineq = np.hstack([np.kron(np.ones(self.N+1), xmin), umin_vec])
+        uineq = np.hstack([np.kron(np.ones(self.N+1), xmax), umax_vec])
         # Cost function
-        Q = sparse.diags([15.0, 175.0, 2.5])
-        R = sparse.diags([5.0, 35.0])
         x_ref = np.linspace([0,0,self.x0[2]],[1,1,self.v_ref],self.N+1).flatten()
-
         # Cast MPC problem to a QP: x = (x(0),x(1),...,x(N),u(0),...,u(N-1))
         # - quadratic objective
-        self.P_Q = sparse.block_diag([sparse.kron(sparse.diags(np.linspace(1,1.1,self.N+1)), Q), sparse.kron(sparse.diags(np.linspace(1,1.1,self.N)), R,format='csc')], format='csc') 
+        self.P_Q = sparse.block_diag([sparse.kron(sparse.diags(np.linspace(1,2,self.N+1)), Q), sparse.kron(sparse.diags(np.linspace(1,1.5,self.N)), R,format='csc')], format='csc') 
         P = self.P_Q        
         # - linear objective
-        self.lambda_ref = np.kron(np.linspace(1,1.1,self.N+1), Q.diagonal())
+        self.lambda_ref = np.kron(np.linspace(1,2,self.N+1), Q.diagonal())
         q = np.hstack([np.multiply(self.lambda_ref,-x_ref), self.nucZ])         
 
         A = sparse.vstack([Aeq, Aineq], format='csc')
