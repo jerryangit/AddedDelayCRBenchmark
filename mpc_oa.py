@@ -68,7 +68,7 @@ class oa_mpc:
         # Vehicle porperties
         self.deltaMax = (np.pi*4)/9
         self.ddeltaMax = self.deltaMax*1 # (self.dt/0.125)   # Maximum steering angle change per step, number is amount of seconds per full rotation
-        self.w_prev = 5 # Penalty term for deviating from previous result
+        self.w_prev = 10 # Penalty term for deviating from previous result
         # Not configurable
         self.nx = 3                     # Number of states
         self.nu = 2                     # Number of inputs
@@ -131,8 +131,8 @@ class oa_mpc:
             umin_vec[1::2] = np.linspace(0.75,3,self.N) * umin[1]
             umax_vec[0::2] = np.ones(self.N) * umax[0]
             umax_vec[1::2] = np.linspace(0.75,3,self.N) * umax[1]
-            Q = sparse.diags([35.0, 150.0, 35.0])
-            R = sparse.diags([2.5, 55.0])
+            Q = sparse.diags([35.0, 160.0, 35.0])
+            R = sparse.diags([1.25, 75.0])
         else:   
             umin_vec[0::2] = np.ones(self.N) * umin[0]
             umin_vec[1::2] = np.linspace(0.75,1.,self.N) * umin[1]
@@ -146,10 +146,10 @@ class oa_mpc:
         x_ref = np.linspace([0,0,self.x0[2]],[1,1,self.v_ref],self.N+1).flatten()
         # Cast MPC problem to a QP: x = (x(0),x(1),...,x(N),u(0),...,u(N-1))
         # - quadratic objective
-        self.P_Q = sparse.block_diag([sparse.kron(sparse.diags(np.linspace(1,2,self.N+1)), Q), sparse.kron(sparse.diags(np.linspace(1,1.5,self.N)), R,format='csc')], format='csc') 
+        self.P_Q = sparse.block_diag([sparse.kron(sparse.diags(np.linspace(1,1.75,self.N+1)), Q), sparse.kron(sparse.diags(np.linspace(1,1.5,self.N)), R,format='csc')], format='csc') 
         P = self.P_Q        
         # - linear objective
-        self.lambda_ref = np.kron(np.linspace(1,2,self.N+1), Q.diagonal())
+        self.lambda_ref = np.kron(np.linspace(1,1.75,self.N+1), Q.diagonal())
         q = np.hstack([np.multiply(self.lambda_ref,-x_ref), self.nucZ])         
 
         A = sparse.vstack([Aeq, Aineq], format='csc')

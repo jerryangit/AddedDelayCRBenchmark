@@ -410,7 +410,7 @@ class OAADMM:
         self.d_phi = 1.25
         self.d_mult = 1.25
         self.rho_base = 1
-        self.phi_a = 1.6
+        self.phi_a = 1.75
         self.mu_0 = 32/32
         self.N = 20                         # Prediction horizon
         self.mcN_Dist = self.N*self.dt*4*2  # Distance at vehicle is added to mcN
@@ -513,7 +513,7 @@ class OAADMM:
         self.x_J[egoX.id] = self.x_i
 
         # Plot vehicle nr x if True
-        if False and egoX._spwnNr == 2:
+        if False and egoX._spwnNr == 3:
             plt.figure(1)
             plt.gca().clear()        
             plt.title(str(egoX.id)+'MPC steps')

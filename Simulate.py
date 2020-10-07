@@ -49,7 +49,7 @@ if not os.path.exists('./recordings'):
 # def main(cr_method = "AMPIP", ctrlPolicy = "MPIPControl", PriorityPolicy = "FCFS",totalVehicle = 128, scenario = 0, spwnInterval = 0.8, randomSeed = 469730,logging = 1):
 # def main(cr_method = "AMPIP", ctrlPolicy = "MPIPControl", PriorityPolicy = "FCFS",totalVehicle = 128, scenario = 0, spwnInterval = 1.2, randomSeed = 960489,logging = 1):
 
-def main(cr_method = "OAADMM", ctrlPolicy = "OAMPC", PriorityPolicy = "PriorityScore",totalVehicle = 16, scenario = 8, spwnInterval = 30, randomSeed = 885441, preGenRoute = 1, logging = 1, errMargin = 0.5, recordName = 'record_OAADMM_20_10_05_1.log', parg = None):
+def main(cr_method = "OAADMM", ctrlPolicy = "OAMPC", PriorityPolicy = "PriorityScore",totalVehicle = 64, scenario = 8, spwnInterval = 30, randomSeed = 885441, preGenRoute = 1, logging = 1, errMargin = 0.5, recordName = 'record_OAADMM_20_10_05_1.log', parg = None):
     ###############################################
     # Config
     ###############################################  
@@ -254,15 +254,10 @@ def main(cr_method = "OAADMM", ctrlPolicy = "OAMPC", PriorityPolicy = "PriorityS
         # Integrate into map object?
         # Map Locations, spwnLoc contains loc, 0= intersec, 1 = N, 2 = E, 3 = S, 4 = W.
         intersection = carla.Transform(carla.Location(x=-150.0, y=-35.0, z=0.3), carla.Rotation(yaw=180))
-        # northSpawn = carla.Transform(carla.Location(x=-151.9, y=-70.0, z=0.272), carla.Rotation(yaw=90))
-        # eastSpawn = carla.Transform(carla.Location(x=-115.0, y=-36.6, z=0.265), carla.Rotation(yaw=-180))
-        # southSpawn = carla.Transform(carla.Location(x=-148.49, y=0.0, z=0.31), carla.Rotation(yaw=-90))
-        # westSpawn = carla.Transform(carla.Location(x=-185.0, y=-33.3, z=0.01), carla.Rotation(yaw=0))
-        northSpawn = carla.Transform(carla.Location(x=-151.49, y=-69.7, z=0.271), carla.Rotation(yaw=90))
-        eastSpawn = carla.Transform(carla.Location(x=-115.05, y=-36.4, z=0.104), carla.Rotation(yaw=-180))
+        northSpawn = carla.Transform(carla.Location(x=-151.49, y=-70.0, z=0.271), carla.Rotation(yaw=90))
+        eastSpawn = carla.Transform(carla.Location(x=-115.0, y=-36.4, z=0.104), carla.Rotation(yaw=-180))
         southSpawn = carla.Transform(carla.Location(x=-149.05, y=00.0, z=0.305), carla.Rotation(yaw=-90))
-        westSpawn = carla.Transform(carla.Location(x=-184.0, y=-33.7, z=0.0112), carla.Rotation(yaw=0))
-
+        westSpawn = carla.Transform(carla.Location(x=-185.0, y=-33.7, z=0.0112), carla.Rotation(yaw=0))
 
         spwnLoc = [intersection,northSpawn,eastSpawn,southSpawn,westSpawn]
         
