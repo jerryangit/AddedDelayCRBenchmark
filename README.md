@@ -3,6 +3,8 @@ This repository includes the benchmarks made for the thesis project of Jerry An 
 
 **See OA-ADMM Branch for implementation with OA-ADMM !Master Branch is behind!**
 
+**This version is made for CARLA 0.9.6 which has a bug which results in no performance increase for no_rendering_mode**
+
 ## Requirements:
 * CARLA Version 0.9.6 (including Town07)
 * Python 3.7.9
