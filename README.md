@@ -12,6 +12,8 @@ Clone the repository into your PythonAPI folder (i.e. 'PythonAPI/AddedDelayCRBen
 1. Run CARLA with a fixed timestep equal to that used in 'Simulate.py'.
 2. Run the benchmark using Simulate.py or run multiple at once using 'runSimulations.py'
 
+See comments in source code for details on how to adjust conflict resolution methods.
+
 ## Executable Python files
 
 ### Simulate.py
@@ -28,6 +30,9 @@ Gets the added delay metrics
 
 ### plotData.py
 Plot data for benchmarks
+
+### playRecordings.py
+Used to replay the CARLA recordings
 
 ## Modules
 
@@ -50,10 +55,17 @@ Contains the various deadlock detection methods.
 Contains the various priority policies.
 
 ### mpc.py
-Contains the mpc used by TDCR.
+Contains the mpc used by TDCR, uses cvxopt (suboptimal performance).
+
+### mpc_oa.py
+Contains the mpc used by OA-ADMM, uses osqp (faster but poor documentation and issues with scaling
+
 
 ## Other files
+
 ### pathPlanner.py
 Replaced by carla GlobalRoutePlanner
 
+### osqpTest.py
+File used to test osqp
 
