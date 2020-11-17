@@ -1,7 +1,7 @@
 # AddedDelayCRBenchamrk
 This repository includes the benchmarks made for the thesis project of Jerry An (Decentralized Conflict Resolution for Autonomous Vehicles) using the CARLA PythonAPI.
 
-**See OA-ADMM Branch for implementation with OA-ADMM**
+**See OA-ADMM Branch for implementation with OA-ADMM !Master Branch is out of date!**
 
 ## Requirements:
 * CARLA Version 0.9.6 (including Town07)
