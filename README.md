@@ -1,3 +1,5 @@
+[![OA-ADMM MPC CR](https://img.youtube.com/vi/mo7TFlGq8yI/0.jpg)](https://www.youtube.com/watch?v=mo7TFlGq8yI)
+
 # # AddedDelayCRBenchamrk
 This repository includes the benchmarks made for the thesis project of Jerry An (Decentralized Conflict Resolution for Autonomous Vehicles) using the CARLA PythonAPI.
 
